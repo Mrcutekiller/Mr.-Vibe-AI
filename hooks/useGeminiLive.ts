@@ -6,7 +6,6 @@ import { Personality, AppSettings, User } from '../types';
 import { BASE_SYSTEM_PROMPT } from '../constants';
 
 interface UseGeminiLiveProps {
-  apiKey: string;
   personality: Personality;
   settings: AppSettings;
   user: User;
@@ -15,7 +14,6 @@ interface UseGeminiLiveProps {
 }
 
 export const useGeminiLive = ({
-  apiKey,
   personality,
   settings,
   user,
@@ -84,7 +82,8 @@ export const useGeminiLive = ({
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      aiClientRef.current = new GoogleGenAI({ apiKey });
+      // Always instantiate GoogleGenAI right before the call using process.env.API_KEY
+      aiClientRef.current = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
       const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}
       
@@ -107,7 +106,9 @@ export const useGeminiLive = ({
             speechConfig: {
               voiceConfig: { prebuiltVoiceConfig: { voiceName: settings.voiceName || personality.voiceName } }, 
             },
-            inputAudioTranscription: { model: 'gemini-2.5-flash-native-audio-preview-09-2025' },
+            // Guideline: Enable transcription by setting it to an empty object
+            inputAudioTranscription: {},
+            outputAudioTranscription: {},
         },
         callbacks: {
           onopen: () => {
@@ -127,7 +128,8 @@ export const useGeminiLive = ({
               setVolume(Math.sqrt(sum / inputData.length));
               
               const pcmBlob = createPcmBlob(inputData);
-              sessionPromise.then((session: any) => { 
+              // CRITICAL: Solely rely on sessionPromise resolves to call sendRealtimeInput
+              sessionPromise.then((session) => { 
                   sessionRef.current = session;
                   session.sendRealtimeInput({ media: pcmBlob }); 
               });
@@ -150,6 +152,7 @@ export const useGeminiLive = ({
                   source.buffer = audioBuffer;
                   source.connect(ctx.destination);
                   source.addEventListener('ended', () => { sourcesRef.current.delete(source); });
+                  // Schedule the audio chunk to start at nextStartTime for gapless playback
                   source.start(nextStartTimeRef.current);
                   nextStartTimeRef.current += audioBuffer.duration;
                   sourcesRef.current.add(source);
@@ -181,7 +184,7 @@ export const useGeminiLive = ({
       console.error("Connection failed", error);
       disconnect(); 
     }
-  }, [apiKey, personality, settings, user, isLive, isConnecting, onConnectionStateChange, onTranscript, initAudio, disconnect]);
+  }, [personality, settings, user, isLive, isConnecting, onConnectionStateChange, onTranscript, initAudio, disconnect]);
 
   return { connect, disconnect, isLive, isConnecting, volume };
 };
