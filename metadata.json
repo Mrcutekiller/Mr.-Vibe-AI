@@ -1,0 +1,7 @@
+{
+  "name": "Mr. Vibe AI",
+  "description": "Your AI best friend, Mr. Cute. Choose a personality and chat with voice or text.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
