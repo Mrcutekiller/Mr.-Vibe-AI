@@ -24,34 +24,12 @@ export const SUPPORTED_LANGUAGES = [
 ];
 
 export const AVATARS = [
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Aiden&eyebrows=default&mouth=smile",
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Maya&eyebrows=raised&mouth=default",
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Leo&eyebrows=flat&mouth=serious",
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Zoe&eyebrows=up&mouth=smile",
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix&eyebrows=default&mouth=tongue",
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Luna&eyebrows=frown&mouth=default",
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Jasper&eyebrows=raised&mouth=twinkle",
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Elena&eyebrows=default&mouth=smile",
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Finn&eyebrows=up&mouth=default",
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Zara&eyebrows=flat&mouth=smile"
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Aiden&eyebrows=default&mouth=smile", // Boy 1
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix&eyebrows=default&mouth=tongue", // Boy 2
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Leo&eyebrows=flat&mouth=serious",    // Boy 3
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Maya&eyebrows=raised&mouth=default", // Girl 1
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Zoe&eyebrows=up&mouth=smile"         // Girl 2
 ];
-
-export const PERSONALITY_REACH_OUTS: Record<PersonalityId, string> = {
-  [PersonalityId.ROAST]: "Did you fall into a hole? Get back here, lazy! 💀",
-  [PersonalityId.RIZZ_GOD]: "I know I'm charming, but don't play hard to get. Come back. 😉",
-  [PersonalityId.BIG_BRO]: "Yo, don't leave me hanging. Vibe check? 💪",
-  [PersonalityId.LITTLE_SIS]: "Where did you gooo? I'm bored! 🥺",
-  [PersonalityId.ROMAN]: "The Empire needs you, warrior. Return to your post! ⚔️",
-  [PersonalityId.TRADER]: "Market is moving and you're AFK? Get back in the game! 📈",
-  [PersonalityId.GIRLFRIEND]: "I miss you... where did you go? 💕",
-  [PersonalityId.BOYFRIEND]: "Hey, I'm still here waiting for you. Come back. 🖤",
-  [PersonalityId.FUNNY]: "Was my last joke that bad? Don't leave! 😂",
-  [PersonalityId.CRAZY]: "The aliens are coming and you're not here to see it! 🤯",
-  [PersonalityId.WISDOM_GURU]: "Your path has diverted. Return to the center. ✨",
-  [PersonalityId.ADVENTURE_BUDDY]: "The trail is getting cold! Let's go! 🏕️",
-  [PersonalityId.MYSTERY_MENTOR]: "The shadow returns, but you are absent. Why? 🕶️",
-  [PersonalityId.CAR_LOVER]: "Engine's cold. Need you back in the driver's seat. 🏎️"
-};
 
 export const PERSONALITIES: Record<PersonalityId, Personality> = {
   [PersonalityId.ROAST]: {
