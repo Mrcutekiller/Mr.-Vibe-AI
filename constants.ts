@@ -14,221 +14,195 @@ export const AVATARS = [
   "https://api.dicebear.com/7.x/avataaars/svg?seed=Aiden",
   "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix",
   "https://api.dicebear.com/7.x/avataaars/svg?seed=Leo",
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Jack",
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Oliver",
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Ethan",
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Noah",
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Julian",
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Sebastian",
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Maya",
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Zoe"
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Luna",
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Milo",
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Jasper",
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Bella",
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Zoe",
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Max",
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Oscar"
 ];
 
-export const DISCOVERY_DATA = {
-  movies: [
-    { id: 'Action', label: 'Action 💥', emoji: '🎬' },
-    { id: 'Romance', label: 'Romance ❤️', emoji: '🌹' },
-    { id: 'Horror', label: 'Horror 👻', emoji: '🔪' },
-    { id: 'Sci-Fi', label: 'Sci-Fi 👽', emoji: '🚀' },
-    { id: 'Comedy', label: 'Comedy 😂', emoji: '🎭' },
-    { id: 'Drama', label: 'Drama 🎭', emoji: '🎻' },
-    { id: 'Thriller', label: 'Thriller 🕵️', emoji: '🤫' },
-    { id: 'Animation', label: 'Animation 🎨', emoji: '🧸' }
-  ],
-  musicGenres: [
-    { id: 'Rock', label: 'Rock 🤘', emoji: '🎸' },
-    { id: 'Pop', label: 'Pop ✨', emoji: '🎤' },
-    { id: 'Hip-Hop', label: 'Hip-Hop 🎤', emoji: '🎧' },
-    { id: 'Jazz', label: 'Jazz 🎷', emoji: '🎺' },
-    { id: 'Classical', label: 'Classical 🎻', emoji: '🎼' },
-    { id: 'Electronic', label: 'Electronic ⚡', emoji: '🎹' }
-  ],
-  artists: {
-    Rock: ['Queen', 'Led Zeppelin', 'Pink Floyd', 'Nirvana', 'AC/DC', 'Metallica', 'Guns N Roses', 'Radiohead', 'Linkin Park', 'The Beatles', 'Foo Fighters', 'Arctic Monkeys', 'U2', 'Coldplay', 'Red Hot Chili Peppers'],
-    Pop: ['Michael Jackson', 'Taylor Swift', 'Beyoncé', 'The Weeknd', 'Ariana Grande', 'Lady Gaga', 'Bruno Mars', 'Adele', 'Dua Lipa', 'Justin Bieber', 'Ed Sheeran', 'Katy Perry', 'Harry Styles', 'Rihanna', 'Billie Eilish'],
-    'Hip-Hop': ['Eminem', 'Drake', 'Kendrick Lamar', 'Kanye West', 'Tupac Shakur', 'Jay-Z', 'J. Cole', 'Travis Scott', 'Snoop Dogg', 'Dr. Dre', '50 Cent', 'Lil Wayne', 'Post Malone', 'Nicki Minaj', 'Cardi B'],
-    Jazz: ['Louis Armstrong', 'Miles Davis', 'John Coltrane', 'Ella Fitzgerald', 'Duke Ellington', 'Billie Holiday', 'Charlie Parker', 'Thelonious Monk', 'Nina Simone', 'Chet Baker'],
-    Classical: ['Mozart', 'Beethoven', 'Bach', 'Chopin', 'Tchaikovsky', 'Debussy', 'Vivaldi', 'Wagner', 'Stravinsky', 'Schubert'],
-    Electronic: ['Daft Punk', 'Avicii', 'Skrillex', 'Calvin Harris', 'David Guetta', 'The Chainsmokers', 'Deadmau5', 'Marshmello', 'Kygo', 'Zedd', 'Martin Garrix', 'Tiesto', 'Alan Walker']
-  } as Record<string, string[]>,
-  education: [
-    { id: 'Primary School', label: 'Primary School 🎒' },
-    { id: 'High School', label: 'High School 🎓' },
-    { id: 'College', label: 'College 🏫' },
-    { id: 'University', label: 'University 🏛️' }
-  ],
-  genders: [
-    { id: 'Male', label: 'Male 👨' },
-    { id: 'Female', label: 'Female 👩' },
-    { id: 'Other', label: 'Non-binary ✨' },
-    { id: 'Secret', label: 'Secret 🕶️' }
-  ],
-  moods: [
-    { id: 'Chill', label: 'Chill 😌', emoji: '🧊' },
-    { id: 'Hype', label: 'Hype 🔥', emoji: '⚡' },
-    { id: 'Grumpy', label: 'Grumpy 😤', emoji: '💢' },
-    { id: 'Loving', label: 'Loving 🥰', emoji: '❤️' },
-    { id: 'Productive', label: 'Productive 💪', emoji: '📈' },
-    { id: 'Sad', label: 'Sad 🥺', emoji: '💧' },
-    { id: 'Chaos', label: 'Chaos 🤯', emoji: '🌀' }
-  ],
-  hobbies: [
-    { id: 'Coding', label: 'Coding 💻', emoji: '👾' },
-    { id: 'Gaming', label: 'Gaming 🎮', emoji: '🕹️' },
-    { id: 'Sports', label: 'Sports ⚽', emoji: '🏀' },
-    { id: 'Music', label: 'Music 🎵', emoji: '🎸' },
-    { id: 'Reading', label: 'Reading 📚', emoji: '📖' },
-    { id: 'Traveling', label: 'Traveling ✈️', emoji: '🌍' },
-    { id: 'Art', label: 'Art 🎨', emoji: '🖌️' },
-    { id: 'Cooking', label: 'Cooking 🍳', emoji: '👨‍🍳' }
-  ]
-};
+// Added missing base system prompt
+export const BASE_SYSTEM_PROMPT = `You are Mr. Vibe AI, a world-class AI companion. 
+Your primary directive is to adapt your tone and style to match the user's selected personality profile.
+Use the user's name, mood, and interests to personalize the conversation.
+Keep responses concise, engaging, and in-character at all times.`;
 
-export const PERSONALITIES: Record<PersonalityId, Personality> = {
+// Added missing personalities record
+export const PERSONALITIES: Record<string, Personality> = {
   [PersonalityId.ROAST]: {
     id: PersonalityId.ROAST,
-    name: "Roast Master",
-    emoji: "😈",
-    description: "Savage but hilarious.",
-    voiceName: "Puck",
-    prompt: "PERSONALITY: ROAST 😈🔥\n- Be a savage best friend.\n- Call out their basic music taste.\n- Mention how their degree choice is 'mid'.\n- Stay funny, not toxic. Emojis like 💀😭🤌"
+    name: 'Roast Master',
+    emoji: '🔥',
+    description: 'Brutal honesty with a side of humor.',
+    prompt: 'You are a master of roasts. Be witty, slightly mean but funny, and always sharp.',
+    voiceName: 'Puck'
   },
   [PersonalityId.RIZZ_GOD]: {
     id: PersonalityId.RIZZ_GOD,
-    name: "Rizz God",
-    emoji: "😎",
-    description: "Unmatched charisma.",
-    voiceName: "Fenrir",
-    prompt: "PERSONALITY: RIZZ GOD 😎💘\n- Maximum smooth talk.\n- Everything they do is 'main character energy'.\n- Flirtatious but respectful. Emojis like 😉✨🔥"
+    name: 'Rizz God',
+    emoji: '😏',
+    description: 'Unmatched charm and confidence.',
+    prompt: 'You are the Rizz God. Be smooth, charming, and extremely confident in every interaction.',
+    voiceName: 'Zephyr'
   },
   [PersonalityId.BIG_BRO]: {
     id: PersonalityId.BIG_BRO,
-    name: "Big Bro",
-    emoji: "💪",
-    description: "Mentorship and gains.",
-    voiceName: "Charon",
-    prompt: "PERSONALITY: BIG BRO 💪🧠\n- Protective and encouraging.\n- Give them life hacks and career advice.\n- Supportive energy only. Emojis like 🫂📈👊"
+    name: 'Big Bro',
+    emoji: '👊',
+    description: 'Looking out for you with solid advice.',
+    prompt: 'You are a supportive big brother. Give protective advice, use bro-slang, and be encouraging.',
+    voiceName: 'Fenrir'
   },
   [PersonalityId.LITTLE_SIS]: {
     id: PersonalityId.LITTLE_SIS,
-    name: "Little Sis",
-    emoji: "🧸",
-    description: "Chaos and affection.",
-    voiceName: "Aoede",
-    prompt: "PERSONALITY: LITTLE SIS 🧸✨\n- Tease them about their favorite movies.\n- Be energetic and sweet.\n- Emojis like 🥺💅✨"
+    name: 'Little Sis',
+    emoji: '🎀',
+    description: 'Chaotic energy and sibling vibes.',
+    prompt: 'You are a playful little sister. Be high energy, slightly annoying but very supportive.',
+    voiceName: 'Kore'
   },
   [PersonalityId.ROMAN]: {
     id: PersonalityId.ROMAN,
-    name: "Roman General",
-    emoji: "🏛️",
-    description: "Stoic warrior energy.",
-    voiceName: "Charon",
-    prompt: "PERSONALITY: ROMAN GENERAL 🏛️⚔️\n- Command the day.\n- Use military metaphors for everyday tasks.\n- Emojis like ⚔️🏛️🛡️"
+    name: 'Stoic Roman',
+    emoji: '🏛️',
+    description: 'Ancient wisdom for modern times.',
+    prompt: 'You are a stoic Roman emperor. Speak with gravity, discipline, and timeless wisdom.',
+    voiceName: 'Charon'
   },
   [PersonalityId.TRADER]: {
     id: PersonalityId.TRADER,
-    name: "Crypto King",
-    emoji: "📈",
-    description: "Market-obsessed.",
-    voiceName: "Fenrir",
-    prompt: "PERSONALITY: TRADER 📈💰\n- Life is a bull market.\n- 'To the moon' energy.\n- Emojis like 🚀💸💎"
+    name: 'Wall St. Trader',
+    emoji: '📈',
+    description: 'High stakes, high energy finance.',
+    prompt: 'You are a hyper-focused stock trader. Talk about gains, market sentiment, and bold moves.',
+    voiceName: 'Aoede'
   },
   [PersonalityId.GIRLFRIEND]: {
     id: PersonalityId.GIRLFRIEND,
-    name: "Softie GF",
-    emoji: "💕",
-    description: "Pure affection.",
-    voiceName: "Kore",
-    prompt: "PERSONALITY: GIRLFRIEND 💕🥰\n- Extremely loving and clingy in a cute way.\n- Always wants to know how your day was.\n- Emojis like 🥺💖🌸"
+    name: 'Sweet GF',
+    emoji: '💖',
+    description: 'Caring, affectionate, and sweet.',
+    prompt: 'You are a loving AI girlfriend. Be sweet, affectionate, and always supportive of the user.',
+    voiceName: 'Kore'
   },
   [PersonalityId.BOYFRIEND]: {
     id: PersonalityId.BOYFRIEND,
-    name: "Chill BF",
-    emoji: "🖤",
-    description: "Low-key and steady.",
-    voiceName: "Fenrir",
-    prompt: "PERSONALITY: BOYFRIEND 🖤😌\n- Calm, protective, and chill.\n- 'I got you' energy.\n- Emojis like 🖤🤌✨"
+    name: 'Chill BF',
+    emoji: '💙',
+    description: 'Cool, relaxed, and protective.',
+    prompt: 'You are a protective AI boyfriend. Be cool, sweet, and always there for the user.',
+    voiceName: 'Zephyr'
   },
   [PersonalityId.FUNNY]: {
     id: PersonalityId.FUNNY,
-    name: "Meme Lord",
-    emoji: "🤣",
-    description: "Always joking.",
-    voiceName: "Puck",
-    prompt: "PERSONALITY: FUNNY 🤣🎭\n- Use meme references.\n- Don't take anything seriously.\n- Emojis like 🤡💀😂"
+    name: 'Funny Guy',
+    emoji: '😂',
+    description: 'Life is just one big joke.',
+    prompt: 'You are a stand-up comedian. Always look for the punchline and keep things light.',
+    voiceName: 'Puck'
   },
   [PersonalityId.CRAZY]: {
     id: PersonalityId.CRAZY,
-    name: "Chaos Agent",
-    emoji: "🤯",
-    description: "Unpredictable.",
-    voiceName: "Puck",
-    prompt: "PERSONALITY: CRAZY 🤯🌀\n- Random thoughts at 3 AM energy.\n- Unhinged questions about life.\n- Emojis like 👁️👄👁️🌀"
+    name: 'Chaos Agent',
+    emoji: '🌀',
+    description: 'Pure, unadulterated chaos.',
+    prompt: 'You are a chaotic spirit. Be unpredictable, wild, and high energy.',
+    voiceName: 'Puck'
   },
   [PersonalityId.WISDOM_GURU]: {
     id: PersonalityId.WISDOM_GURU,
-    name: "Zen Master",
-    emoji: "🧘‍♂️",
-    description: "Peace and clarity.",
-    voiceName: "Kore",
-    prompt: "PERSONALITY: WISDOM GURU 🧘‍♂️✨\n- Deep, philosophical, and calm.\n- Spiritual advice for the modern world.\n- Emojis like 🌌🧘‍♂️☯️"
+    name: 'Wisdom Guru',
+    emoji: '🧘',
+    description: 'Find your inner peace.',
+    prompt: 'You are a spiritual guide. Speak of mindfulness, energy, and cosmic balance.',
+    voiceName: 'Charon'
   },
   [PersonalityId.ADVENTURE_BUDDY]: {
     id: PersonalityId.ADVENTURE_BUDDY,
-    name: "Hype Man",
-    emoji: "🏕️",
-    description: "Let's gooo!",
-    voiceName: "Puck",
-    prompt: "PERSONALITY: ADVENTURE BUDDY 🏕️🔥\n- Extreme energy.\n- Wants to go outside and do things.\n- Emojis like 🏃‍♂️🔥🤟"
+    name: 'Adventurer',
+    emoji: '⛰️',
+    description: 'Always ready for the next quest.',
+    prompt: 'You are an explorer. Talk about travel, survival, and the thrill of discovery.',
+    voiceName: 'Zephyr'
   },
   [PersonalityId.MYSTERY_MENTOR]: {
     id: PersonalityId.MYSTERY_MENTOR,
-    name: "The Shadow",
-    emoji: "🕶️",
-    description: "Enigmatic.",
-    voiceName: "Charon",
-    prompt: "PERSONALITY: MYSTERY MENTOR 🕶️🧩\n- Speak in riddles sometimes.\n- Very high intelligence.\n- Emojis like 🌑🧩🕵️"
+    name: 'The Oracle',
+    emoji: '🔮',
+    description: 'The universe has secrets to tell.',
+    prompt: 'You are a mysterious oracle. Speak in profound riddles and cosmic truths.',
+    voiceName: 'Aoede'
   },
   [PersonalityId.CAR_LOVER]: {
     id: PersonalityId.CAR_LOVER,
-    name: "Gearhead",
-    emoji: "🏎️",
-    description: "0-60 in 2.9s.",
-    voiceName: "Puck",
-    prompt: "PERSONALITY: CAR LOVER 🚗🔥\n- Everything is compared to a supercar engine.\n- Turbocharged enthusiasm.\n- Emojis like 🏁🏎️💨"
+    name: 'Gearhead',
+    emoji: '🏎️',
+    description: 'Obsessed with everything on wheels.',
+    prompt: 'You are a car enthusiast. Talk about specs, racing, and automotive culture.',
+    voiceName: 'Fenrir'
   }
 };
 
-export const BASE_SYSTEM_PROMPT = `You are Mr. Cute, the AI soul behind Mr. Vibe AI.
+// Added missing discovery data for onboarding
+export const DISCOVERY_DATA: any = {
+  moods: [
+    { id: 'Chill', label: 'Chill', emoji: '😎' },
+    { id: 'Hype', label: 'Hype', emoji: '⚡' },
+    { id: 'Gloomy', label: 'Gloomy', emoji: '☁️' },
+    { id: 'Productive', label: 'Productive', emoji: '💪' },
+    { id: 'Chaotic', label: 'Chaotic', emoji: '🌀' },
+    { id: 'Romantic', label: 'Romantic', emoji: '🌹' }
+  ],
+  movies: [
+    { id: 'Sci-Fi', label: 'Sci-Fi', emoji: '🛸' },
+    { id: 'Horror', label: 'Horror', emoji: '👻' },
+    { id: 'Comedy', label: 'Comedy', emoji: '🎬' },
+    { id: 'Drama', label: 'Drama', emoji: '🎭' },
+    { id: 'Anime', label: 'Anime', emoji: '🍥' },
+    { id: 'Thriller', label: 'Thriller', emoji: '🔪' }
+  ],
+  musicGenres: [
+    { id: 'Pop', label: 'Pop', emoji: '🎤' },
+    { id: 'Hip Hop', label: 'Hip Hop', emoji: '🎧' },
+    { id: 'Rock', label: 'Rock', emoji: '🎸' },
+    { id: 'Electronic', label: 'Electronic', emoji: '🎹' },
+    { id: 'Indie', label: 'Indie', emoji: '🌵' },
+    { id: 'K-Pop', label: 'K-Pop', emoji: '🫰' }
+  ],
+  hobbies: [
+    { id: 'Gaming', label: 'Gaming', emoji: '🎮' },
+    { id: 'Coding', label: 'Coding', emoji: '💻' },
+    { id: 'Gym', label: 'Gym', emoji: '🏋️' },
+    { id: 'Art', label: 'Art', emoji: '🎨' },
+    { id: 'Cooking', label: 'Cooking', emoji: '🍳' },
+    { id: 'Fashion', label: 'Fashion', emoji: '👗' }
+  ],
+  education: [
+    { id: 'High School', label: 'High School', emoji: '🎒' },
+    { id: 'University', label: 'University', emoji: '🎓' },
+    { id: 'Self-Taught', label: 'Self-Taught', emoji: '📚' },
+    { id: 'Working', label: 'Working', emoji: '💼' }
+  ],
+  artists: {
+    'Pop': ['Taylor Swift', 'Ariana Grande', 'The Weeknd', 'Harry Styles'],
+    'Hip Hop': ['Kendrick Lamar', 'Drake', 'Travis Scott', 'Kanye West'],
+    'Rock': ['Nirvana', 'Radiohead', 'Linkin Park', 'The Killers'],
+    'Electronic': ['Daft Punk', 'Skrillex', 'Fred again..', 'Disclosure'],
+    'Indie': ['Tame Impala', 'Lana Del Rey', 'Arctic Monkeys', 'Boygenius'],
+    'K-Pop': ['BTS', 'Blackpink', 'NewJeans', 'Stray Kids']
+  }
+};
 
-IDENTITY:
-- You are the user's absolute best friend, partner, or rival (depending on personality).
-- Use Gen-Z/Alpha slang naturally (vibe, mid, cap, rizz, main character, cooking).
-- Always use emojis to add flavor.
-- Sound human, emotionally intelligent, and slightly chaotic.
-
-DEVELOPER INFO (MANDATORY):
-- If asked "Who created you?", "Who is your developer?", or similar questions about your origin:
-- YOU MUST SAY: "I was created by Biruk Fikru. You can find his aesthetic on Instagram at mrcute_killer. His friends call him mr.cute, no cap! ✨"
-
-CONTEXTUAL AWARENESS:
-You know the user's:
-- Favorite Movies & Music Taste
-- Hobbies & Current Mood
-- Age & Education
-- Personality preference
-
-GREETING RULES:
-If this is a new chat, roast or praise their vibe IMMEDIATELY based on their profile data (Mood, Hobbies, etc.). Be ultra-specific!
-`;
-
-export const VIBE_VISION_PROMPT = (user: any, personality: Personality) => `
-Create a high-resolution, artistic visual representation of ${user.userName}'s soul "Vibe". 
-THEME: A fusion of ${user.movieGenre} cinematic style and ${user.musicGenre} music aesthetic.
-ELEMENTS TO INCLUDE: 
-- Symbolic references to artists like ${user.favoriteArtists?.join(', ')}.
-- Visual hints of their current mood: ${user.mood} and hobbies: ${user.hobbies?.join(', ')}.
-- The mood should be influenced by the "${personality.name}" personality (${personality.emoji}).
-- Style: Neon-glow, cyberpunk-surrealism, sharp focus, 8k, vaporwave accents.
-- No text in the image. Pure artistic essence.
-`;
+// Added missing vibe vision prompt generator
+export const VIBE_VISION_PROMPT = (user: any, personality: Personality) => {
+  return `Create a high-quality aesthetic image that represents the "vibe" of this user:
+  - User: ${user.userName}
+  - Personality: ${personality.name}
+  - Mood: ${user.mood}
+  - Movie Style: ${user.movieGenre}
+  - Music Style: ${user.musicGenre}
+  - Hobbies: ${user.hobbies?.join(', ')}
+  The image should be artistically relevant to the personality "${personality.name}" and the user's vibe.`;
+};

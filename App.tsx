@@ -10,7 +10,8 @@ import {
   Leaf, Droplets, Share2, ThumbsUp, ThumbsDown, Edit3, Check, Zap, ExternalLink, Activity, Bell, Music, Film, Heart, GraduationCap, Users, Copy, Share, LogOut, AlertOctagon, Key, Wand2, Info, HelpCircle, Eye, EyeOff, Smile, Rocket
 } from 'lucide-react';
 import { PERSONALITIES, BASE_SYSTEM_PROMPT, AVATARS, GEMINI_VOICES, DISCOVERY_DATA, VIBE_VISION_PROMPT } from './constants';
-import { PersonalityId, AppSettings, User, ChatSession, Message, ReactionType, GroundingSource, ApiStatus, Gender } from './types';
+// Added Personality to imports
+import { PersonalityId, Personality, AppSettings, User, ChatSession, Message, ReactionType, GroundingSource, ApiStatus, Gender } from './types';
 import { useGeminiLive } from './hooks/useGeminiLive';
 import { decode, decodeAudioData } from './utils/audioUtils';
 
@@ -521,7 +522,8 @@ export default function App() {
               <button onClick={() => setOnboardingStep(3)} className="flex items-center gap-2 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-blue-500"><ArrowLeft size={16} /> Back</button>
               <h2 className="text-2xl font-black italic text-zinc-900 dark:text-white tracking-tighter text-center">Soul Archetype</h2>
               <div className="grid grid-cols-2 gap-3 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
-                {Object.values(PERSONALITIES).map(p => (
+                {/* Fixed unknown property access on personalities map */}
+                {(Object.values(PERSONALITIES) as Personality[]).map(p => (
                   <button key={p.id} onClick={() => { setTempProfile({...tempProfile, personalityId: p.id}); setSettings(prev => ({ ...prev, personalityId: p.id, voiceName: p.voiceName })); }} className={`p-4 rounded-[1.5rem] border-2 transition-all text-left flex flex-col items-start gap-1 ${tempProfile.personalityId === p.id ? 'bg-blue-600 border-blue-500 text-white shadow-xl scale-[1.02]' : 'bg-zinc-100 dark:bg-zinc-800/40 border-transparent text-zinc-900 dark:text-white hover:bg-zinc-200 dark:hover:bg-zinc-800'}`}>
                     <span className="text-2xl">{p.emoji}</span>
                     <div className="flex flex-col">
@@ -759,7 +761,8 @@ export default function App() {
                 </div>
               </div>
               <div className="space-y-8"><label className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 px-1">Personality Shift</label><div className="grid grid-cols-2 gap-3 md:gap-4 max-h-[35vh] md:max-h-none overflow-y-auto custom-scrollbar">
-                  {Object.values(PERSONALITIES).map(p => (
+                  {/* Fixed unknown property access on personalities map */}
+                  {(Object.values(PERSONALITIES) as Personality[]).map(p => (
                     <button key={p.id} onClick={() => { setSettings({...settings, personalityId: p.id, voiceName: p.voiceName}); showToast(`${p.name} activated! ✨`, "success"); }} className={`flex items-center gap-3 md:gap-4 p-4 md:p-5 rounded-[2rem] border-2 transition-all shadow-sm ${settings.personalityId === p.id ? 'bg-blue-600 border-blue-500 text-white shadow-xl scale-[1.03]' : 'bg-zinc-100 dark:bg-zinc-800 border-transparent text-zinc-900 dark:text-white hover:bg-zinc-200 dark:hover:bg-zinc-800'}`}>
                       <span className="text-xl md:text-2xl">{p.emoji}</span>
                       <div className="flex flex-col text-left">
