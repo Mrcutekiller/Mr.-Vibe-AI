@@ -7,7 +7,7 @@ import {
   User as UserIcon, CheckCircle2, Mail, Lock, Sparkles, 
   ChevronRight, MicOff, MessageSquare, AlertCircle, AlertTriangle, RefreshCw,
   Camera, FileText, Upload, Loader2, Play, Image as ImageIcon, Globe,
-  Leaf, Droplets, Share2, ThumbsUp, ThumbsDown, Edit3, Check, Zap, ExternalLink, Activity, Bell, Music, Film, Heart, GraduationCap, Users, Copy, Share, LogOut, AlertOctagon, Key, Wand2
+  Leaf, Droplets, Share2, ThumbsUp, ThumbsDown, Edit3, Check, Zap, ExternalLink, Activity, Bell, Music, Film, Heart, GraduationCap, Users, Copy, Share, LogOut, AlertOctagon, Key, Wand2, Info, HelpCircle
 } from 'lucide-react';
 import { PERSONALITIES, BASE_SYSTEM_PROMPT, AVATARS, GEMINI_VOICES, DISCOVERY_DATA, VIBE_VISION_PROMPT } from './constants';
 import { PersonalityId, AppSettings, User, ChatSession, Message, ReactionType, GroundingSource, ApiStatus, Gender } from './types';
@@ -17,7 +17,8 @@ import { decode, decodeAudioData } from './utils/audioUtils';
 // --- Utility Components ---
 
 const validateEmail = (email: string) => {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+\.[^\s@]{2,}$/.test(email);
+  // Fixed Regex: Supports standard email formats like user@domain.com
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 };
 
 const Logo = ({ className = "w-12 h-12", animated = false }: { className?: string, animated?: boolean }) => (
@@ -155,7 +156,11 @@ export default function App() {
       throw new Error("Invalid");
     } catch (error: any) {
       setApiStatus('error');
-      showToast("Vibe key rejected. Use a valid Gemini key.", "error");
+      if (error.message.includes('Requested entity was not found')) {
+          showToast("Project not found or billing not enabled. 💳", "error");
+      } else {
+          showToast("Vibe key rejected. Try selecting a paid project key.", "error");
+      }
       return false;
     }
   }
@@ -163,10 +168,11 @@ export default function App() {
   const handleSelectApiKey = async () => {
     if (window.aistudio?.openSelectKey) {
       await window.aistudio.openSelectKey();
-      showToast("Linking your secret sauce...", "info");
-      setTimeout(checkApiConnection, 1500);
+      showToast("Syncing project metadata...", "info");
+      // As per guidelines, assume selection success and move forward
+      setTimeout(checkApiConnection, 1000);
     } else {
-      showToast("Manual key input required in this environment.", "error");
+      showToast("Environment does not support key dialog.", "error");
     }
   };
 
@@ -223,17 +229,11 @@ export default function App() {
     showToast("Vibe copied! ✨", "success");
   };
 
-  // Fix: Added handleShare to enable sharing functionality using native Web Share API or clipboard fallback.
   const handleShare = async (text: string) => {
     if (navigator.share) {
       try {
-        await navigator.share({
-          title: 'Mr. Vibe AI',
-          text: text,
-        });
-      } catch (err) {
-        console.debug('Share cancelled or failed:', err);
-      }
+        await navigator.share({ title: 'Mr. Vibe AI', text: text });
+      } catch (err) { console.debug('Share cancelled'); }
     } else {
       handleCopy(text);
       showToast("Link shared to clipboard! 📋", "success");
@@ -278,7 +278,7 @@ export default function App() {
       }
     } catch (e: any) {
       console.error(e);
-      showToast("Vibe vision glitched. Try again later.", "error");
+      showToast("Vibe vision glitched. Check your project billing.", "error");
     } finally {
       setIsGeneratingVibe(false);
     }
@@ -390,16 +390,23 @@ export default function App() {
               <button onClick={() => { if (!validateEmail(credentials.email)) { showToast("Check that email, chief. 📧", "error"); return; } setOnboardingStep(1.5); }} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 md:py-5 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95">Continue</button>
             </div>
           ) : onboardingStep === 1.5 ? (
-            <div className="space-y-10 animate-slide-in-right">
+            <div className="space-y-8 animate-slide-in-right">
               <button onClick={() => setOnboardingStep(1)} className="flex items-center gap-2 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-blue-500"><ArrowLeft size={16} /> Back</button>
               <div className="space-y-4 text-center">
                 <div className="w-16 h-16 bg-blue-500/10 rounded-[2rem] flex items-center justify-center mx-auto text-blue-600 mb-6 animate-pulse"><Key size={32} /></div>
                 <h2 className="text-2xl md:text-3xl font-black italic text-zinc-900 dark:text-white tracking-tighter">Enter Vibe Key</h2>
-                <p className="text-zinc-500 text-sm font-medium px-4">Mr. Cute needs a Gemini API key to operate. Paste yours below to unlock the vibe.</p>
+                <p className="text-zinc-500 text-sm font-medium px-4">Mr. Cute needs a paid Gemini API key to operate. Click below to select or link your project.</p>
               </div>
-              <div className="space-y-4">
-                <button onClick={async () => { await handleSelectApiKey(); setOnboardingStep(2); }} className="w-full bg-zinc-900 dark:bg-white text-white dark:text-black py-4 md:py-5 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3"><Activity size={20} /> Paste/Select API Key</button>
-                <div className="flex items-center justify-center gap-2"><div className={`w-2 h-2 rounded-full ${apiStatus === 'connected' ? 'bg-green-500' : 'bg-rose-500'}`} /><span className="text-[10px] font-black uppercase text-zinc-400 tracking-widest">Connection: {apiStatus.toUpperCase()}</span></div>
+              <div className="space-y-6">
+                <button onClick={async () => { await handleSelectApiKey(); setOnboardingStep(2); }} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-5 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3"><Zap size={22} fill="white" /> Link Gemini API</button>
+                
+                <div className="bg-zinc-100 dark:bg-white/5 p-4 rounded-2xl border border-black/5 dark:border-white/5 space-y-3">
+                    <div className="flex items-center gap-2 text-[10px] font-black uppercase text-zinc-400 tracking-widest"><HelpCircle size={14} /> Stuck?</div>
+                    <p className="text-[11px] text-zinc-500 font-medium text-left">The system requires a key from a <b>paid Google Cloud project</b>. If you see red, ensure your project is linked in the browser's key selector.</p>
+                    <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="flex items-center gap-1 text-[10px] font-black text-blue-500 uppercase tracking-widest hover:underline">View Billing Guide <ExternalLink size={12}/></a>
+                </div>
+
+                <div className="flex items-center justify-center gap-2"><div className={`w-2 h-2 rounded-full ${apiStatus === 'connected' ? 'bg-green-500' : apiStatus === 'checking' ? 'bg-yellow-500 animate-pulse' : 'bg-rose-500'}`} /><span className="text-[10px] font-black uppercase text-zinc-400 tracking-widest">Connection: {apiStatus.toUpperCase()}</span></div>
               </div>
             </div>
           ) : onboardingStep === 2 ? (
@@ -468,4 +475,124 @@ export default function App() {
           <div className="p-6 flex items-center justify-between"><div className="flex items-center gap-3"><Logo className="w-8 h-8" /><h2 className="text-2xl font-black italic tracking-tighter uppercase text-zinc-900 dark:text-white leading-none">History</h2></div><button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-zinc-500 p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors"><X size={20}/></button></div>
           <div className="px-6 pb-6"><button onClick={handleNewChat} className="w-full flex items-center justify-center gap-3 bg-blue-600 text-white py-4 rounded-2xl font-black shadow-xl hover:bg-blue-500 transition-all active:scale-95"><Plus size={18} /> New Vibe</button></div>
           <div className="flex-1 overflow-y-auto px-4 space-y-3 custom-scrollbar">
-            {sessions.map(s => (<div key={s.id} className="group relative"><div onClick={() => { setActiveSessionId(s.id); setIsSidebarOpen(false); }} className={`p-4
+            {sessions.map(s => (<div key={s.id} className="group relative"><div onClick={() => { setActiveSessionId(s.id); setIsSidebarOpen(false); }} className={`p-4 pr-12 rounded-[1.8rem] cursor-pointer transition-all border ${activeSessionId === s.id ? 'bg-blue-600/10 border-blue-500/30 shadow-md' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800 border-transparent'}`}><div className="flex items-center gap-3"><MessageSquare size={16} className={activeSessionId === s.id ? 'text-blue-500' : 'text-zinc-500'} /><p className={`font-bold text-xs truncate ${activeSessionId === s.id ? 'text-blue-600 dark:text-blue-400' : 'text-zinc-600 dark:text-zinc-400'}`}>{s.title}</p></div></div><button onClick={(e) => { e.stopPropagation(); handleDeleteSession(s.id); }} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all"><Trash2 size={16} /></button></div>))}
+          </div>
+          <div className="p-6 border-t border-zinc-100 dark:border-white/5 space-y-4"><button onClick={() => setSettings(s => ({...s, theme: s.theme === 'dark' ? 'light' : 'dark'}))} className="w-full flex items-center justify-between p-4 bg-zinc-100 dark:bg-zinc-800 rounded-2xl font-black text-[10px] uppercase tracking-widest text-zinc-900 dark:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all">{settings.theme === 'dark' ? <><Moon size={16} /> Night Mode</> : <><Sun size={16} /> Day Mode</>}</button></div>
+        </div>
+      </div>
+
+      <div className="flex-1 flex flex-col relative h-full overflow-hidden w-full">
+        <header className="px-4 md:px-8 py-4 border-b border-zinc-100 dark:border-white/5 flex items-center justify-between bg-white/70 dark:bg-black/60 backdrop-blur-3xl sticky top-0 z-[300] w-full">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setIsSidebarOpen(true)} className="p-2.5 bg-zinc-100 dark:bg-zinc-800 rounded-2xl md:hidden text-zinc-900 dark:text-white shadow-sm hover:text-blue-500 transition-colors"><Menu size={22} /></button>
+            <div className="flex items-center gap-2 cursor-pointer group" onClick={() => setIsProfileModalOpen(true)}>
+              <div className="relative"><img src={user?.avatarUrl} className="w-9 h-9 md:w-11 md:h-11 rounded-[1rem] md:rounded-[1.4rem] border-2 border-white dark:border-zinc-800 shadow-lg group-hover:scale-110 transition-transform" alt="Avatar" /><div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-zinc-900 shadow-sm ${apiStatus === 'connected' ? 'bg-green-500' : apiStatus === 'checking' ? 'bg-yellow-500' : 'bg-rose-500 animate-pulse'}`} /></div>
+              <div className="hidden sm:block"><h1 className="text-sm font-black text-zinc-900 dark:text-white tracking-tight">{user?.userName}</h1><p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mt-0.5">Aura: {user?.personalityId}</p></div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 md:gap-4">
+            <button onClick={handleGenerateVibeArt} className="hidden lg:flex px-5 py-2.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all items-center gap-2 shadow-sm border border-black/5 dark:border-white/5"><Wand2 size={16} /> Vibe Vision</button>
+            <button onClick={() => setIsNotifOpen(true)} className={`p-2.5 md:p-3 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-blue-500 transition-all relative ${notifications.length > 0 && 'animate-vibe-in'}`}><Bell size={22} />{notifications.length > 0 && <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white dark:border-zinc-800" />}</button>
+            <button onClick={connectLive} className="p-2.5 md:p-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl shadow-xl hover:rotate-12 active:scale-90 transition-all"><Mic size={22} /></button>
+          </div>
+        </header>
+
+        {isNotifOpen && (
+          <div className="fixed inset-0 z-[2000] bg-black/80 backdrop-blur-xl animate-fade-in flex flex-col justify-end sm:justify-center p-0 sm:p-6" onClick={() => setIsNotifOpen(false)}>
+            <div className="w-full max-w-lg mx-auto bg-white dark:bg-zinc-900 rounded-t-[3rem] sm:rounded-[3rem] p-8 space-y-8 animate-slide-up shadow-3xl" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-center"><div className="flex items-center gap-4"><Logo className="w-10 h-10" /><h2 className="text-2xl font-black italic uppercase tracking-tighter text-zinc-900 dark:text-white leading-none">Vibe Log</h2></div><button onClick={() => setIsNotifOpen(false)} className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-2xl hover:bg-rose-500 hover:text-white transition-all"><X size={24}/></button></div>
+              <div className="space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar pr-2">
+                {notifications.length === 0 ? <div className="py-20 text-center"><p className="text-zinc-400 font-black uppercase tracking-widest text-xs">Nothing but silence.</p></div> : notifications.map(n => (<div key={n.id} className="flex gap-4 items-start border-b border-zinc-100 dark:border-white/5 pb-5 last:border-0"><div className={`w-3 h-3 rounded-full mt-1.5 shrink-0 ${n.type === 'error' ? 'bg-rose-500' : n.type === 'success' ? 'bg-green-500' : 'bg-blue-500'}`} /><div className="flex-1"><p className="text-base sm:text-sm font-bold text-zinc-900 dark:text-zinc-200 leading-snug">{n.text}</p><p className="text-[10px] text-zinc-400 uppercase font-black tracking-tight mt-1">{new Date(n.time).toLocaleTimeString()}</p></div></div>))}
+              </div>
+              <button onClick={() => setNotifications([])} className="w-full py-5 bg-rose-500/10 text-rose-500 font-black uppercase tracking-widest rounded-3xl hover:bg-rose-500 hover:text-white transition-all">Clear Sync Log</button>
+            </div>
+          </div>
+        )}
+
+        <main className="flex-1 overflow-y-auto px-4 md:px-12 py-6 md:py-10 custom-scrollbar bg-zinc-50 dark:bg-[#050505] w-full">
+          <div className="max-w-3xl mx-auto flex flex-col gap-8 md:gap-12 pb-32">
+            {messages.length === 0 && !isLoading ? (
+              <div className="min-h-[60vh] flex flex-col items-center justify-center text-center space-y-8 animate-vibe-in">
+                <Logo className="w-20 h-20 md:w-24 md:h-24" animated />
+                <div className="space-y-3">
+                  <h2 className="text-3xl md:text-4xl font-black text-zinc-900 dark:text-white italic tracking-tighter uppercase leading-none">Mr. Cute is in.</h2>
+                  <p className="text-sm font-medium text-zinc-500 max-w-xs mx-auto">Tuned into your ${user?.musicGenre} and ${user?.movieGenre} vibe. Ready to cook?</p>
+                </div>
+                <div className="flex gap-4">
+                  <button onClick={handleGenerateVibeArt} className="px-8 py-4 bg-zinc-900 dark:bg-white text-white dark:text-black rounded-2xl font-black uppercase tracking-widest shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-3"><Wand2 size={20} /> Vibe Vision</button>
+                  <button onClick={connectLive} className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-3"><Mic size={20} /> Talk Live</button>
+                </div>
+              </div>
+            ) : messages.map((msg, idx) => (
+              <div key={msg.id} className={`flex w-full group ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-vibe-in`} style={{ animationDelay: `${idx * 0.05}s` }}>
+                <div className={`flex items-end gap-2 md:gap-3 max-w-[95%] sm:max-w-[85%] md:max-w-[75%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                  {msg.role === 'model' && (<div className="w-8 h-8 md:w-10 md:h-10 rounded-[0.8rem] md:rounded-[1.2rem] bg-blue-500/10 flex items-center justify-center text-lg md:text-xl shrink-0 overflow-hidden shadow-sm border border-zinc-100 dark:border-white/5"><span>{currentPersonality.emoji}</span></div>)}
+                  <div className={`flex flex-col gap-2 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                    <div className={`px-5 py-4 rounded-[1.8rem] md:rounded-[2.4rem] shadow-xl text-[15px] md:text-[1rem] leading-relaxed font-bold relative transition-all ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-br-none shadow-blue-500/10' : 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white border border-zinc-100 dark:border-white/5 rounded-bl-none shadow-zinc-200/50 dark:shadow-black/30'} ${msg.isVibeArt ? 'border-2 border-blue-500/30 ring-4 ring-blue-500/5' : ''}`}>
+                      {msg.image && (
+                        <div className={`mb-4 rounded-xl md:rounded-2xl overflow-hidden shadow-2xl border border-white/10 relative ${msg.isVibeArt ? 'aspect-square' : ''}`}>
+                          <img src={msg.image} alt="Vibe" className="w-full h-auto max-h-[500px] object-cover" />
+                          {msg.isVibeArt && (
+                            <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/20 flex items-center gap-2">
+                               <Sparkles className="text-yellow-400 w-3 h-3" />
+                               <span className="text-[10px] font-black uppercase text-white tracking-widest">Aura Render</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <p className="whitespace-pre-wrap">{msg.text}</p>
+                    </div>
+                    <div className={`flex items-center gap-4 px-2 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}><span className="text-[9px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span><div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all"><button onClick={() => handleReaction(msg.id, 'like')} title="Like" className={`p-1.5 rounded-full transition-all ${msg.reaction === 'like' ? 'text-blue-500 bg-blue-500/10' : 'text-zinc-400 hover:text-blue-500'}`}><ThumbsUp size={14} fill={msg.reaction === 'like' ? 'currentColor' : 'none'} /></button><button onClick={() => handleCopy(msg.text)} title="Copy" className="p-1.5 rounded-full text-zinc-400 hover:text-blue-500"><Copy size={14} /></button><button onClick={() => handleShare(msg.text)} className="p-1.5 rounded-full text-zinc-400 hover:text-blue-500"><Share2 size={14} /></button></div></div>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {isLoading && <TypingIndicator personality={currentPersonality} />}
+            {isGeneratingVibe && <TypingIndicator personality={currentPersonality} label="Manifesting Aura..." />}
+            <div ref={bottomRef} className="h-32" />
+          </div>
+        </main>
+
+        <footer className="px-4 py-8 pointer-events-none absolute bottom-0 left-0 right-0 z-[200]">
+          <div className="max-w-2xl mx-auto flex items-center gap-3 pointer-events-auto w-full">
+            <div className="flex-1 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-3xl flex items-center rounded-[2.5rem] px-4 md:px-6 py-1 border-2 border-zinc-200 dark:border-white/10 focus-within:border-blue-500 transition-all shadow-[0_15px_50px_-10px_rgba(0,0,0,0.2)]">
+              <button onClick={() => fileInputRef.current?.click()} className="text-zinc-400 hover:text-blue-500 transition-colors p-2" title="Upload Image"><ImageIcon size={22} /></button>
+              <input type="file" ref={fileInputRef} className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onload = () => handleSendToAI("", { data: (reader.result as string).split(',')[1], mimeType: file.type, fileName: file.name }); reader.readAsDataURL(file); } }} />
+              <input type="text" placeholder="Drop some heat..." value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} className="w-full bg-transparent py-5 px-3 font-bold outline-none text-zinc-900 dark:text-white text-[16px] placeholder:text-zinc-400 dark:placeholder:text-zinc-600" />
+              <div className="flex items-center gap-1">
+                 <button onClick={handleGenerateVibeArt} className="p-2 text-zinc-400 hover:text-yellow-500 transition-all" title="Vibe Vision"><Wand2 size={24} /></button>
+                 <button onClick={() => handleSendToAI(inputText)} disabled={!inputText.trim() || isLoading} className="ml-1 text-blue-600 disabled:opacity-30 hover:scale-110 active:scale-95 transition-transform p-2"><Send size={26} strokeWidth={2.5}/></button>
+              </div>
+            </div>
+          </div>
+        </footer>
+      </div>
+
+      {isProfileModalOpen && (
+        <div className="fixed inset-0 z-[6000] flex items-center justify-center p-4 md:p-6">
+          <div className="absolute inset-0 bg-black/85 backdrop-blur-2xl animate-fade-in" onClick={() => setIsProfileModalOpen(false)} />
+          <div className="relative w-full max-w-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[3rem] md:rounded-[4rem] p-8 md:p-12 shadow-3xl animate-vibe-in max-h-[95vh] overflow-y-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-10 md:mb-12"><div className="flex items-center gap-4"><Logo className="w-10 h-10" /><h2 className="text-3xl font-black uppercase italic tracking-tighter text-zinc-900 dark:text-white leading-none">Your Essence</h2></div><button onClick={() => setIsProfileModalOpen(false)} className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-2xl text-zinc-900 dark:text-white hover:bg-rose-500 hover:text-white transition-all"><X size={24} strokeWidth={3} /></button></div>
+            <div className="space-y-12">
+              <div className="flex flex-col items-center gap-8 text-center">
+                <div className="relative group"><img src={user?.avatarUrl} className="w-28 h-28 md:w-36 md:h-36 rounded-[2.5rem] md:rounded-[3.5rem] shadow-2xl border-4 border-white dark:border-zinc-800 transition-transform group-hover:scale-105" alt="Avatar" /><div className="absolute -bottom-2 -right-2 bg-blue-600 text-white p-2.5 rounded-xl shadow-lg border-2 border-white dark:border-zinc-900"><Camera size={16} /></div></div>
+                <div className="w-full space-y-6 text-left">
+                  <div className="space-y-2 px-1"><label className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 block">Avatar Alias</label><div className="flex gap-3"><input type="text" value={editUserName} onChange={e => setEditUserName(e.target.value)} className="flex-1 bg-zinc-100 dark:bg-zinc-800 border-2 border-transparent focus:border-blue-500 rounded-2xl py-4 px-6 font-bold outline-none text-zinc-900 dark:text-white transition-all text-base" /><button onClick={handleUpdateUser} className="bg-blue-600 text-white px-6 rounded-2xl hover:bg-blue-500 transition-all active:scale-95 shadow-xl shadow-blue-500/20"><Check size={20} strokeWidth={3} /></button></div></div>
+                  <div className="p-6 md:p-8 bg-zinc-50 dark:bg-zinc-800/40 rounded-[2.5rem] border border-zinc-100 dark:border-white/5 space-y-5">
+                    <div className="flex items-center justify-between"><label className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 block">Vibe Network Key</label><div className={`w-3.5 h-3.5 rounded-full ${apiStatus === 'connected' ? 'bg-green-500 shadow-[0_0_15px_rgba(34,197,94,0.6)]' : apiStatus === 'checking' ? 'bg-yellow-500 animate-pulse' : 'bg-rose-500 animate-pulse'}`} /></div>
+                    <button onClick={handleSelectApiKey} className="w-full flex items-center justify-center gap-3 bg-zinc-900 dark:bg-white text-white dark:text-black py-4.5 rounded-2xl font-black text-xs md:text-sm uppercase tracking-[0.1em] shadow-xl hover:scale-[1.02] active:scale-95 transition-all"><RefreshCw size={18} className={apiStatus === 'checking' ? 'animate-spin' : ''} /> Refresh Soul Link</button>
+                    <div className="flex items-center justify-between px-1"><p className={`text-[10px] font-black uppercase tracking-widest ${apiStatus === 'error' ? 'text-rose-500' : 'text-zinc-400'}`}>Status: {apiStatus.toUpperCase()}</p><a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="text-[10px] font-black text-blue-500 hover:underline uppercase tracking-widest">Billing Info</a></div>
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-8"><label className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 px-1">Personality Shift</label><div className="grid grid-cols-2 gap-3 md:gap-4 max-h-[35vh] md:max-h-none overflow-y-auto custom-scrollbar">
+                  {Object.values(PERSONALITIES).map(p => (<button key={p.id} onClick={() => { setSettings({...settings, personalityId: p.id, voiceName: p.voiceName}); showToast(`${p.name} activated! ✨`, "success"); }} className={`flex items-center gap-3 md:gap-4 p-4 md:p-5 rounded-[2rem] border-2 transition-all shadow-sm ${settings.personalityId === p.id ? 'bg-blue-600 border-blue-500 text-white shadow-xl scale-[1.03]' : 'bg-zinc-100 dark:bg-zinc-800 border-transparent text-zinc-900 dark:text-white hover:bg-zinc-200 dark:hover:bg-zinc-800'}`}><span className="text-xl md:text-2xl">{p.emoji}</span><p className="font-black text-[10px] md:text-xs uppercase tracking-tight leading-none text-left truncate">{p.name}</p></button>))}
+                </div></div>
+              <div className="pt-8"><button onClick={handleLogOut} className="w-full py-6 text-[12px] text-rose-500 font-black uppercase tracking-[0.5em] hover:bg-rose-500/10 rounded-[2.5rem] transition-all border-2 border-rose-500/20 shadow-xl shadow-rose-500/5">Disconnect Permanent</button></div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
