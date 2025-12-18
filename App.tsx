@@ -17,7 +17,6 @@ import { decode, decodeAudioData } from './utils/audioUtils';
 // --- Utility Components ---
 
 const validateEmail = (email: string) => {
-  // Simple but effective regex for real-time validation feedback
   const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return regex.test(email);
 };
@@ -94,7 +93,7 @@ export default function App() {
   
   const [user, setUser] = useState<User | null>(() => JSON.parse(localStorage.getItem('mr_vibe_active_user') || 'null'));
   const [credentials, setCredentials] = useState({ email: '', password: '' });
-  const [manualApiKey, setManualApiKey] = useState('');
+  const [manualApiKey, setManualApiKey] = useState(() => localStorage.getItem('mr_vibe_manual_api_key') || '');
   
   const [tempProfile, setTempProfile] = useState<Partial<User>>({ 
     userName: '', 
@@ -130,6 +129,8 @@ export default function App() {
   const messages = activeSession?.messages || [];
   const currentPersonality = PERSONALITIES[settings.personalityId];
 
+  const currentApiKey = manualApiKey || (typeof process !== 'undefined' ? process.env.API_KEY : '');
+
   const addNotification = (text: string, type: string = 'info') => {
     setNotifications(prev => [{id: Date.now().toString(), text, type, time: Date.now()}, ...prev.slice(0, 19)]);
   };
@@ -140,19 +141,15 @@ export default function App() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  async function checkApiConnection() {
-    // If manual key is provided, we should probably set it to process.env.API_KEY if possible
-    // But since process.env is usually read-only in build, we assume it's injected 
-    // or we'd use a state for the key in a real app. 
-    // For this context, we check the global availability.
-    if (!process.env.API_KEY && !manualApiKey) {
+  async function checkApiConnection(keyToTest?: string) {
+    const key = keyToTest || currentApiKey;
+    if (!key) {
       setApiStatus('error');
       return false;
     }
     setApiStatus('checking');
     try {
-      // Create instance right before call as requested
-      const ai = new GoogleGenAI({ apiKey: manualApiKey || process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: key });
       const response = await ai.models.generateContent({ 
         model: 'gemini-3-flash-preview', 
         contents: 'ping', 
@@ -163,13 +160,13 @@ export default function App() {
         addNotification("Soul link active! ✨", "success");
         return true; 
       }
-      throw new Error("Invalid");
+      throw new Error("Invalid response");
     } catch (error: any) {
       setApiStatus('error');
       if (error.message.includes('Requested entity was not found')) {
-          showToast("Project not found. Ensure billing is on. 💳", "error");
+          showToast("Vibe source not found. Enable billing in Cloud Console. 💳", "error");
       } else {
-          showToast("Vibe key rejected. Try a different one.", "error");
+          showToast("Soul link failed. Verify your key credentials.", "error");
       }
       return false;
     }
@@ -178,22 +175,23 @@ export default function App() {
   const handleSelectApiKey = async () => {
     if (window.aistudio?.openSelectKey) {
       await window.aistudio.openSelectKey();
-      showToast("Syncing vibe credentials...", "info");
-      setTimeout(checkApiConnection, 1500);
+      showToast("Tuning into Project soul...", "info");
+      // As specified, trigger check after slight delay to handle potential race
+      setTimeout(() => checkApiConnection(), 1500);
     } else {
-      showToast("Manual input required below.", "info");
+      showToast("Manual key input required in this environment.", "info");
     }
   };
 
   useEffect(() => { if (user) checkApiConnection(); }, [user]);
   useEffect(() => { if (user) setEditUserName(user.userName); }, [user, isProfileModalOpen]);
+  useEffect(() => { localStorage.setItem('mr_vibe_manual_api_key', manualApiKey); }, [manualApiKey]);
 
   async function handleAISpeakFirst(sessionId: string) {
-    const key = manualApiKey || process.env.API_KEY;
-    if (!key) return;
+    if (!currentApiKey) return;
     setIsLoading(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: key });
+      const ai = new GoogleGenAI({ apiKey: currentApiKey });
       const prompt = `GREETING CHALLENGE: Greet ${user?.userName} based on their profile (Loves ${user?.musicGenre}, studies ${user?.educationLevel}). SOUND LIKE A ${currentPersonality.name.toUpperCase()}!`;
       const response = await ai.models.generateContent({ 
         model: 'gemini-3-flash-preview', 
@@ -230,6 +228,8 @@ export default function App() {
       setIsNewUser(true); 
       setOnboardingStep(1); 
       localStorage.removeItem('mr_vibe_active_user'); 
+      localStorage.removeItem('mr_vibe_manual_api_key');
+      setManualApiKey('');
       showToast("Later, main character. 👋", "info"); 
     } 
   };
@@ -252,14 +252,13 @@ export default function App() {
 
   async function handleGenerateVibeArt() {
     if (!user || isGeneratingVibe) return;
-    const key = manualApiKey || process.env.API_KEY;
-    if (!key) { showToast("No API Key detected.", "error"); return; }
+    if (!currentApiKey) { showToast("No soul link detected. Add API key.", "error"); return; }
     let sessionId = activeSessionId || handleNewChat();
     setIsGeneratingVibe(true);
     showToast("Synthesizing your visual aura...", "info");
     
     try {
-      const ai = new GoogleGenAI({ apiKey: key });
+      const ai = new GoogleGenAI({ apiKey: currentApiKey });
       const prompt = VIBE_VISION_PROMPT(user, currentPersonality);
       
       const response = await ai.models.generateContent({
@@ -290,7 +289,7 @@ export default function App() {
       }
     } catch (e: any) {
       console.error(e);
-      showToast("Vibe vision glitched. Check your project billing.", "error");
+      showToast("Aura synthesis glitched. Check link status.", "error");
     } finally {
       setIsGeneratingVibe(false);
     }
@@ -308,17 +307,15 @@ export default function App() {
   async function handleSendToAI(text: string, fileData?: { data: string, mimeType: string, fileName: string }, regenerateFromId?: string) {
     if ((!text.trim() && !fileData) || isLoading) return;
     
-    const key = manualApiKey || process.env.API_KEY;
     if (apiStatus !== 'connected') {
       const isOk = await checkApiConnection();
-      if (!isOk) { showToast("Soul Link Required. Check your API key.", "error"); return; }
+      if (!isOk) { showToast("Soul Link Failed. Fix your API key.", "error"); return; }
     }
 
     let sessionId = activeSessionId;
     if (!sessionId) sessionId = handleNewChat();
 
     if (regenerateFromId) {
-        // Find messages up to the edited one and drop following ones
         setSessions(prev => prev.map(s => {
             if (s.id !== sessionId) return s;
             const idx = s.messages.findIndex(m => m.id === regenerateFromId);
@@ -332,7 +329,7 @@ export default function App() {
 
     setIsLoading(true); setInputText('');
     try {
-      const ai = new GoogleGenAI({ apiKey: manualApiKey || process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: currentApiKey });
       const personalityPrompt = PERSONALITIES[settings.personalityId].prompt;
       const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}\n\n${personalityPrompt}\n\nUSER PROFILE: ${user?.userName}, Age ${user?.age}, Likes ${user?.musicGenre} and ${user?.movieGenre}.`;
       
@@ -346,7 +343,7 @@ export default function App() {
       });
       const aiMessage: Message = { id: `ai-${Date.now()}`, role: 'model', text: response.text || '...vibe lost...', timestamp: Date.now() };
       setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, aiMessage] } : s));
-    } catch (e: any) { showToast("Network vibes are weak. Retrying...", "error"); } finally { setIsLoading(false); }
+    } catch (e: any) { showToast("Soul link is stuttering. Retrying...", "error"); } finally { setIsLoading(false); }
   }
 
   const handleEditMessage = (id: string, text: string) => {
@@ -368,10 +365,11 @@ export default function App() {
   };
 
   const { connect: connectLive, disconnect: disconnectLive, isLive, isConnecting, volume } = useGeminiLive({
+    apiKey: currentApiKey,
     personality: currentPersonality, settings, user: user || tempProfile as User,
     onTranscript: (t, isM) => setLiveTranscript(prev => [...prev, { text: t, isModel: isM }]),
     onTurnComplete: (u, m) => { setLiveTranscript([]); const sId = activeSessionId || handleNewChat(); setSessions(prev => prev.map(s => s.id === sId ? { ...s, messages: [...s.messages, { id: `u-${Date.now()}`, role: 'user', text: u, timestamp: Date.now() }, { id: `m-${Date.now() + 1}`, role: 'model', text: m, timestamp: Date.now() + 1 }] } : s)); },
-    onConnectionStateChange: (c) => { if(c) addNotification("Voice stream linked", "success"); else addNotification("Voice stream closed", "info"); !c && setLiveTranscript([]); },
+    onConnectionStateChange: (c) => { if(c) addNotification("Voice link established", "success"); else addNotification("Voice link closed", "info"); !c && setLiveTranscript([]); },
     onError: (m) => showToast(m, "error")
   });
 
@@ -442,8 +440,8 @@ export default function App() {
               <button onClick={() => setOnboardingStep(1)} className="flex items-center gap-2 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-blue-500"><ArrowLeft size={16} /> Back</button>
               <div className="space-y-4 text-center">
                 <div className="w-16 h-16 bg-blue-500/10 rounded-[2rem] flex items-center justify-center mx-auto text-blue-600 mb-6 animate-pulse"><Key size={32} /></div>
-                <h2 className="text-2xl md:text-3xl font-black italic text-zinc-900 dark:text-white tracking-tighter">Enter Vibe Key</h2>
-                <p className="text-zinc-500 text-sm font-medium px-4">Mr. Cute needs a Gemini API key. Paste yours below or select from the prompt.</p>
+                <h2 className="text-2xl md:text-3xl font-black italic text-zinc-900 dark:text-white tracking-tighter">Soul Connection</h2>
+                <p className="text-zinc-500 text-sm font-medium px-4">Mr. Cute requires a Gemini API key. Paste yours below or use the AI Studio selector.</p>
               </div>
               <div className="space-y-4">
                 <div className="relative">
@@ -456,13 +454,11 @@ export default function App() {
                     className="w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl py-4 pl-14 pr-6 font-bold outline-none border-2 border-transparent focus:border-blue-500 text-zinc-900 dark:text-white text-sm focus:ring-4 focus:ring-blue-500/5" 
                   />
                 </div>
-                <button onClick={async () => { await handleSelectApiKey(); setOnboardingStep(2); }} className="w-full bg-zinc-900 dark:bg-white text-white dark:text-black py-4 md:py-5 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3">
-                    {manualApiKey ? "Verify Manual Key" : "Select Paid Project Key"}
-                </button>
-                <div className="flex items-center justify-center gap-2"><div className={`w-2 h-2 rounded-full ${apiStatus === 'connected' ? 'bg-green-500' : 'bg-rose-500'}`} /><span className="text-[10px] font-black uppercase text-zinc-400 tracking-widest">Connection: {apiStatus.toUpperCase()}</span></div>
-                <div className="mt-4 p-4 bg-blue-500/5 rounded-2xl border border-blue-500/10 text-left">
-                  <p className="text-[11px] text-zinc-500 font-medium"><b>Note:</b> Make sure your project has billing enabled for visual features. <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="text-blue-500 hover:underline">Read docs</a></p>
+                <div className="grid grid-cols-2 gap-3">
+                    <button onClick={async () => { const ok = await checkApiConnection(manualApiKey); if (ok) setOnboardingStep(2); }} className="bg-zinc-900 dark:bg-white text-white dark:text-black py-4 rounded-2xl font-black text-sm shadow-xl active:scale-95 transition-all">Verify Manual</button>
+                    <button onClick={async () => { await handleSelectApiKey(); setOnboardingStep(2); }} className="bg-blue-600 text-white py-4 rounded-2xl font-black text-sm shadow-xl active:scale-95 transition-all">AI Studio Hub</button>
                 </div>
+                <div className="flex items-center justify-center gap-2"><div className={`w-2 h-2 rounded-full ${apiStatus === 'connected' ? 'bg-green-500' : 'bg-rose-500'}`} /><span className="text-[10px] font-black uppercase text-zinc-400 tracking-widest">Link: {apiStatus.toUpperCase()}</span></div>
               </div>
             </div>
           ) : onboardingStep === 2 ? (
@@ -555,7 +551,6 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-2 md:gap-4">
-            {/* Persistent Status Indicator */}
             <div className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all ${
               apiStatus === 'connected' ? 'bg-green-500/10 border-green-500/20 text-green-600 dark:text-green-400' :
               apiStatus === 'checking' ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-600 dark:text-yellow-400 animate-pulse' :
@@ -689,7 +684,7 @@ export default function App() {
                       onChange={(e) => setManualApiKey(e.target.value)}
                     />
 
-                    <button onClick={handleSelectApiKey} className="w-full flex items-center justify-center gap-3 bg-zinc-900 dark:bg-white text-white dark:text-black py-4.5 rounded-2xl font-black text-xs md:text-sm uppercase tracking-[0.1em] shadow-xl hover:scale-[1.02] active:scale-95 transition-all"><RefreshCw size={18} className={apiStatus === 'checking' ? 'animate-spin' : ''} /> Sync Connection</button>
+                    <button onClick={handleSelectApiKey} className="w-full flex items-center justify-center gap-3 bg-zinc-900 dark:bg-white text-white dark:text-black py-4.5 rounded-2xl font-black text-xs md:text-sm uppercase tracking-[0.1em] shadow-xl hover:scale-[1.02] active:scale-95 transition-all"><RefreshCw size={18} className={apiStatus === 'checking' ? 'animate-spin' : ''} /> Sync Link</button>
                     <div className="flex items-center justify-between px-1"><p className={`text-[10px] font-black uppercase tracking-widest ${apiStatus === 'error' ? 'text-rose-500' : 'text-zinc-400'}`}>Status: {apiStatus.toUpperCase()}</p><a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="text-[10px] font-black text-blue-500 hover:underline uppercase tracking-widest">Billing Info</a></div>
                   </div>
                 </div>
