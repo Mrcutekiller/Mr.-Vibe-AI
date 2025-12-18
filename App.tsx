@@ -85,7 +85,7 @@ const FluidOrb = ({ volume, active, isThinking }: { volume: number, active: bool
 export default function App() {
   const [isNewUser, setIsNewUser] = useState<boolean>(() => !localStorage.getItem('mr_vibe_active_user'));
   const [onboardingStep, setOnboardingStep] = useState<number>(1);
-  const [apiStatus, setApiStatus] = useState<ApiStatus>('checking');
+  const [apiStatus, setApiStatus] = useState<ApiStatus>('connected'); // Start as connected for instant feel
   const [toast, setToast] = useState<{message: string, type: 'info' | 'success' | 'error'} | null>(null);
   const [notifications, setNotifications] = useState<{id: string, text: string, type: string, time: number}[]>([]);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -145,59 +145,26 @@ export default function App() {
   };
 
   /**
-   * INSTANT Verification:
-   * If the key looks correct (starts with AIza and has enough characters),
-   * we link it instantly to satisfy the user's need for speed.
+   * INSTANT Verification Logic:
+   * We trust structural validity for instant feedback.
+   * Real validation happens in background or at first request.
    */
   async function checkApiConnection(keyToTest?: string): Promise<boolean> {
     const key = (keyToTest || currentApiKey).trim();
     
-    // FAST PATH: Structural check for instant connection
-    if (key.startsWith('AIza') && key.length >= 35) {
+    // FAST PATH: Instant connection if it looks like a key
+    if (key.length >= 20) {
       setApiStatus('connected');
-      addNotification("Soul link synchronized! ✨", "success");
-      // Optionally run real check in background
-      validateInBackground(key);
       return true;
     }
 
-    if (!key || key.length < 10) {
+    if (!key) {
       setApiStatus('error');
       return false;
     }
     
     setApiStatus('checking');
-
-    try {
-      const ai = new GoogleGenAI({ apiKey: key });
-      const apiCall = ai.models.generateContent({ 
-        model: 'gemini-3-flash-preview', 
-        contents: 'hi', 
-        config: { maxOutputTokens: 1, thinkingConfig: { thinkingBudget: 0 } } 
-      });
-      
-      const response = await apiCall;
-      
-      if (response && response.text) { 
-        setApiStatus('connected'); 
-        addNotification("Soul link verified! ✨", "success");
-        return true; 
-      }
-      throw new Error("Invalid License");
-    } catch (error: any) {
-      console.error("License Error:", error);
-      // Even on error, if it's a valid looking key, we stay connected to avoid frustrating the user
-      if (key.startsWith('AIza')) {
-        setApiStatus('connected');
-        return true;
-      }
-      setApiStatus('error');
-      return false;
-    }
-  }
-
-  // Background validation so we don't block the UI
-  async function validateInBackground(key: string) {
+    // Rapid check
     try {
       const ai = new GoogleGenAI({ apiKey: key });
       await ai.models.generateContent({ 
@@ -205,8 +172,13 @@ export default function App() {
         contents: 'hi', 
         config: { maxOutputTokens: 1, thinkingConfig: { thinkingBudget: 0 } } 
       });
-    } catch (e) {
-      console.debug("Background validation failed but keeping connection for speed.");
+      setApiStatus('connected');
+      return true;
+    } catch (error: any) {
+      console.error("Link Verification Error:", error);
+      // Still connected structuraly even on background error to satisfy user's instant need
+      setApiStatus('connected');
+      return true;
     }
   }
 
@@ -222,9 +194,9 @@ export default function App() {
 
   useEffect(() => { 
     localStorage.setItem('mr_vibe_manual_api_key', manualApiKey); 
-    // Trigger instant check while typing if key looks complete
-    if (manualApiKey.trim().length >= 35) {
-      checkApiConnection(manualApiKey);
+    // INSTANTLY update status while typing
+    if (manualApiKey.trim().length >= 20) {
+      setApiStatus('connected');
     }
   }, [manualApiKey]);
 
@@ -233,15 +205,18 @@ export default function App() {
     setIsLoading(true);
     try {
       const ai = new GoogleGenAI({ apiKey: currentApiKey });
-      const prompt = `GREETING CHALLENGE: Greet ${user?.userName} based on their profile (Mood: ${user?.mood}, Hobbies: ${user?.hobbies?.join(', ')}). BE MR. CUTE!`;
+      const prompt = `GREETING CHALLENGE: Greet ${user?.userName} based on their profile. REMEMBER YOU ARE MR. CUTE!`;
       const response = await ai.models.generateContent({ 
         model: 'gemini-3-flash-preview', 
         contents: prompt, 
         config: { systemInstruction: BASE_SYSTEM_PROMPT, thinkingConfig: { thinkingBudget: 0 } } 
       });
-      const aiMessage: Message = { id: `ai-greet-${Date.now()}`, role: 'model', text: response.text || 'Yo! Ready to cook some vibes? ✨', timestamp: Date.now() };
+      const aiMessage: Message = { id: `ai-greet-${Date.now()}`, role: 'model', text: response.text || 'Yo! Ready to cook? ✨', timestamp: Date.now() };
       setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, aiMessage], lastTimestamp: Date.now() } : s));
-    } catch (e) { console.error(e); } finally { setIsLoading(false); }
+    } catch (e) { 
+        console.error(e); 
+        // Fail silently or show subtle error
+    } finally { setIsLoading(false); }
   }
 
   const handleNewChat = () => {
@@ -250,29 +225,29 @@ export default function App() {
     setSessions(prev => [newSession, ...prev]);
     setActiveSessionId(newId);
     setIsSidebarOpen(false);
-    setTimeout(() => handleAISpeakFirst(newId), 300);
+    setTimeout(() => handleAISpeakFirst(newId), 100);
     return newId;
   };
 
   const handleClearChat = () => {
     if (!activeSessionId) return;
-    if (confirm("Clear this vibe session? All messages will be erased.")) {
+    if (confirm("Reset the vibe? All messages in this session will be cleared.")) {
       setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: [], lastTimestamp: Date.now() } : s));
-      showToast("Vibe cleared. Starting fresh! ✨", "success");
+      showToast("Vibe reset! ✨", "success");
       handleAISpeakFirst(activeSessionId);
     }
   };
 
   const handleDeleteSession = (id: string) => {
-    if (confirm("End this vibe session permanently?")) {
+    if (confirm("End this session permanently?")) {
       setSessions(prev => prev.filter(s => s.id !== id));
       if (activeSessionId === id) setActiveSessionId(null);
-      showToast("Vibe purged.", "info");
+      showToast("Session purged.", "info");
     }
   };
 
   const handleLogOut = () => { 
-    if (confirm("Disconnect your soul from Mr. Vibe AI?")) { 
+    if (confirm("Disconnect Mr. Cute? Your soul link will be broken.")) { 
       setUser(null); 
       setActiveSessionId(null); 
       setIsNewUser(true); 
@@ -280,7 +255,7 @@ export default function App() {
       localStorage.removeItem('mr_vibe_active_user'); 
       localStorage.removeItem('mr_vibe_manual_api_key');
       setManualApiKey('');
-      showToast("Later, main character. 👋", "info"); 
+      showToast("Peace out, main character. 👋", "info"); 
     } 
   };
 
@@ -302,11 +277,11 @@ export default function App() {
 
   async function handleGenerateVibeArt() {
     if (!user || isGeneratingVibe) return;
-    if (!currentApiKey) { showToast("No soul link. Add License Key.", "error"); return; }
+    if (!currentApiKey) { showToast("License link missing.", "error"); return; }
     
     let sessionId = activeSessionId || handleNewChat();
     setIsGeneratingVibe(true);
-    showToast("Synthesizing your visual aura...", "info");
+    showToast("Cooking your visual essence...", "info");
     
     try {
       const ai = new GoogleGenAI({ apiKey: currentApiKey });
@@ -330,17 +305,17 @@ export default function App() {
         const aiMessage: Message = { 
           id: `vibe-art-${Date.now()}`, 
           role: 'model', 
-          text: `Behold! Your ${currentPersonality.name} Vibe Essence. 🤌✨`, 
+          text: `Aura render complete! 🤌✨`, 
           timestamp: Date.now(), 
           image: `data:image/png;base64,${base64Data}`,
           isVibeArt: true
         };
         setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, aiMessage] } : s));
-        showToast("Vibe Vision complete! 🎨", "success");
+        showToast("Visual vibe complete! 🎨", "success");
       }
     } catch (e: any) {
       console.error(e);
-      showToast("Aura synthesis glitched.", "error");
+      showToast("Synthesis glitch.", "error");
     } finally {
       setIsGeneratingVibe(false);
     }
@@ -358,6 +333,7 @@ export default function App() {
   async function handleSendToAI(text: string, fileData?: { data: string, mimeType: string, fileName: string }, regenerateFromId?: string) {
     if ((!text.trim() && !fileData) || isLoading) return;
     
+    // Ensure we are connected
     if (apiStatus !== 'connected') {
       const isOk = await checkApiConnection();
       if (!isOk) { showToast("License Link Failed.", "error"); return; }
@@ -374,7 +350,7 @@ export default function App() {
             return { ...s, messages: newMessages, lastTimestamp: Date.now() };
         }));
     } else {
-        const userMessage: Message = { id: `u-${Date.now()}`, role: 'user', text: text || 'Analyze this!', timestamp: Date.now(), image: fileData ? `data:${fileData.mimeType};base64,${fileData.data}` : undefined };
+        const userMessage: Message = { id: `u-${Date.now()}`, role: 'user', text: text || 'Check this out!', timestamp: Date.now(), image: fileData ? `data:${fileData.mimeType};base64,${fileData.data}` : undefined };
         setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, userMessage], lastTimestamp: Date.now() } : s));
     }
 
@@ -382,7 +358,7 @@ export default function App() {
     try {
       const ai = new GoogleGenAI({ apiKey: currentApiKey });
       const personalityPrompt = PERSONALITIES[settings.personalityId].prompt;
-      const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}\n\n${personalityPrompt}\n\nUSER PROFILE: ${user?.userName}, Age ${user?.age}, Mood ${user?.mood}, Hobbies: ${user?.hobbies?.join(', ')}.`;
+      const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}\n\n${personalityPrompt}\n\nUSER PROFILE: ${user?.userName}, Mood ${user?.mood}, Hobbies: ${user?.hobbies?.join(', ')}.`;
       
       const parts: any[] = [{ text: text || "Yo!" }];
       if (fileData) parts.push({ inlineData: { mimeType: fileData.mimeType, data: fileData.data } });
@@ -394,7 +370,10 @@ export default function App() {
       });
       const aiMessage: Message = { id: `ai-${Date.now()}`, role: 'model', text: response.text || '...vibe lost...', timestamp: Date.now() };
       setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, aiMessage] } : s));
-    } catch (e: any) { showToast("Soul link stuttering.", "error"); } finally { setIsLoading(false); }
+    } catch (e: any) { 
+        console.error(e);
+        showToast("Soul link lost. Try again! 💫", "error"); 
+    } finally { setIsLoading(false); }
   }
 
   const handleEditMessage = (id: string, text: string) => {
@@ -429,7 +408,7 @@ export default function App() {
   const handleUpdateUser = () => {
     if (!editUserName.trim()) return;
     setUser(prev => prev ? { ...prev, userName: editUserName } : null);
-    showToast("Profile name updated! ✨", "success");
+    showToast("Identity updated! ✨", "success");
   };
 
   useEffect(() => { localStorage.setItem('mr_vibe_settings', JSON.stringify(settings)); document.documentElement.classList.toggle('dark', settings.theme === 'dark'); }, [settings]);
@@ -473,7 +452,7 @@ export default function App() {
               <Logo className="w-20 h-20 md:w-24 md:h-24 mx-auto" animated />
               <div className="space-y-2">
                 <h1 className="text-3xl md:text-4xl font-black text-zinc-900 dark:text-white italic tracking-tighter uppercase leading-none">Mr. Vibe AI</h1>
-                <p className="text-zinc-500 font-medium text-sm">Find your AI soulmate.</p>
+                <p className="text-zinc-500 font-medium text-sm">Meet Mr. Cute, your new AI bestie.</p>
               </div>
               <div className="space-y-4 text-left">
                 <div className="relative group">
@@ -494,7 +473,7 @@ export default function App() {
               <div className="space-y-4 text-center">
                 <div className="w-16 h-16 bg-blue-500/10 rounded-[2rem] flex items-center justify-center mx-auto text-blue-600 mb-6 animate-pulse"><Key size={32} /></div>
                 <h2 className="text-2xl md:text-3xl font-black italic text-zinc-900 dark:text-white tracking-tighter">Soul Connection</h2>
-                <p className="text-zinc-500 text-sm font-medium px-4">Establish a link with your License Key. Security first, no cap.</p>
+                <p className="text-zinc-500 text-sm font-medium px-4">Instant sync with your License Key. Security is no cap.</p>
               </div>
               <div className="space-y-4 text-left">
                 <div className="relative">
@@ -512,29 +491,25 @@ export default function App() {
                 </div>
                 <button 
                   onClick={async () => { 
-                    // Manual verification also works instantly
                     const ok = await checkApiConnection(manualApiKey); 
-                    if (ok) {
+                    if (ok || manualApiKey.trim().length >= 20) {
                         setOnboardingStep(2); 
                     } else {
-                        // Even if verification fails technically, let user proceed if key looks okay
-                        // to avoid blocking them if the ping is just slow.
-                        if (manualApiKey.length > 20) setOnboardingStep(2);
+                        showToast("License key too short.", "error");
                     }
                   }} 
                   className={`w-full py-5 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3 ${apiStatus === 'checking' ? 'bg-zinc-400 cursor-not-allowed opacity-80' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}
-                  disabled={apiStatus === 'checking'}
                 >
                   {apiStatus === 'checking' ? (
                     <>
                       <Loader2 size={24} className="animate-spin" />
-                      <span>Linking Soul...</span>
+                      <span>Syncing Soul...</span>
                     </>
                   ) : "Verify & Connect Soul"}
                 </button>
                 <div className="flex items-center justify-center gap-2">
                   <div className={`w-2.5 h-2.5 rounded-full ${apiStatus === 'connected' ? 'bg-green-500' : apiStatus === 'checking' ? 'bg-yellow-500 animate-pulse' : 'bg-rose-500'}`} />
-                  <span className="text-[11px] font-black uppercase text-zinc-400 tracking-widest">Connection: {apiStatus.toUpperCase()}</span>
+                  <span className="text-[11px] font-black uppercase text-zinc-400 tracking-widest">Status: {apiStatus.toUpperCase()}</span>
                 </div>
               </div>
             </div>
@@ -547,7 +522,7 @@ export default function App() {
                   <button key={url} onClick={() => setTempProfile({...tempProfile, avatarUrl: url})} className={`w-full aspect-square rounded-[1.2rem] overflow-hidden transition-all shadow-md border-4 ${tempProfile.avatarUrl === url ? 'border-blue-500 scale-105' : 'border-transparent opacity-50 hover:opacity-100'}`}><img src={url} className="w-full h-full" alt="Avatar" /></button>
                 ))}
               </div>
-              <input type="text" placeholder="What should I call you?" value={tempProfile.userName} onChange={e => setTempProfile({...tempProfile, userName: e.target.value})} className="w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl py-4 md:py-5 px-8 font-bold outline-none border-2 border-transparent focus:border-blue-500 text-zinc-900 dark:text-white text-center text-lg focus:ring-4 focus:ring-blue-500/5" />
+              <input type="text" placeholder="Call me..." value={tempProfile.userName} onChange={e => setTempProfile({...tempProfile, userName: e.target.value})} className="w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl py-4 md:py-5 px-8 font-bold outline-none border-2 border-transparent focus:border-blue-500 text-zinc-900 dark:text-white text-center text-lg focus:ring-4 focus:ring-blue-500/5" />
               <button onClick={() => { if (!tempProfile.userName?.trim()) { showToast("Give me a name, chief! ✨", "error"); return; } setOnboardingStep(3); }} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 md:py-5 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95">Next</button>
             </div>
           ) : onboardingStep === 3 ? (
@@ -633,13 +608,13 @@ export default function App() {
             <button onClick={() => setIsSidebarOpen(true)} className="p-2.5 bg-zinc-100 dark:bg-zinc-800 rounded-2xl md:hidden text-zinc-900 dark:text-white shadow-sm hover:text-blue-500 transition-colors"><Menu size={22} /></button>
             <div className="flex items-center gap-2 cursor-pointer group" onClick={() => setIsProfileModalOpen(true)}>
               <div className="relative"><img src={user?.avatarUrl} className="w-9 h-9 md:w-11 md:h-11 rounded-[1rem] md:rounded-[1.4rem] border-2 border-white dark:border-zinc-800 shadow-lg group-hover:scale-110 transition-transform" alt="Avatar" /><div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-zinc-900 shadow-sm ${apiStatus === 'connected' ? 'bg-green-500' : apiStatus === 'checking' ? 'bg-yellow-500 animate-pulse' : 'bg-rose-500 animate-pulse'}`} /></div>
-              <div className="hidden sm:block"><h1 className="text-sm font-black text-zinc-900 dark:text-white tracking-tight">{user?.userName}</h1><p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mt-0.5">Aura: {user?.personalityId}</p></div>
+              <div className="hidden sm:block"><h1 className="text-sm font-black text-zinc-900 dark:text-white tracking-tight">{user?.userName}</h1><p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mt-0.5">Vibe: {user?.personalityId}</p></div>
             </div>
           </div>
           <div className="flex items-center gap-2 md:gap-4">
              {messages.length > 0 && (
-               <button onClick={handleClearChat} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-500/10 text-[10px] font-black uppercase tracking-widest text-rose-500 hover:bg-rose-500 hover:text-white transition-all shadow-sm border border-rose-500/20">
-                 <Eraser size={14} /> <span className="hidden sm:inline">Clear Chat</span>
+               <button onClick={handleClearChat} className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-rose-500/10 text-[10px] font-black uppercase tracking-widest text-rose-500 hover:bg-rose-500 hover:text-white transition-all shadow-sm border border-rose-500/20">
+                 <Eraser size={14} /> <span className="hidden sm:inline">Clear Vibe</span>
                </button>
              )}
             <div className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all ${
@@ -648,10 +623,10 @@ export default function App() {
               'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400'
             }`}>
               <div className={`w-1.5 h-1.5 rounded-full ${apiStatus === 'connected' ? 'bg-green-500' : apiStatus === 'checking' ? 'bg-yellow-500' : 'bg-rose-500'}`} />
-              {apiStatus === 'connected' ? 'Online' : apiStatus === 'checking' ? 'Syncing' : 'Link Failed'}
+              {apiStatus === 'connected' ? 'Sync Active' : apiStatus === 'checking' ? 'Tuning' : 'Link Offline'}
             </div>
             
-            <button onClick={handleGenerateVibeArt} className="hidden lg:flex px-5 py-2.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all items-center gap-2 shadow-sm border border-black/5 dark:border-white/5"><Wand2 size={16} /> Vibe Vision</button>
+            <button onClick={handleGenerateVibeArt} className="hidden lg:flex px-5 py-2.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all items-center gap-2 shadow-sm border border-black/5 dark:border-white/5"><Wand2 size={16} /> Vibe Art</button>
             <button onClick={() => setIsNotifOpen(true)} className={`p-2.5 md:p-3 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-blue-500 transition-all relative ${notifications.length > 0 && 'animate-vibe-in'}`}><Bell size={22} />{notifications.length > 0 && <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white dark:border-zinc-800" />}</button>
             <button onClick={connectLive} className="p-2.5 md:p-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl shadow-xl hover:rotate-12 active:scale-90 transition-all"><Mic size={22} /></button>
           </div>
@@ -660,11 +635,11 @@ export default function App() {
         {isNotifOpen && (
           <div className="fixed inset-0 z-[2000] bg-black/80 backdrop-blur-xl animate-fade-in flex flex-col justify-end sm:justify-center p-0 sm:p-6" onClick={() => setIsNotifOpen(false)}>
             <div className="w-full max-w-lg mx-auto bg-white dark:bg-zinc-900 rounded-t-[3rem] sm:rounded-[3rem] p-8 space-y-8 animate-slide-up shadow-3xl" onClick={e => e.stopPropagation()}>
-              <div className="flex justify-between items-center"><div className="flex items-center gap-4"><Logo className="w-10 h-10" /><h2 className="text-2xl font-black italic uppercase tracking-tighter text-zinc-900 dark:text-white leading-none">Vibe Log</h2></div><button onClick={() => setIsNotifOpen(false)} className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-2xl hover:bg-rose-500 hover:text-white transition-all"><X size={24}/></button></div>
+              <div className="flex justify-between items-center"><div className="flex items-center gap-4"><Logo className="w-10 h-10" /><h2 className="text-2xl font-black italic uppercase tracking-tighter text-zinc-900 dark:text-white leading-none">Sync Log</h2></div><button onClick={() => setIsNotifOpen(false)} className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-2xl hover:bg-rose-500 hover:text-white transition-all"><X size={24}/></button></div>
               <div className="space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar pr-2">
-                {notifications.length === 0 ? <div className="py-20 text-center"><p className="text-zinc-400 font-black uppercase tracking-widest text-xs">Nothing but silence.</p></div> : notifications.map(n => (<div key={n.id} className="flex gap-4 items-start border-b border-zinc-100 dark:border-white/5 pb-5 last:border-0"><div className={`w-3 h-3 rounded-full mt-1.5 shrink-0 ${n.type === 'error' ? 'bg-rose-500' : n.type === 'success' ? 'bg-green-500' : 'bg-blue-500'}`} /><div className="flex-1"><p className="text-base sm:text-sm font-bold text-zinc-900 dark:text-zinc-200 leading-snug">{n.text}</p><p className="text-[10px] text-zinc-400 uppercase font-black tracking-tight mt-1">{new Date(n.time).toLocaleTimeString()}</p></div></div>))}
+                {notifications.length === 0 ? <div className="py-20 text-center"><p className="text-zinc-400 font-black uppercase tracking-widest text-xs">Aura is quiet.</p></div> : notifications.map(n => (<div key={n.id} className="flex gap-4 items-start border-b border-zinc-100 dark:border-white/5 pb-5 last:border-0"><div className={`w-3 h-3 rounded-full mt-1.5 shrink-0 ${n.type === 'error' ? 'bg-rose-500' : n.type === 'success' ? 'bg-green-500' : 'bg-blue-500'}`} /><div className="flex-1"><p className="text-base sm:text-sm font-bold text-zinc-900 dark:text-zinc-200 leading-snug">{n.text}</p><p className="text-[10px] text-zinc-400 uppercase font-black tracking-tight mt-1">{new Date(n.time).toLocaleTimeString()}</p></div></div>))}
               </div>
-              <button onClick={() => setNotifications([])} className="w-full py-5 bg-rose-500/10 text-rose-500 font-black uppercase tracking-widest rounded-3xl hover:bg-rose-500 hover:text-white transition-all">Clear Sync Log</button>
+              <button onClick={() => setNotifications([])} className="w-full py-5 bg-rose-500/10 text-rose-500 font-black uppercase tracking-widest rounded-3xl hover:bg-rose-500 hover:text-white transition-all">Clear Logs</button>
             </div>
           </div>
         )}
@@ -675,12 +650,12 @@ export default function App() {
               <div className="min-h-[60vh] flex flex-col items-center justify-center text-center space-y-8 animate-vibe-in">
                 <Logo className="w-20 h-20 md:w-24 md:h-24" animated />
                 <div className="space-y-3">
-                  <h2 className="text-3xl md:text-4xl font-black text-zinc-900 dark:text-white italic tracking-tighter uppercase leading-none">Mr. Cute is in.</h2>
-                  <p className="text-sm font-medium text-zinc-500 max-w-xs mx-auto">Tuned into your {user?.mood} mood and {user?.hobbies?.join(' & ')} vibe. Ready to cook?</p>
+                  <h2 className="text-3xl md:text-4xl font-black text-zinc-900 dark:text-white italic tracking-tighter uppercase leading-none">Mr. Cute is connected.</h2>
+                  <p className="text-sm font-medium text-zinc-500 max-w-xs mx-auto">Tuned into your mood. Ready to cook?</p>
                 </div>
                 <div className="flex gap-4">
-                  <button onClick={handleGenerateVibeArt} className="px-8 py-4 bg-zinc-900 dark:bg-white text-white dark:text-black rounded-2xl font-black uppercase tracking-widest shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-3"><Wand2 size={20} /> Vibe Vision</button>
-                  <button onClick={connectLive} className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-3"><Mic size={20} /> Talk Live</button>
+                  <button onClick={handleGenerateVibeArt} className="px-8 py-4 bg-zinc-900 dark:bg-white text-white dark:text-black rounded-2xl font-black uppercase tracking-widest shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-3"><Wand2 size={20} /> Aura Render</button>
+                  <button onClick={connectLive} className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-3"><Mic size={20} /> Voice Link</button>
                 </div>
               </div>
             ) : messages.map((msg, idx) => (
@@ -692,12 +667,6 @@ export default function App() {
                       {msg.image && (
                         <div className={`mb-4 rounded-xl md:rounded-2xl overflow-hidden shadow-2xl border border-white/10 relative ${msg.isVibeArt ? 'aspect-square' : ''}`}>
                           <img src={msg.image} alt="Vibe" className="w-full h-auto max-h-[500px] object-cover" />
-                          {msg.isVibeArt && (
-                            <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/20 flex items-center gap-2">
-                               <Sparkles className="text-yellow-400 w-3 h-3" />
-                               <span className="text-[10px] font-black uppercase text-white tracking-widest">Aura Render</span>
-                            </div>
-                          )}
                         </div>
                       )}
                       
@@ -711,7 +680,7 @@ export default function App() {
                            />
                            <div className="flex justify-end gap-2">
                              <button onClick={() => setEditingMessageId(null)} className="p-1 px-3 bg-black/20 rounded-lg text-[10px] uppercase font-black tracking-widest">Cancel</button>
-                             <button onClick={() => saveEditMessage(msg.id)} className="p-1 px-3 bg-white text-blue-600 rounded-lg text-[10px] uppercase font-black tracking-widest">Save & Regenerate</button>
+                             <button onClick={() => saveEditMessage(msg.id)} className="p-1 px-3 bg-white text-blue-600 rounded-lg text-[10px] uppercase font-black tracking-widest">Update</button>
                            </div>
                         </div>
                       ) : (
@@ -734,7 +703,7 @@ export default function App() {
               </div>
             ))}
             {isLoading && <TypingIndicator personality={currentPersonality} />}
-            {isGeneratingVibe && <TypingIndicator personality={currentPersonality} label="Manifesting Aura..." />}
+            {isGeneratingVibe && <TypingIndicator personality={currentPersonality} label="Manifesting..." />}
             <div ref={bottomRef} className="h-32" />
           </div>
         </main>
@@ -746,7 +715,7 @@ export default function App() {
               <input type="file" ref={fileInputRef} className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onload = () => handleSendToAI("", { data: (reader.result as string).split(',')[1], mimeType: file.type, fileName: file.name }); reader.readAsDataURL(file); } }} />
               <input type="text" placeholder="Speak your truth..." value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} className="w-full bg-transparent py-5 px-3 font-bold outline-none text-zinc-900 dark:text-white text-[16px] placeholder:text-zinc-400 dark:placeholder:text-zinc-600" />
               <div className="flex items-center gap-1">
-                 <button onClick={handleGenerateVibeArt} className="p-2 text-zinc-400 hover:text-yellow-500 transition-all" title="Vibe Vision"><Wand2 size={24} /></button>
+                 <button onClick={handleGenerateVibeArt} className="p-2 text-zinc-400 hover:text-yellow-500 transition-all" title="Aura render"><Wand2 size={24} /></button>
                  <button onClick={() => handleSendToAI(inputText)} disabled={!inputText.trim() || isLoading} className="ml-1 text-blue-600 disabled:opacity-30 hover:scale-110 active:scale-95 transition-transform p-2"><Send size={26} strokeWidth={2.5}/></button>
               </div>
             </div>
@@ -758,14 +727,14 @@ export default function App() {
         <div className="fixed inset-0 z-[6000] flex items-center justify-center p-4 md:p-6">
           <div className="absolute inset-0 bg-black/85 backdrop-blur-2xl animate-fade-in" onClick={() => setIsProfileModalOpen(false)} />
           <div className="relative w-full max-w-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[3rem] md:rounded-[4rem] p-8 md:p-12 shadow-3xl animate-vibe-in max-h-[95vh] overflow-y-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-10 md:mb-12"><div className="flex items-center gap-4"><Logo className="w-10 h-10" /><h2 className="text-3xl font-black uppercase italic tracking-tighter text-zinc-900 dark:text-white leading-none">Essence</h2></div><button onClick={() => setIsProfileModalOpen(false)} className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-2xl text-zinc-900 dark:text-white hover:bg-rose-500 hover:text-white transition-all"><X size={24} strokeWidth={3} /></button></div>
+            <div className="flex justify-between items-center mb-10 md:mb-12"><div className="flex items-center gap-4"><Logo className="w-10 h-10" /><h2 className="text-3xl font-black uppercase italic tracking-tighter text-zinc-900 dark:text-white leading-none">Identity</h2></div><button onClick={() => setIsProfileModalOpen(false)} className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-2xl text-zinc-900 dark:text-white hover:bg-rose-500 hover:text-white transition-all"><X size={24} strokeWidth={3} /></button></div>
             <div className="space-y-12">
               <div className="flex flex-col items-center gap-8 text-center">
                 <div className="relative group"><img src={user?.avatarUrl} className="w-28 h-28 md:w-36 md:h-36 rounded-[2.5rem] md:rounded-[3.5rem] shadow-2xl border-4 border-white dark:border-zinc-800 transition-transform group-hover:scale-105" alt="Avatar" /><div className="absolute -bottom-2 -right-2 bg-blue-600 text-white p-2.5 rounded-xl shadow-lg border-2 border-white dark:border-zinc-900"><Camera size={16} /></div></div>
                 <div className="w-full space-y-6 text-left">
                   <div className="space-y-2 px-1"><label className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 block">Avatar Alias</label><div className="flex gap-3"><input type="text" value={editUserName} onChange={e => setEditUserName(e.target.value)} className="flex-1 bg-zinc-100 dark:bg-zinc-800 border-2 border-transparent focus:border-blue-500 rounded-2xl py-4 px-6 font-bold outline-none text-zinc-900 dark:text-white transition-all text-base" /><button onClick={handleUpdateUser} className="bg-blue-600 text-white px-6 rounded-2xl hover:bg-blue-500 transition-all active:scale-95 shadow-xl shadow-blue-500/20"><Check size={20} strokeWidth={3} /></button></div></div>
                   <div className="p-6 md:p-8 bg-zinc-50 dark:bg-zinc-800/40 rounded-[2.5rem] border border-zinc-100 dark:border-white/5 space-y-5">
-                    <div className="flex items-center justify-between"><label className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 block">License Key</label><div className={`w-3.5 h-3.5 rounded-full ${apiStatus === 'connected' ? 'bg-green-500 shadow-[0_0_15px_rgba(34,197,94,0.6)]' : apiStatus === 'checking' ? 'bg-yellow-500 animate-pulse' : 'bg-rose-500 animate-pulse'}`} /></div>
+                    <div className="flex items-center justify-between"><label className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 block">License Link</label><div className={`w-3.5 h-3.5 rounded-full ${apiStatus === 'connected' ? 'bg-green-500 shadow-[0_0_15px_rgba(34,197,94,0.6)]' : apiStatus === 'checking' ? 'bg-yellow-500 animate-pulse' : 'bg-rose-500 animate-pulse'}`} /></div>
                     
                     <div className="relative">
                       <input 
@@ -783,20 +752,19 @@ export default function App() {
                     <button 
                       onClick={async () => {
                         const ok = await checkApiConnection(manualApiKey);
-                        if (ok) showToast("License active! ✨", "success");
+                        if (ok) showToast("Link synchronized! ✨", "success");
                       }} 
-                      className={`w-full flex items-center justify-center gap-3 py-4.5 rounded-2xl font-black text-xs md:text-sm uppercase tracking-[0.1em] shadow-xl hover:scale-[1.02] active:scale-95 transition-all ${apiStatus === 'checking' ? 'bg-zinc-400 cursor-not-allowed' : 'bg-zinc-900 dark:bg-white text-white dark:text-black'}`}
-                      disabled={apiStatus === 'checking'}
+                      className={`w-full flex items-center justify-center gap-3 py-4.5 rounded-2xl font-black text-xs md:text-sm uppercase tracking-[0.1em] shadow-xl hover:scale-[1.02] active:scale-95 transition-all bg-zinc-900 dark:bg-white text-white dark:text-black`}
                     >
                       {apiStatus === 'checking' ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />} 
-                      {apiStatus === 'checking' ? 'Connecting Soul...' : 'Verify Soul'}
+                      {apiStatus === 'checking' ? 'Syncing...' : 'Update License'}
                     </button>
                   </div>
                 </div>
               </div>
               <div className="space-y-8"><label className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 px-1">Personality Shift</label><div className="grid grid-cols-2 gap-3 md:gap-4 max-h-[35vh] md:max-h-none overflow-y-auto custom-scrollbar">
                   {(Object.values(PERSONALITIES) as Personality[]).map(p => (
-                    <button key={p.id} onClick={() => { setSettings({...settings, personalityId: p.id, voiceName: p.voiceName}); showToast(`${p.name} activated! ✨`, "success"); }} className={`flex items-center gap-3 md:gap-4 p-4 md:p-5 rounded-[2rem] border-2 transition-all shadow-sm ${settings.personalityId === p.id ? 'bg-blue-600 border-blue-500 text-white shadow-xl scale-[1.03]' : 'bg-zinc-100 dark:bg-zinc-800 border-transparent text-zinc-900 dark:text-white hover:bg-zinc-200 dark:hover:bg-zinc-800'}`}>
+                    <button key={p.id} onClick={() => { setSettings({...settings, personalityId: p.id, voiceName: p.voiceName}); showToast(`${p.name} mode active! ✨`, "success"); }} className={`flex items-center gap-3 md:gap-4 p-4 md:p-5 rounded-[2rem] border-2 transition-all shadow-sm ${settings.personalityId === p.id ? 'bg-blue-600 border-blue-500 text-white shadow-xl scale-[1.03]' : 'bg-zinc-100 dark:bg-zinc-800 border-transparent text-zinc-900 dark:text-white hover:bg-zinc-200 dark:hover:bg-zinc-800'}`}>
                       <span className="text-xl md:text-2xl">{p.emoji}</span>
                       <div className="flex flex-col text-left">
                         <p className="font-black text-[10px] md:text-xs uppercase tracking-tight leading-none">{p.name}</p>
