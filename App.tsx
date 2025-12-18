@@ -7,7 +7,7 @@ import {
   User as UserIcon, CheckCircle2, Mail, Lock, Sparkles, 
   ChevronRight, MicOff, MessageSquare, AlertCircle, AlertTriangle, RefreshCw,
   Camera, FileText, Upload, Loader2, Play, Image as ImageIcon, Globe,
-  Leaf, Droplets, Share2, ThumbsUp, ThumbsDown, Edit3, Check, Zap, ExternalLink, Activity, Key, Bell
+  Leaf, Droplets, Share2, ThumbsUp, ThumbsDown, Edit3, Check, Zap, ExternalLink, Activity, Key, Bell, Music, Film, Heart
 } from 'lucide-react';
 import { PERSONALITIES, BASE_SYSTEM_PROMPT, AVATARS, GEMINI_VOICES, SUPPORTED_LANGUAGES } from './constants';
 import { PersonalityId, AppSettings, User, ChatSession, Message, ReactionType, GroundingSource, ApiStatus } from './types';
@@ -41,7 +41,7 @@ const Logo = ({ className = "w-12 h-12", animated = false }: { className?: strin
 );
 
 const NotificationToast = ({ message, type, onClose }: { message: string, type: 'info' | 'success' | 'error', onClose: () => void }) => (
-  <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[500] animate-vibe-in">
+  <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[550] animate-vibe-in">
     <div className={`px-6 py-3 rounded-full shadow-2xl backdrop-blur-3xl border flex items-center gap-3 font-bold text-xs uppercase tracking-widest ${
       type === 'success' ? 'bg-green-500/10 border-green-500/20 text-green-500' :
       type === 'error' ? 'bg-rose-500/10 border-rose-500/20 text-rose-500' :
@@ -78,14 +78,13 @@ const FluidOrb = ({ volume, active }: { volume: number, active: boolean }) => {
         style={{ transform: `scale(${scale})`, opacity: active ? 0.9 : 0.4, background: 'radial-gradient(circle at 30% 30%, #3b82f6, #6366f1, #1e40af)' }}>
         <div className="absolute inset-0 bg-gradient-to-tr from-white/20 to-transparent animate-spin-slow opacity-30" />
       </div>
-      {active && [...Array(2)].map((_, i) => <div key={i} className="absolute inset-0 border-2 border-blue-400/20 rounded-full animate-ping" style={{ animationDelay: `${i * 0.5}s`, animationDuration: '3s' }} />)}
     </div>
   );
 };
 
 export default function App() {
   const [isNewUser, setIsNewUser] = useState<boolean>(() => !localStorage.getItem('mr_vibe_active_user'));
-  const [onboardingStep, setOnboardingStep] = useState<1 | 2 | 3 | 4>(1);
+  const [onboardingStep, setOnboardingStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [authMode, setAuthMode] = useState<'signup' | 'login'>('signup');
   const [isVibeGenerating, setIsVibeGenerating] = useState(false);
   const [apiStatus, setApiStatus] = useState<ApiStatus>('checking');
@@ -94,7 +93,7 @@ export default function App() {
   const [accounts, setAccounts] = useState<User[]>(() => JSON.parse(localStorage.getItem('mr_vibe_accounts') || '[]'));
   const [user, setUser] = useState<User | null>(() => JSON.parse(localStorage.getItem('mr_vibe_active_user') || 'null'));
   const [credentials, setCredentials] = useState({ email: '', password: '' });
-  const [tempProfile, setTempProfile] = useState<Partial<User>>({ userName: '', avatarUrl: AVATARS[0], personalityId: PersonalityId.FUNNY, apiKey: '' });
+  const [tempProfile, setTempProfile] = useState<Partial<User>>({ userName: '', avatarUrl: AVATARS[0], personalityId: PersonalityId.FUNNY, apiKey: '', interests: '' });
   const [settings, setSettings] = useState<AppSettings>(() => JSON.parse(localStorage.getItem('mr_vibe_settings') || '{"language":"English","theme":"dark","personalityId":"FUNNY","voiceName":"Puck"}'));
   const [sessions, setSessions] = useState<ChatSession[]>(() => JSON.parse(localStorage.getItem('mr_vibe_sessions') || '[]'));
   const [activeSessionId, setActiveSessionId] = useState<string | null>(localStorage.getItem('mr_vibe_active_session_id'));
@@ -146,8 +145,20 @@ export default function App() {
     setIsLoading(true);
     try {
       const ai = new GoogleGenAI({ apiKey });
-      const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}\n- Personality: ${currentPersonality.name}\n- Context: ${currentPersonality.prompt}\n- User: ${user?.userName}`;
-      const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: [{ role: 'user', parts: [{ text: "Wake up and say hi!" }] }], config: { systemInstruction: fullSystemPrompt, thinkingConfig: { thinkingBudget: 0 } } });
+      const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}
+      - Personality Type: ${currentPersonality.name}
+      - Detailed Personality Context: ${currentPersonality.prompt}
+      - User Name: ${user?.userName}
+      - User Bio/Interests: ${user?.interests || 'None provided'}
+      
+      INSTRUCTION: Analyze the user's interests and bio. Greet them specifically referencing their interests in your unique ${currentPersonality.name} style.`;
+      
+      const response = await ai.models.generateContent({ 
+        model: 'gemini-3-flash-preview', 
+        contents: [{ role: 'user', parts: [{ text: "Wake up, analyze my vibe based on my interests, and greet me!" }] }], 
+        config: { systemInstruction: fullSystemPrompt, thinkingConfig: { thinkingBudget: 0 } } 
+      });
+      
       const aiMessage: Message = { id: `ai-greet-${Date.now()}`, role: 'model', text: response.text || 'Hey! ✨', timestamp: Date.now() };
       setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, aiMessage], lastTimestamp: Date.now() } : s));
     } catch (e) { console.error(e); } finally { setIsLoading(false); }
@@ -167,7 +178,7 @@ export default function App() {
     if (confirm("Delete this vibe session?")) {
       setSessions(prev => prev.filter(s => s.id !== id));
       if (activeSessionId === id) setActiveSessionId(null);
-      showToast("Vibe Deleted", "info");
+      showToast("Vibe Deleted", "error");
     }
   };
 
@@ -240,10 +251,10 @@ export default function App() {
         const imageResponse = await ai.models.generateContent({ model: 'gemini-2.5-flash-image', contents: [{ parts: [{ text: `Generate visual: ${text}.` }] }], config: { imageConfig: { aspectRatio: "1:1" } } });
         let img: string | undefined;
         for (const p of imageResponse.candidates[0].content.parts) if (p.inlineData) img = `data:image/png;base64,${p.inlineData.data}`;
-        setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, { id: `ai-img-${Date.now()}`, role: 'model', text: `Vibe check pass! 🎨`, image: img, timestamp: Date.now() }] } : s));
+        setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, { id: `ai-img-${Date.now()}`, role: 'model', text: `Vibe created! 🎨`, image: img, timestamp: Date.now() }] } : s));
         setIsVibeGenerating(false);
       } else {
-        const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}\n- Personality: ${currentPersonality.name}\n- Context: ${currentPersonality.prompt}`;
+        const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}\n- Personality: ${currentPersonality.name}\n- User Name: ${user?.userName}\n- User Bio: ${user?.interests}`;
         const parts: any[] = [{ text: text || "Hi!" }];
         if (fileData) parts.push({ inlineData: { data: fileData.data, mimeType: fileData.mimeType } });
         const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: [{ role: 'user', parts }], config: { systemInstruction: fullSystemPrompt, tools: [{ googleSearch: {} }], thinkingConfig: { thinkingBudget: 0 } } });
@@ -266,7 +277,6 @@ export default function App() {
                 <div className="relative"><Lock className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-400" size={20} /><input type="password" placeholder="Password" value={credentials.password} onChange={e => setCredentials({...credentials, password: e.target.value})} className="w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl py-5 pl-16 font-bold outline-none border-2 border-transparent focus:border-blue-500 text-zinc-900 dark:text-white" /></div>
               </div>
               <button onClick={() => { if (!validateEmail(credentials.email)) { setErrorMessage("Enter a valid email! 📧"); return; } setOnboardingStep(2); }} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-5 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95">Get Started</button>
-              <button onClick={() => setAuthMode(authMode === 'signup' ? 'login' : 'signup')} className="text-zinc-500 font-bold text-xs uppercase tracking-widest block w-full hover:text-blue-500">{authMode === 'signup' ? "Have an account? Log in" : "New vibe? Sign up"}</button>
             </div>
           ) : onboardingStep === 2 ? (
             <div className="space-y-10 animate-slide-in-right">
@@ -286,12 +296,11 @@ export default function App() {
             <div className="space-y-10 animate-slide-in-right">
               <button onClick={() => setOnboardingStep(2)} className="flex items-center gap-2 text-zinc-500 font-bold text-xs uppercase tracking-widest"><ArrowLeft size={16} /> Back</button>
               <h2 className="text-3xl font-black italic text-zinc-900 dark:text-white">The Vibe Key</h2>
-              <p className="text-zinc-500 text-sm">Input your Gemini API Key to wake up Mr. Cute.</p>
               <div className="relative"><Key className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-400" size={20} /><input type="password" placeholder="Gemini API Key" value={tempProfile.apiKey} onChange={e => setTempProfile({...tempProfile, apiKey: e.target.value})} className="w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl py-5 pl-16 font-bold outline-none border-2 border-transparent focus:border-blue-500 text-zinc-900 dark:text-white" /></div>
               <button onClick={() => { if (!tempProfile.apiKey?.trim()) { setErrorMessage("Key is required! 🔑"); return; } setOnboardingStep(4); }} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-5 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95">Setup Vibe</button>
               <p className="text-[10px] text-zinc-400 text-center uppercase tracking-[0.2em]">Get one at <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-blue-500 underline">Google AI Studio</a></p>
             </div>
-          ) : (
+          ) : onboardingStep === 4 ? (
             <div className="space-y-10 animate-slide-in-right">
               <button onClick={() => setOnboardingStep(3)} className="flex items-center gap-2 text-zinc-500 font-bold text-xs uppercase tracking-widest"><ArrowLeft size={16} /> Back</button>
               <h2 className="text-3xl font-black italic text-zinc-900 dark:text-white">Match Your Vibe</h2>
@@ -302,7 +311,50 @@ export default function App() {
                   </button>
                 ))}
               </div>
-              <button onClick={() => { setUser({ email: credentials.email, userName: tempProfile.userName || 'User', avatarUrl: tempProfile.avatarUrl || AVATARS[0], age: '18', gender: 'Other', personalityId: tempProfile.personalityId || PersonalityId.FUNNY, apiKey: tempProfile.apiKey }); showToast("Vibe Ready! ✨", "success"); }} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-5 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95">Start Exploring</button>
+              <button onClick={() => setOnboardingStep(5)} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-5 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95">Final Vibe Check</button>
+            </div>
+          ) : (
+            <div className="space-y-8 animate-slide-in-right">
+              <button onClick={() => setOnboardingStep(4)} className="flex items-center gap-2 text-zinc-500 font-bold text-xs uppercase tracking-widest"><ArrowLeft size={16} /> Back</button>
+              <div className="space-y-2">
+                <h2 className="text-3xl font-black italic text-zinc-900 dark:text-white">The Analysis</h2>
+                <p className="text-zinc-500 text-sm">Tell Mr. Cute what you love. Songs? Movies? Hobbies?</p>
+              </div>
+              <div className="space-y-4">
+                <div className="relative">
+                   <Music className="absolute left-5 top-5 text-zinc-400" size={18} />
+                   <textarea 
+                    placeholder="E.g. I love Rock music, Sci-fi movies, and playing chess at night..." 
+                    value={tempProfile.interests} 
+                    onChange={e => setTempProfile({...tempProfile, interests: e.target.value})}
+                    className="w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl py-5 pl-14 pr-6 font-bold outline-none border-2 border-transparent focus:border-blue-500 text-zinc-900 dark:text-white h-32 resize-none"
+                   />
+                </div>
+                <div className="flex gap-2">
+                   <div className="flex-1 p-4 bg-zinc-100 dark:bg-white/5 rounded-2xl text-center"><Film size={20} className="mx-auto text-blue-500 mb-1"/><p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Movies</p></div>
+                   <div className="flex-1 p-4 bg-zinc-100 dark:bg-white/5 rounded-2xl text-center"><Music size={20} className="mx-auto text-blue-500 mb-1"/><p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Songs</p></div>
+                   <div className="flex-1 p-4 bg-zinc-100 dark:bg-white/5 rounded-2xl text-center"><Heart size={20} className="mx-auto text-blue-500 mb-1"/><p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Hobbies</p></div>
+                </div>
+              </div>
+              <button 
+                onClick={() => { 
+                  if (!tempProfile.interests?.trim()) { setErrorMessage("Tell me at least one thing you love! 💖"); return; }
+                  setUser({ 
+                    email: credentials.email, 
+                    userName: tempProfile.userName || 'User', 
+                    avatarUrl: tempProfile.avatarUrl || AVATARS[0], 
+                    age: '18', 
+                    gender: 'Other', 
+                    personalityId: tempProfile.personalityId || PersonalityId.FUNNY, 
+                    apiKey: tempProfile.apiKey,
+                    interests: tempProfile.interests
+                  }); 
+                  showToast("Soul Analyzed! ✨", "success"); 
+                }} 
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white py-5 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95"
+              >
+                Complete Sign Up
+              </button>
             </div>
           )}
         </div>
@@ -324,7 +376,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Sidebar - High Contrast Controls */}
+      {/* Sidebar - Enhanced Visibility for Delete */}
       <div className={`fixed inset-y-0 left-0 z-[300] w-80 bg-white dark:bg-zinc-950 border-r border-zinc-200 dark:border-white/5 transition-transform duration-500 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} md:relative shadow-2xl md:shadow-none`}>
         <div className="flex flex-col h-full">
           <div className="p-8 flex items-center justify-between">
@@ -340,7 +392,11 @@ export default function App() {
                 <div onClick={() => { setActiveSessionId(s.id); setIsSidebarOpen(false); }} className={`p-4 pr-14 rounded-[1.8rem] cursor-pointer transition-all border ${activeSessionId === s.id ? 'bg-blue-600/10 border-blue-500/30 shadow-md ring-1 ring-blue-500/10' : 'hover:bg-zinc-100 dark:hover:bg-white/5 border-transparent'}`}>
                   <div className="flex items-center gap-3"><MessageSquare size={16} className={activeSessionId === s.id ? 'text-blue-500' : 'text-zinc-400'} /><p className={`font-bold text-xs truncate ${activeSessionId === s.id ? 'text-blue-600 dark:text-blue-400' : 'text-zinc-600 dark:text-zinc-300'}`}>{s.title}</p></div>
                 </div>
-                <button onClick={(e) => { e.stopPropagation(); handleDeleteSession(s.id); }} className="absolute right-3 top-1/2 -translate-y-1/2 p-2.5 text-rose-500 hover:bg-rose-500/20 rounded-xl transition-all shadow-sm opacity-60 hover:opacity-100">
+                {/* HIGH VISIBILITY TRASH BUTTON */}
+                <button 
+                  onClick={(e) => { e.stopPropagation(); handleDeleteSession(s.id); }} 
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2.5 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl transition-all shadow-sm opacity-100 md:opacity-0 group-hover:opacity-100 bg-rose-500/10 border border-rose-500/20"
+                >
                   <Trash2 size={18} strokeWidth={2.5} />
                 </button>
               </div>
@@ -350,7 +406,6 @@ export default function App() {
       </div>
 
       <div className="flex-1 flex flex-col relative h-full overflow-hidden">
-        {/* Header - Transparent & Modern */}
         <header className="px-6 py-4 border-b border-zinc-100 dark:border-white/5 flex items-center justify-between bg-white/40 dark:bg-black/40 backdrop-blur-2xl sticky top-0 z-[100]">
           <div className="flex items-center gap-3">
             <button onClick={() => setIsSidebarOpen(true)} className="p-3 bg-zinc-100 dark:bg-white/10 rounded-2xl md:hidden text-zinc-900 dark:text-white shadow-sm"><Menu size={20} /></button>
@@ -376,7 +431,6 @@ export default function App() {
           </div>
         </header>
 
-        {/* Chat Feed - Modern Layout */}
         <main className="flex-1 overflow-y-auto px-4 md:px-12 py-10 custom-scrollbar bg-zinc-50 dark:bg-[#050505] relative">
           <div className="max-w-3xl mx-auto flex flex-col gap-10">
             {messages.length === 0 && !isLoading ? (
@@ -384,7 +438,7 @@ export default function App() {
                 <Logo className="w-24 h-24" animated />
                 <div className="space-y-3">
                   <h2 className="text-4xl font-black text-zinc-900 dark:text-white italic tracking-tighter">Mr. Cute is ready.</h2>
-                  <p className="text-sm font-medium text-zinc-500 max-w-sm mx-auto">Selected Vibe: <span className="text-blue-500 font-bold uppercase tracking-widest text-xs">{currentPersonality.name}</span>. Start typing or tap the mic!</p>
+                  <p className="text-sm font-medium text-zinc-500 max-w-sm mx-auto">Vibe Analysis Complete. You are: <span className="text-blue-500 font-bold uppercase tracking-widest text-xs">Analyzed</span>. Start typing!</p>
                 </div>
               </div>
             ) : messages.map((msg, idx) => (
@@ -405,34 +459,16 @@ export default function App() {
                     </div>
                     <div className="flex items-center gap-3 px-2">
                        <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                       {msg.role === 'model' && (
-                         <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => handleReaction(msg.id, 'like')} className={`hover:text-blue-500 transition-colors ${msg.reaction === 'like' ? 'text-blue-500' : 'text-zinc-500'}`}><ThumbsUp size={12}/></button>
-                            <button onClick={() => { navigator.clipboard.writeText(msg.text); showToast("Copied!", "success"); }} className="text-zinc-500 hover:text-blue-500"><Share2 size={12}/></button>
-                         </div>
-                       )}
                     </div>
                   </div>
                 </div>
               </div>
             ))}
             {isLoading && <TypingIndicator personality={currentPersonality} />}
-            {isVibeGenerating && (
-              <div className="flex justify-start animate-vibe-in">
-                <div className="flex items-end gap-2 w-full max-w-[80%]">
-                   <div className="w-10 h-10 rounded-[1rem] bg-blue-500/10 flex items-center justify-center text-xl shrink-0"><span className="animate-spin text-2xl">🎨</span></div>
-                   <div className="flex-1 p-6 bg-blue-600/5 dark:bg-white/5 rounded-[2rem] rounded-bl-none border-2 border-dashed border-blue-500/20 flex items-center justify-center gap-3">
-                      <Loader2 size={20} className="animate-spin text-blue-500" />
-                      <span className="text-xs font-black uppercase tracking-widest text-blue-500 animate-pulse">Brewing Vibe Visuals...</span>
-                   </div>
-                </div>
-              </div>
-            )}
             <div ref={bottomRef} className="h-32" />
           </div>
         </main>
 
-        {/* Footer - Floating Modern Bar */}
         <footer className="px-4 py-8 pointer-events-none absolute bottom-0 left-0 right-0 z-[200]">
           <div className="max-w-2xl mx-auto flex items-center gap-3 pointer-events-auto">
             <div className="flex-1 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-3xl flex items-center rounded-[2.5rem] px-6 py-1 border-2 border-black/5 dark:border-white/10 focus-within:border-blue-500 transition-all shadow-2xl">
@@ -445,7 +481,6 @@ export default function App() {
         </footer>
       </div>
 
-      {/* Config Modal - Refined */}
       {isProfileModalOpen && (
         <div className="fixed inset-0 z-[500] flex items-center justify-center p-6">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-xl animate-fade-in" onClick={() => setIsProfileModalOpen(false)} />
@@ -457,19 +492,12 @@ export default function App() {
             
             <div className="space-y-10">
               <div className="flex flex-col items-center gap-8">
-                <div className="relative group">
-                  <img src={user?.avatarUrl} className="w-32 h-32 rounded-[2.5rem] shadow-2xl border-4 border-white dark:border-zinc-800 transition-transform group-hover:scale-105" alt="A" />
-                  <div className="absolute -top-2 -right-2 p-3 bg-blue-600 text-white rounded-2xl shadow-lg animate-bounce-slow"><Sparkles size={20}/></div>
-                </div>
+                <img src={user?.avatarUrl} className="w-32 h-32 rounded-[2.5rem] shadow-2xl border-4 border-white dark:border-zinc-800" alt="Avatar" />
                 <div className="w-full space-y-4">
                   <input type="text" value={user?.userName} onChange={(e) => handleUpdateUserName(e.target.value)} className="w-full bg-zinc-100 dark:bg-white/5 rounded-2xl py-5 px-6 font-black text-center text-zinc-900 dark:text-white text-2xl border-2 border-transparent focus:border-blue-500 outline-none" />
                   <div className="relative group">
                     <Key className={`absolute left-5 top-1/2 -translate-y-1/2 ${apiStatus === 'connected' ? 'text-green-500' : 'text-zinc-400'}`} size={20} />
                     <input type="password" value={user?.apiKey || ''} placeholder="Update Vibe Key" onChange={(e) => { if (!user) return; setUser({ ...user, apiKey: e.target.value }); }} className="w-full bg-zinc-100 dark:bg-white/5 rounded-2xl py-5 pl-14 pr-6 font-bold text-sm text-zinc-900 dark:text-white border-2 border-transparent focus:border-blue-500 outline-none" />
-                  </div>
-                  <div className="flex justify-between px-2 items-center">
-                    <span className={`text-[10px] font-black uppercase tracking-widest ${apiStatus === 'connected' ? 'text-green-500' : 'text-rose-500'}`}>Status: {apiStatus}</span>
-                    <button onClick={() => { checkApiConnection(); showToast("Re-verifying Key...", "info"); }} className="text-[10px] font-black uppercase text-blue-500 tracking-widest hover:underline">Verify Connection</button>
                   </div>
                 </div>
               </div>
@@ -483,26 +511,6 @@ export default function App() {
                       <p className="font-black text-xs uppercase tracking-tight">{p.name}</p>
                     </button>
                   ))}
-                </div>
-              </div>
-
-              <div className="space-y-5">
-                <label className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 px-2">System Vibes</label>
-                <div className="grid grid-cols-1 gap-4">
-                  <div className="flex items-center justify-between p-5 bg-zinc-100 dark:bg-white/5 rounded-[2rem]">
-                    <span className="font-bold text-sm dark:text-white">Dark Mode</span>
-                    <button onClick={() => setSettings({...settings, theme: settings.theme === 'dark' ? 'light' : 'dark'})} className={`w-14 h-7 rounded-full relative transition-colors ${settings.theme === 'dark' ? 'bg-blue-600' : 'bg-zinc-300'}`}>
-                      <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all shadow-md ${settings.theme === 'dark' ? 'left-8' : 'left-1'}`} />
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <select value={settings.voiceName} onChange={e => setSettings({...settings, voiceName: e.target.value})} className="flex-1 bg-zinc-100 dark:bg-white/5 rounded-[2rem] py-5 px-8 font-black text-sm text-zinc-900 dark:text-white outline-none border-2 border-transparent focus:border-blue-500 appearance-none">
-                      {GEMINI_VOICES.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                    </select>
-                    <button onClick={() => previewVoice(settings.voiceName)} disabled={isPreviewingVoice} className="p-5 bg-zinc-900 dark:bg-white text-white dark:text-black rounded-[2rem] hover:scale-110 active:scale-95 transition-all shadow-lg">
-                      {isPreviewingVoice ? <Loader2 size={24} className="animate-spin" /> : <Play size={24} />}
-                    </button>
-                  </div>
                 </div>
               </div>
 

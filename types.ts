@@ -28,6 +28,7 @@ export interface User {
   avatarUrl: string;
   personalityId: PersonalityId;
   apiKey?: string;
+  interests?: string; // New field for onboarding analysis
 }
 
 export interface Personality {

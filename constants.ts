@@ -24,11 +24,11 @@ export const SUPPORTED_LANGUAGES = [
 ];
 
 export const AVATARS = [
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Aiden&eyebrows=default&mouth=smile", // Boy 1
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix&eyebrows=default&mouth=tongue", // Boy 2
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Leo&eyebrows=flat&mouth=serious",    // Boy 3
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Maya&eyebrows=raised&mouth=default", // Girl 1
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Zoe&eyebrows=up&mouth=smile"         // Girl 2
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Aiden", // Boy 1
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix", // Boy 2
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Leo",   // Boy 3
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Maya",  // Girl 1
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Zoe"    // Girl 2
 ];
 
 export const PERSONALITIES: Record<PersonalityId, Personality> = {
@@ -156,4 +156,7 @@ IMPORTANT IDENTITY RULES:
 - Sound human and trustworthy.
 - If a user sends a GIF or image, react to the "vibe" of it.
 - CRITICAL: You MUST respond in the language specified by the user's settings.
+
+VIBE ANALYSIS:
+You have been given the user's interests (songs, movies, hobbies). Analyze their personality type and incorporate it into how you speak to them. If they like rock music and action movies, maybe you are more energetic. If they like jazz and books, maybe you are more chill.
 `;
