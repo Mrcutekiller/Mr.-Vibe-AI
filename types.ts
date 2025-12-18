@@ -54,6 +54,7 @@ export interface Message {
   role: 'user' | 'model';
   text: string;
   image?: string; // base64
+  isVibeArt?: boolean;
   timestamp: number;
   reaction?: ReactionType;
   sources?: GroundingSource[];
