@@ -27,8 +27,10 @@ export interface User {
   gender: Gender;
   avatarUrl: string;
   personalityId: PersonalityId;
-  apiKey?: string;
-  interests?: string; // New field for onboarding analysis
+  movieGenre?: string;
+  musicGenre?: string;
+  favoriteArtists?: string[];
+  educationLevel?: string;
 }
 
 export interface Personality {
