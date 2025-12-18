@@ -33,7 +33,6 @@ export const useGeminiLive = ({
   const streamRef = useRef<MediaStream | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const sessionRef = useRef<any>(null);
   const sessionPromiseRef = useRef<Promise<any> | null>(null);
   
   const nextStartTimeRef = useRef<number>(0);
@@ -54,7 +53,7 @@ export const useGeminiLive = ({
       if (inputAudioContextRef.current.state === 'suspended') await inputAudioContextRef.current.resume();
     } catch (e) {
       console.error("Audio Init Failed", e);
-      throw new Error("Microphone or Audio context blocked.");
+      throw new Error("Microphone access denied.");
     }
   }, []);
 
@@ -63,17 +62,20 @@ export const useGeminiLive = ({
       streamRef.current.getTracks().forEach(track => track.stop()); 
       streamRef.current = null; 
     }
-    if (processorRef.current && sourceRef.current) { 
-      sourceRef.current.disconnect(); 
+    if (processorRef.current) { 
       processorRef.current.disconnect(); 
       processorRef.current = null; 
-      sourceRef.current = null; 
     }
-    if (sessionRef.current) {
-        try { sessionRef.current.close(); } catch(e) {}
-        sessionRef.current = null;
+    if (sourceRef.current) {
+      sourceRef.current.disconnect();
+      sourceRef.current = null;
     }
+    
+    sessionPromiseRef.current?.then(session => {
+        try { session.close(); } catch(e) {}
+    });
     sessionPromiseRef.current = null;
+
     sourcesRef.current.forEach(source => { try { source.stop(); } catch(e) {} });
     sourcesRef.current.clear();
     nextStartTimeRef.current = 0;
@@ -86,11 +88,9 @@ export const useGeminiLive = ({
   }, [onConnectionStateChange]);
 
   const sendMessage = useCallback((text: string) => {
-    if (sessionPromiseRef.current) {
-      sessionPromiseRef.current.then(session => {
-        session.sendRealtimeInput({ text });
-      });
-    }
+    sessionPromiseRef.current?.then(session => {
+      session.sendRealtimeInput({ text });
+    });
   }, []);
 
   const connect = useCallback(async () => {
@@ -109,8 +109,7 @@ export const useGeminiLive = ({
       - Personality: ${personality.name}
       - Context: ${personality.prompt}
       - User: ${user.userName}
-      Rules: Be concise, friendly, and stay in character. 
-      IMPORTANT: You are the initiator. When the session starts, speak first to greet the user warmly!`;
+      Rules: Be concise and stay in character. Speak first to greet the user!`;
 
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
@@ -129,9 +128,9 @@ export const useGeminiLive = ({
             setIsConnecting(false);
             onConnectionStateChange(true);
             
-            // AI Greets First
+            // Critical: Wait for session promise resolution before sending
             sessionPromise.then(session => {
-              session.sendRealtimeInput({ text: "I'm ready! Introduce yourself and greet me warmly based on your personality!" });
+              session.sendRealtimeInput({ text: "Introduce yourself and greet me warmly based on your personality!" });
             });
 
             if (!inputAudioContextRef.current) return;
@@ -146,7 +145,6 @@ export const useGeminiLive = ({
               setVolume(vol);
               const pcmBlob = createPcmBlob(inputData);
               sessionPromise.then((session) => { 
-                  sessionRef.current = session;
                   session.sendRealtimeInput({ media: pcmBlob }); 
               });
             };
@@ -176,12 +174,12 @@ export const useGeminiLive = ({
              if (message.serverContent?.inputTranscription) {
                 const text = message.serverContent.inputTranscription.text;
                 currentInputText.current += text;
-                onTranscript(text, false, true);
+                onTranscript(text, false, false);
              }
              if (message.serverContent?.outputTranscription) {
                 const text = message.serverContent.outputTranscription.text;
                 currentOutputText.current += text;
-                onTranscript(text, true, true);
+                onTranscript(text, true, false);
              }
              if (message.serverContent?.turnComplete) {
                 onTurnComplete(currentInputText.current, currentOutputText.current);
@@ -196,14 +194,14 @@ export const useGeminiLive = ({
           },
           onclose: () => disconnect(),
           onerror: (e) => {
-            onError("Network error. Checking connection...");
+            onError("Network vibe error. Reconnecting...");
             disconnect();
           }
         }
       });
       sessionPromiseRef.current = sessionPromise;
     } catch (error: any) { 
-      onError(error.message || "Failed to establish connection.");
+      onError(error.message || "Vibe connection failed.");
       disconnect(); 
     }
   }, [personality, settings, user, isLive, isConnecting, onConnectionStateChange, onTranscript, onTurnComplete, initAudio, disconnect, onError]);

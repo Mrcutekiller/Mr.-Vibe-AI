@@ -26,6 +26,7 @@ export interface User {
   age: string;
   gender: Gender;
   avatarUrl: string;
+  personalityId: PersonalityId;
 }
 
 export interface Personality {
@@ -39,6 +40,11 @@ export interface Personality {
 
 export type ReactionType = 'like' | 'dislike' | 'eco' | 'pee' | null;
 
+export interface GroundingSource {
+  title: string;
+  uri: string;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'model';
@@ -46,6 +52,7 @@ export interface Message {
   image?: string; // base64
   timestamp: number;
   reaction?: ReactionType;
+  sources?: GroundingSource[];
 }
 
 export interface ChatSession {
@@ -62,3 +69,5 @@ export interface AppSettings {
   personalityId: PersonalityId;
   voiceName: string;
 }
+
+export type ApiStatus = 'checking' | 'connected' | 'error';
