@@ -14,6 +14,10 @@ export const AVATARS = [
   "https://api.dicebear.com/7.x/avataaars/svg?seed=Aiden", // Boy 1
   "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix", // Boy 2
   "https://api.dicebear.com/7.x/avataaars/svg?seed=Leo",   // Boy 3
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Jack",  // Boy 4
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Oliver",// Boy 5
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Ethan", // Boy 6 (New)
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Noah",  // Boy 7 (New)
   "https://api.dicebear.com/7.x/avataaars/svg?seed=Maya",  // Girl 1
   "https://api.dicebear.com/7.x/avataaars/svg?seed=Zoe"    // Girl 2
 ];
