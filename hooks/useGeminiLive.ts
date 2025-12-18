@@ -9,8 +9,10 @@ interface UseGeminiLiveProps {
   personality: Personality;
   settings: AppSettings;
   user: User;
-  onTranscript: (text: string, isModel: boolean) => void;
+  onTranscript: (text: string, isModel: boolean, isInterim: boolean) => void;
+  onTurnComplete: (userText: string, modelText: string) => void;
   onConnectionStateChange: (isConnected: boolean) => void;
+  onError: (error: string) => void;
 }
 
 export const useGeminiLive = ({
@@ -18,7 +20,9 @@ export const useGeminiLive = ({
   settings,
   user,
   onTranscript,
+  onTurnComplete,
   onConnectionStateChange,
+  onError,
 }: UseGeminiLiveProps) => {
   const [isLive, setIsLive] = useState(false);
   const [volume, setVolume] = useState(0); 
@@ -30,25 +34,32 @@ export const useGeminiLive = ({
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const sessionRef = useRef<any>(null);
+  const sessionPromiseRef = useRef<Promise<any> | null>(null);
   
   const aiClientRef = useRef<GoogleGenAI | null>(null);
   const nextStartTimeRef = useRef<number>(0);
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
 
+  const currentInputText = useRef('');
+  const currentOutputText = useRef('');
+
   const initAudio = useCallback(async () => {
-    if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+      }
+      if (!inputAudioContextRef.current) {
+        inputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+      }
+      if (audioContextRef.current.state === 'suspended') await audioContextRef.current.resume();
+      if (inputAudioContextRef.current.state === 'suspended') await inputAudioContextRef.current.resume();
+    } catch (e) {
+      console.error("Audio Init Failed", e);
+      throw new Error("Microphone or Audio context blocked.");
     }
-    if (!inputAudioContextRef.current) {
-      inputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-    }
-    // Force resume
-    if (audioContextRef.current.state === 'suspended') await audioContextRef.current.resume();
-    if (inputAudioContextRef.current.state === 'suspended') await inputAudioContextRef.current.resume();
   }, []);
 
   const disconnect = useCallback(() => {
-    console.log("Disconnecting voice...");
     if (streamRef.current) { 
       streamRef.current.getTracks().forEach(track => track.stop()); 
       streamRef.current = null; 
@@ -63,14 +74,25 @@ export const useGeminiLive = ({
         try { sessionRef.current.close(); } catch(e) {}
         sessionRef.current = null;
     }
+    sessionPromiseRef.current = null;
     sourcesRef.current.forEach(source => { try { source.stop(); } catch(e) {} });
     sourcesRef.current.clear();
     nextStartTimeRef.current = 0;
+    currentInputText.current = '';
+    currentOutputText.current = '';
     setIsLive(false);
     setIsConnecting(false);
     onConnectionStateChange(false);
     setVolume(0);
   }, [onConnectionStateChange]);
+
+  const sendMessage = useCallback((text: string) => {
+    if (sessionPromiseRef.current) {
+      sessionPromiseRef.current.then(session => {
+        session.sendRealtimeInput({ text });
+      });
+    }
+  }, []);
 
   const connect = useCallback(async () => {
     if (isLive || isConnecting) return;
@@ -82,21 +104,18 @@ export const useGeminiLive = ({
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      // Always instantiate GoogleGenAI right before the call using process.env.API_KEY
+      // Ensure API Key is available
+      if (!process.env.API_KEY) {
+        throw new Error("API Key missing. Please check your configuration.");
+      }
+
       aiClientRef.current = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
       const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}
-      
-      CURRENT CONFIGURATION:
-      - Selected Personality: ${personality.name}
-      - Personality Rules: ${personality.prompt}
-      - User Name: ${user.userName || 'Friend'}
-
-      VOICE MODE SPECIFIC RULES:
-      - You are in a real-time voice conversation.
-      - Be brief, conversational, and stay in character.
-      - If user says hi, respond warmly as Mr. Cute.
-      `;
+      - Personality: ${personality.name}
+      - Context: ${personality.prompt}
+      - User: ${user.userName}
+      Rules: Be concise, friendly, and stay in character for voice mode.`;
 
       const sessionPromise = aiClientRef.current.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
@@ -106,13 +125,11 @@ export const useGeminiLive = ({
             speechConfig: {
               voiceConfig: { prebuiltVoiceConfig: { voiceName: settings.voiceName || personality.voiceName } }, 
             },
-            // Guideline: Enable transcription by setting it to an empty object
             inputAudioTranscription: {},
             outputAudioTranscription: {},
         },
         callbacks: {
           onopen: () => {
-            console.log("Voice session opened");
             setIsLive(true);
             setIsConnecting(false);
             onConnectionStateChange(true);
@@ -125,10 +142,10 @@ export const useGeminiLive = ({
               const inputData = e.inputBuffer.getChannelData(0);
               let sum = 0;
               for(let i=0; i<inputData.length; i++) sum += inputData[i] * inputData[i];
-              setVolume(Math.sqrt(sum / inputData.length));
+              const vol = Math.sqrt(sum / inputData.length);
+              setVolume(vol);
               
               const pcmBlob = createPcmBlob(inputData);
-              // CRITICAL: Solely rely on sessionPromise resolves to call sendRealtimeInput
               sessionPromise.then((session) => { 
                   sessionRef.current = session;
                   session.sendRealtimeInput({ media: pcmBlob }); 
@@ -141,7 +158,6 @@ export const useGeminiLive = ({
             processorRef.current = processor;
           },
           onmessage: async (message: LiveServerMessage) => {
-             // Handle Model Speech
              const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
              if (base64Audio && audioContextRef.current) {
                 const ctx = audioContextRef.current;
@@ -151,40 +167,50 @@ export const useGeminiLive = ({
                   const source = ctx.createBufferSource();
                   source.buffer = audioBuffer;
                   source.connect(ctx.destination);
-                  source.addEventListener('ended', () => { sourcesRef.current.delete(source); });
-                  // Schedule the audio chunk to start at nextStartTime for gapless playback
                   source.start(nextStartTimeRef.current);
                   nextStartTimeRef.current += audioBuffer.duration;
                   sourcesRef.current.add(source);
-                } catch (err) { console.error("Audio playback error", err); }
+                  source.onended = () => sourcesRef.current.delete(source);
+                } catch (err) { console.error("Audio output error", err); }
              }
 
-             // Handle User Transcription (for UI feedback)
-             if (message.serverContent?.inputTranscription?.text) {
-                 onTranscript(message.serverContent.inputTranscription.text, false);
+             if (message.serverContent?.inputTranscription) {
+                const text = message.serverContent.inputTranscription.text;
+                currentInputText.current += text;
+                onTranscript(text, false, true);
              }
 
-             // Handle Model Response Text (for UI feedback)
-             const modelText = message.serverContent?.modelTurn?.parts?.find(p => p.text)?.text;
-             if (modelText) {
-                 onTranscript(modelText, true);
+             if (message.serverContent?.outputTranscription) {
+                const text = message.serverContent.outputTranscription.text;
+                currentOutputText.current += text;
+                onTranscript(text, true, true);
+             }
+
+             if (message.serverContent?.turnComplete) {
+                onTurnComplete(currentInputText.current, currentOutputText.current);
+                currentInputText.current = '';
+                currentOutputText.current = '';
+             }
+
+             if (message.serverContent?.interrupted) {
+               sourcesRef.current.forEach(s => { try { s.stop(); } catch(e) {} });
+               sourcesRef.current.clear();
+               nextStartTimeRef.current = 0;
              }
           },
-          onclose: (e) => { 
-            console.log("Session closed", e);
-            disconnect(); 
-          },
-          onerror: (e) => { 
-            console.error("Session error", e);
-            disconnect(); 
+          onclose: () => disconnect(),
+          onerror: (e) => {
+            onError("Connection Error. Please try again.");
+            disconnect();
           }
         }
       });
-    } catch (error) { 
-      console.error("Connection failed", error);
+      sessionPromiseRef.current = sessionPromise;
+    } catch (error: any) { 
+      onError(error.message || "Network error occurred.");
       disconnect(); 
     }
-  }, [personality, settings, user, isLive, isConnecting, onConnectionStateChange, onTranscript, initAudio, disconnect]);
+  }, [personality, settings, user, isLive, isConnecting, onConnectionStateChange, onTranscript, onTurnComplete, initAudio, disconnect, onError]);
 
-  return { connect, disconnect, isLive, isConnecting, volume };
+  return { connect, disconnect, sendMessage, isLive, isConnecting, volume };
 };

@@ -10,17 +10,30 @@ export const GEMINI_VOICES = [
   { id: 'Zephyr', name: 'Friendly (Zephyr)' }
 ];
 
+export const SUPPORTED_LANGUAGES = [
+  { code: 'English', name: 'English 🇺🇸' },
+  { code: 'Spanish', name: 'Español 🇪🇸' },
+  { code: 'French', name: 'Français 🇫🇷' },
+  { code: 'German', name: 'Deutsch 🇩🇪' },
+  { code: 'Italian', name: 'Italiano 🇮🇹' },
+  { code: 'Portuguese', name: 'Português 🇧🇷' },
+  { code: 'Japanese', name: '日本語 🇯🇵' },
+  { code: 'Korean', name: '한국어 🇰🇷' },
+  { code: 'Chinese', name: '中文 🇨🇳' },
+  { code: 'Arabic', name: 'العربية 🇸🇦' }
+];
+
 export const AVATARS = [
-  "https://api.dicebear.com/7.x/micah/svg?seed=Felix",
-  "https://api.dicebear.com/7.x/micah/svg?seed=Anya",
-  "https://api.dicebear.com/7.x/micah/svg?seed=Midnight",
-  "https://api.dicebear.com/7.x/micah/svg?seed=Casper",
-  "https://api.dicebear.com/7.x/micah/svg?seed=Luna",
-  "https://api.dicebear.com/7.x/micah/svg?seed=Oliver",
-  "https://api.dicebear.com/7.x/micah/svg?seed=Zoe",
-  "https://api.dicebear.com/7.x/micah/svg?seed=Leo",
-  "https://api.dicebear.com/7.x/micah/svg?seed=Maya",
-  "https://api.dicebear.com/7.x/micah/svg?seed=Finn"
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Aiden&eyebrows=default&mouth=smile",
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Maya&eyebrows=raised&mouth=default",
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Leo&eyebrows=flat&mouth=serious",
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Zoe&eyebrows=up&mouth=smile",
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix&eyebrows=default&mouth=tongue",
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Luna&eyebrows=frown&mouth=default",
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Jasper&eyebrows=raised&mouth=twinkle",
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Elena&eyebrows=default&mouth=smile",
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Finn&eyebrows=up&mouth=default",
+  "https://api.dicebear.com/7.x/avataaars/svg?seed=Zara&eyebrows=flat&mouth=smile"
 ];
 
 export const PERSONALITY_REACH_OUTS: Record<PersonalityId, string> = {
@@ -163,4 +176,6 @@ IMPORTANT IDENTITY RULES:
 - Stay in character at all times.
 - Use emojis in every reply.
 - Sound human and trustworthy.
+- If a user sends a GIF or image, react to the "vibe" of it.
+- CRITICAL: You MUST respond in the language specified by the user's settings.
 `;
