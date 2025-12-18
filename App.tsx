@@ -7,7 +7,7 @@ import {
   User as UserIcon, CheckCircle2, Mail, Lock, Sparkles, 
   ChevronRight, MicOff, MessageSquare, AlertCircle, AlertTriangle, RefreshCw,
   Camera, FileText, Upload, Loader2, Play, Image as ImageIcon, Globe,
-  Leaf, Droplets, Share2, ThumbsUp, ThumbsDown, Edit3
+  Leaf, Droplets, Share2, ThumbsUp, ThumbsDown, Edit3, ClipboardCheck
 } from 'lucide-react';
 import { PERSONALITIES, BASE_SYSTEM_PROMPT, AVATARS, GEMINI_VOICES, PERSONALITY_REACH_OUTS, SUPPORTED_LANGUAGES } from './constants';
 import { PersonalityId, AppSettings, User, ChatSession, Message } from './types';
@@ -227,6 +227,32 @@ export default function App() {
     }
   };
 
+  const handleAISpeakFirst = async (sessionId: string) => {
+    setIsLoading(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}
+      - Personality: ${currentPersonality.name}
+      - User Context: ${user?.userName}
+      - Language Setting: ${settings.language}
+      - Task: Greet the user with energy and stay in character. You must speak first!
+      `;
+
+      const response = await ai.models.generateContent({
+          model: 'gemini-3-flash-preview',
+          contents: [{ role: 'user', parts: [{ text: "Introduce yourself and ask me how my day is going!" }] }],
+          config: { systemInstruction: fullSystemPrompt }
+      });
+
+      setSessions(prev => prev.map(s => s.id === sessionId ? {
+          ...s,
+          messages: [{ id: Date.now().toString(), role: 'model', text: response.text || 'Hey there! ✨', timestamp: Date.now() }]
+      } : s));
+    } catch (error) {
+       console.error(error);
+    } finally { setIsLoading(false); }
+  }
+
   const handleNewChat = () => {
     const newId = Date.now().toString();
     const newSession: ChatSession = {
@@ -240,39 +266,11 @@ export default function App() {
     setActiveSessionId(newId);
     setIsSidebarOpen(false);
 
-    // AI initiates the conversation
-    setTimeout(() => {
-      handleAISpeakFirst(newId);
-    }, 500);
+    // Trigger AI initiation
+    handleAISpeakFirst(newId);
 
     return newId;
   };
-
-  const handleAISpeakFirst = async (sessionId: string) => {
-    setIsLoading(true);
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}
-      - Personality: ${currentPersonality.name}
-      - User Context: ${user?.userName}
-      - Language Setting: ${settings.language}
-      - Task: Greet the user in character as a new session has started.
-      `;
-
-      const response = await ai.models.generateContent({
-          model: 'gemini-3-flash-preview',
-          contents: [{ role: 'user', parts: [{ text: "Greet me in your unique personality!" }] }],
-          config: { systemInstruction: fullSystemPrompt }
-      });
-
-      setSessions(prev => prev.map(s => s.id === sessionId ? {
-          ...s,
-          messages: [{ id: Date.now().toString(), role: 'model', text: response.text || 'Hey there! ✨', timestamp: Date.now() }]
-      } : s));
-    } catch (error) {
-       console.error(error);
-    } finally { setIsLoading(false); }
-  }
 
   const confirmDeleteSession = () => {
     if (sessionToDelete) {
@@ -426,7 +424,6 @@ export default function App() {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    // Simple feedback could go here
   };
 
   if (isNewUser) {
@@ -447,10 +444,10 @@ export default function App() {
                             <div className="relative group">
                                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-blue-500 transition-colors" size={18} />
                                 <input 
-                                    type="email" placeholder="Email Address (e.g. name@vibe.ai)" 
+                                    type="email" placeholder="Email (e.g. name@domain.com)" 
                                     value={credentials.email}
                                     onChange={e => setCredentials({...credentials, email: e.target.value})}
-                                    className="w-full bg-zinc-100 dark:bg-white/5 rounded-xl md:rounded-3xl py-4 md:py-6 pl-12 md:pl-16 pr-6 font-bold outline-none border-2 border-transparent focus:border-blue-500/50 transition-all text-zinc-900 dark:text-white text-sm" 
+                                    className="w-full bg-zinc-100 dark:bg-white/5 rounded-xl md:rounded-3xl py-4 md:py-6 pl-12 md:pl-16 pr-6 font-bold outline-none border-2 border-transparent focus:border-blue-500 transition-all text-zinc-900 dark:text-white text-sm" 
                                 />
                             </div>
                             <div className="relative group">
@@ -459,7 +456,7 @@ export default function App() {
                                     type="password" placeholder="Secure Password" 
                                     value={credentials.password}
                                     onChange={e => setCredentials({...credentials, password: e.target.value})}
-                                    className="w-full bg-zinc-100 dark:bg-white/5 rounded-xl md:rounded-3xl py-4 md:py-6 pl-12 md:pl-16 pr-6 font-bold outline-none border-2 border-transparent focus:border-blue-500/50 transition-all text-zinc-900 dark:text-white text-sm" 
+                                    className="w-full bg-zinc-100 dark:bg-white/5 rounded-xl md:rounded-3xl py-4 md:py-6 pl-12 md:pl-16 pr-6 font-bold outline-none border-2 border-transparent focus:border-blue-500 transition-all text-zinc-900 dark:text-white text-sm" 
                                 />
                             </div>
                         </div>
@@ -519,7 +516,7 @@ export default function App() {
   return (
     <div className="flex h-screen w-full font-sans overflow-hidden bg-zinc-50 dark:bg-black transition-colors duration-500">
       
-      {/* Voice Mode sonic Space */}
+      {/* Voice Mode Sonic Space */}
       {(isLive || isConnecting) && (
         <div className="fixed inset-0 z-[300] bg-black/98 backdrop-blur-3xl flex flex-col items-center justify-between p-4 md:p-8 animate-in fade-in duration-700">
           <div className="w-full flex justify-end gap-3 md:gap-4">
@@ -624,7 +621,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Main Experience Area */}
+      {/* Main Area */}
       <div className="flex-1 flex flex-col relative h-full">
         <header className="px-4 md:px-8 py-3 md:py-6 border-b border-zinc-100 dark:border-white/5 flex items-center justify-between backdrop-blur-xl bg-white/50 dark:bg-black/50 sticky top-0 z-[100]">
             <div className="flex items-center gap-3">
@@ -638,7 +635,7 @@ export default function App() {
                     </div>
                     <div className="hidden xs:block">
                         <h1 className="text-xs md:text-base font-black tracking-tighter leading-none truncate max-w-[80px] md:max-w-[120px]">{user?.userName}</h1>
-                        <p className="text-[8px] md:text-[10px] font-black text-blue-500 uppercase tracking-widest mt-0.5">Vibe Partner</p>
+                        <p className="text-[8px] md:text-[10px] font-black text-blue-500 uppercase tracking-widest mt-0.5">Active Vibe</p>
                     </div>
                 </div>
             </div>
@@ -654,13 +651,6 @@ export default function App() {
             </div>
         </header>
 
-        {errorMessage && !isLive && (
-          <div className="m-4 p-3 bg-red-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-between animate-in slide-in-from-top-4 shadow-xl">
-             <div className="flex items-center gap-2"><AlertCircle size={14}/> {errorMessage}</div>
-             <button onClick={() => setErrorMessage(null)} className="p-1 hover:bg-white/20 rounded-lg"><X size={14}/></button>
-          </div>
-        )}
-
         <main className="flex-1 overflow-y-auto px-4 md:px-12 py-6 md:py-10 custom-scrollbar bg-zinc-50 dark:bg-black relative">
             <div className="max-w-3xl mx-auto flex flex-col gap-6 md:gap-8">
                 {messages.length === 0 && !isLoading ? (
@@ -672,9 +662,9 @@ export default function App() {
                             </div>
                         </div>
                         <div className="space-y-2 px-4">
-                            <h2 className="text-2xl md:text-4xl font-black tracking-tighter text-zinc-900 dark:text-white leading-tight">Drop the Vibe.</h2>
+                            <h2 className="text-2xl md:text-4xl font-black tracking-tighter text-zinc-900 dark:text-white leading-tight">Vibe Initiated.</h2>
                             <p className="text-xs md:text-base font-medium text-zinc-500 max-w-[240px] md:max-w-sm mx-auto leading-relaxed">
-                                I'm Mr. Cute. Choose a vibe, upload content, or let's just chat.
+                                Pick a vibe, upload some content, or just chat away.
                             </p>
                         </div>
                     </div>
@@ -683,28 +673,28 @@ export default function App() {
                         <div key={msg.id} className={`flex w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-6 duration-500`} style={{ animationDelay: `${i * 0.02}s` }}>
                             <div className={`max-w-[92%] md:max-w-[80%] rounded-2xl md:rounded-[2.5rem] p-4 md:p-6 shadow-lg relative ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white dark:bg-zinc-800/60 dark:text-white text-zinc-900 border border-zinc-100 dark:border-white/5 rounded-bl-none'}`}>
                                 {msg.image && (
-                                  <div className="mb-4 rounded-xl overflow-hidden shadow-lg">
-                                    <img src={msg.image} alt="Vibe Content" className="w-full h-auto object-contain max-h-[300px]" />
+                                  <div className="mb-4 rounded-xl overflow-hidden shadow-lg border border-black/10 dark:border-white/10">
+                                    <img src={msg.image} alt="Vibe Content" className="w-full h-auto object-contain max-h-[350px]" />
                                   </div>
                                 )}
                                 <p className="text-sm md:text-lg font-bold leading-relaxed whitespace-pre-wrap">{msg.text}</p>
                                 
-                                {/* Reaction/Action Buttons */}
+                                {/* Reactions Bar */}
                                 <div className="mt-4 flex items-center gap-2 border-t border-black/5 dark:border-white/5 pt-3">
-                                  <button onClick={() => {}} className="p-2 hover:bg-green-500/10 rounded-lg text-zinc-400 hover:text-green-500 transition-colors" title="Eco Mode">
+                                  <button onClick={() => {}} className="p-2 hover:bg-emerald-500/10 rounded-lg text-zinc-400 hover:text-emerald-500 transition-all active:scale-90" title="Eco Mode">
                                     <Leaf size={14} />
                                   </button>
-                                  <button onClick={() => {}} className="p-2 hover:bg-yellow-500/10 rounded-lg text-zinc-400 hover:text-yellow-500 transition-colors" title="Pee Mode">
+                                  <button onClick={() => {}} className="p-2 hover:bg-amber-500/10 rounded-lg text-zinc-400 hover:text-amber-500 transition-all active:scale-90" title="Pee Mode">
                                     <Droplets size={14} />
                                   </button>
-                                  <button onClick={() => copyToClipboard(msg.text)} className="p-2 hover:bg-blue-500/10 rounded-lg text-zinc-400 hover:text-blue-500 transition-colors" title="Share Message">
+                                  <button onClick={() => copyToClipboard(msg.text)} className="p-2 hover:bg-sky-500/10 rounded-lg text-zinc-400 hover:text-sky-500 transition-all active:scale-90" title="Share Message">
                                     <Share2 size={14} />
                                   </button>
                                   <div className="flex-1" />
-                                  <button onClick={() => {}} className="p-2 hover:bg-blue-500/10 rounded-lg text-zinc-400 hover:text-blue-500 transition-colors" title="Like">
+                                  <button onClick={() => {}} className="p-2 hover:bg-blue-500/10 rounded-lg text-zinc-400 hover:text-blue-500 transition-all active:scale-90" title="Like">
                                     <ThumbsUp size={14} />
                                   </button>
-                                  <button onClick={() => {}} className="p-2 hover:bg-red-500/10 rounded-lg text-zinc-400 hover:text-red-500 transition-colors" title="Dislike">
+                                  <button onClick={() => {}} className="p-2 hover:bg-rose-500/10 rounded-lg text-zinc-400 hover:text-rose-500 transition-all active:scale-90" title="Dislike">
                                     <ThumbsDown size={14} />
                                   </button>
                                 </div>
@@ -724,11 +714,11 @@ export default function App() {
         <footer className="px-4 md:px-12 py-4 md:py-6 border-t border-zinc-100 dark:border-white/5 bg-white/80 dark:bg-black/80 backdrop-blur-3xl sticky bottom-0">
             <div className="max-w-3xl mx-auto flex items-center gap-2 md:gap-3">
                 <div className="flex-1 bg-zinc-100 dark:bg-white/5 flex items-center rounded-2xl md:rounded-[2rem] px-4 md:px-6 border-2 border-transparent focus-within:border-blue-500 transition-all shadow-inner overflow-hidden">
-                    <button onClick={() => fileInputRef.current?.click()} className="p-2 text-zinc-400 hover:text-blue-500 transition-colors flex-shrink-0" title="Upload PDF or Image">
+                    <button onClick={() => fileInputRef.current?.click()} className="p-2 text-zinc-400 hover:text-blue-500 transition-colors flex-shrink-0" title="Upload Media">
                       <ImageIcon size={20} />
                     </button>
                     <input type="file" accept="application/pdf,image/*" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-                    <input type="text" placeholder="Drop a vibe or upload content..." value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} className="w-full bg-transparent border-none py-4 md:py-5 text-xs md:text-base font-bold outline-none pl-2" />
+                    <input type="text" placeholder="Drop a vibe..." value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} className="w-full bg-transparent border-none py-4 md:py-5 text-xs md:text-base font-bold outline-none pl-2" />
                 </div>
                 <button onClick={() => handleSendToAI(inputText)} disabled={!inputText.trim() || isLoading} className="p-4 md:p-5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl md:rounded-[1.8rem] shadow-2xl transition-all active:scale-90 disabled:opacity-30 flex items-center justify-center min-w-[50px] md:min-w-[64px]">
                     {isLoading ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
@@ -745,39 +735,42 @@ export default function App() {
                 <div className="flex justify-between items-center mb-6 md:mb-10">
                     <div className="space-y-0.5">
                       <h2 className="text-xl md:text-3xl font-black uppercase italic tracking-tighter">Vibe Config</h2>
-                      <p className="text-[10px] md:text-xs font-bold text-zinc-500 uppercase tracking-widest">Personalize your experience</p>
+                      <p className="text-[10px] md:text-xs font-bold text-zinc-500 uppercase tracking-widest">Personalize your companion</p>
                     </div>
                     <button onClick={() => setIsProfileModalOpen(false)} className="p-3 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-2xl transition-all active:scale-90"><X size={20}/></button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 md:pr-4 space-y-8 md:space-y-10 pb-8">
-                    {/* User Identity Section */}
+                    {/* User Profile */}
                     <div className="space-y-6">
                         <div className="flex flex-col items-center gap-4 text-center">
                             <div className="relative group animate-float">
                                 <img src={user?.avatarUrl} className="w-24 h-24 md:w-32 md:h-32 rounded-3xl md:rounded-[2.5rem] shadow-2xl border-4 border-white dark:border-zinc-800" />
+                                <div className="absolute -bottom-2 -right-2 p-3 bg-blue-600 rounded-2xl shadow-xl text-white">
+                                  <Camera size={18} />
+                                </div>
                             </div>
-                            <div className="w-full max-w-xs space-y-2">
-                                <div className="relative flex items-center group">
-                                  <Edit3 className="absolute left-4 text-zinc-400 group-focus-within:text-blue-500 transition-colors" size={16} />
+                            <div className="w-full max-w-xs space-y-3">
+                                <div className="relative group">
+                                  <Edit3 className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-blue-500 transition-colors" size={16} />
                                   <input 
                                     type="text" 
                                     value={user?.userName} 
                                     onChange={(e) => handleUpdateUserName(e.target.value)}
-                                    placeholder="Edit Username"
-                                    className="w-full bg-zinc-100 dark:bg-white/5 rounded-2xl py-3 pl-12 pr-4 font-black text-center outline-none border-2 border-transparent focus:border-blue-500 transition-all"
+                                    placeholder="Username"
+                                    className="w-full bg-zinc-100 dark:bg-white/5 rounded-2xl py-3 md:py-4 pl-12 pr-4 font-black text-center outline-none border-2 border-transparent focus:border-blue-500 transition-all"
                                   />
                                 </div>
-                                <p className="text-[10px] md:text-xs font-black text-zinc-500 uppercase tracking-widest">{user?.email}</p>
+                                <div className="flex items-center justify-center gap-2 px-4 py-2 bg-zinc-100 dark:bg-white/5 rounded-full">
+                                  <Mail size={12} className="text-zinc-400" />
+                                  <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{user?.email}</p>
+                                </div>
                             </div>
                         </div>
 
-                        {/* Avatar Grid */}
+                        {/* Avatars */}
                         <div className="space-y-4">
-                            <div className="flex justify-between items-center ml-4">
-                                <label className="text-[10px] md:text-xs font-black uppercase tracking-widest text-zinc-400">Choose Your Face</label>
-                                <Sparkles size={14} className="text-blue-500 animate-pulse" />
-                            </div>
+                            <label className="text-[10px] md:text-xs font-black uppercase tracking-widest text-zinc-400 ml-4">Choose Your Identity</label>
                             <div className="grid grid-cols-5 gap-3 md:gap-4 p-4 md:p-6 bg-zinc-100 dark:bg-white/5 rounded-[2rem] md:rounded-[2.5rem]">
                                 {AVATARS.map((url, i) => (
                                     <button 
@@ -793,9 +786,9 @@ export default function App() {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-12">
-                        {/* Personality Selection */}
+                        {/* Personality */}
                         <div className="space-y-4">
-                            <label className="text-[10px] md:text-xs font-black uppercase tracking-widest text-zinc-400 ml-4">AI Vibe (Personality)</label>
+                            <label className="text-[10px] md:text-xs font-black uppercase tracking-widest text-zinc-400 ml-4">AI Personality (The Vibe)</label>
                             <div className="grid grid-cols-1 gap-2 max-h-48 md:max-h-60 overflow-y-auto pr-2 custom-scrollbar">
                                 {Object.values(PERSONALITIES).map(p => (
                                     <button 
@@ -815,28 +808,27 @@ export default function App() {
                             </div>
                         </div>
 
-                        {/* Theme, Voice, Language Settings */}
+                        {/* Other Settings */}
                         <div className="space-y-8">
                             <div className="space-y-4">
-                                <label className="text-[10px] md:text-xs font-black uppercase tracking-widest text-zinc-400 ml-4">Interface & Voice</label>
+                                <label className="text-[10px] md:text-xs font-black uppercase tracking-widest text-zinc-400 ml-4">Global Preferences</label>
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between p-4 md:p-5 bg-zinc-100 dark:bg-white/5 rounded-2xl md:rounded-[1.8rem]">
                                         <div className="flex items-center gap-3">
                                             {settings.theme === 'dark' ? <Moon size={18} className="text-blue-400" /> : <Sun size={18} className="text-orange-400" />}
-                                            <span className="font-bold text-xs md:text-sm">Dark Mode</span>
+                                            <span className="font-bold text-xs md:text-sm">Dark Interface</span>
                                         </div>
                                         <button onClick={() => setSettings({...settings, theme: settings.theme === 'dark' ? 'light' : 'dark'})} className={`w-11 h-6 md:w-14 md:h-8 rounded-full relative transition-all duration-500 ${settings.theme === 'dark' ? 'bg-blue-600' : 'bg-zinc-300'}`}>
                                             <div className={`absolute top-1 w-4 h-4 md:w-6 md:h-6 bg-white rounded-full transition-all duration-500 ${settings.theme === 'dark' ? 'left-6 md:left-7' : 'left-1'}`} />
                                         </button>
                                     </div>
 
-                                    {/* Language Selector */}
                                     <div className="relative group">
                                         <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={16} />
                                         <select 
                                             value={settings.language} 
                                             onChange={e => setSettings({...settings, language: e.target.value})}
-                                            className="w-full bg-zinc-100 dark:bg-white/5 rounded-2xl py-4 pl-12 pr-6 font-black text-xs md:text-sm outline-none border-2 border-transparent focus:border-blue-500 transition-all appearance-none cursor-pointer"
+                                            className="w-full bg-zinc-100 dark:bg-white/5 rounded-2xl py-4 pl-12 pr-6 font-black text-xs md:text-sm outline-none border-2 border-transparent focus:border-blue-500 appearance-none cursor-pointer"
                                         >
                                             {SUPPORTED_LANGUAGES.map(lang => <option key={lang.code} value={lang.code} className="bg-white dark:bg-zinc-900">{lang.name}</option>)}
                                         </select>
@@ -851,7 +843,7 @@ export default function App() {
                                                   setSettings({...settings, voiceName: e.target.value});
                                                   previewVoice(e.target.value);
                                                 }}
-                                                className="w-full bg-zinc-100 dark:bg-white/5 rounded-2xl py-4 pl-12 pr-6 font-black text-xs md:text-sm outline-none border-2 border-transparent focus:border-blue-500 transition-all appearance-none cursor-pointer"
+                                                className="w-full bg-zinc-100 dark:bg-white/5 rounded-2xl py-4 pl-12 pr-6 font-black text-xs md:text-sm outline-none border-2 border-transparent focus:border-blue-500 appearance-none cursor-pointer"
                                             >
                                                 {GEMINI_VOICES.map(v => <option key={v.id} value={v.id} className="bg-white dark:bg-zinc-900">{v.name}</option>)}
                                             </select>
@@ -859,7 +851,7 @@ export default function App() {
                                         <button 
                                           onClick={() => previewVoice(settings.voiceName)}
                                           disabled={isPreviewingVoice}
-                                          className="p-4 bg-zinc-100 dark:bg-white/5 rounded-2xl text-blue-500 hover:bg-blue-500 hover:text-white transition-all disabled:opacity-30"
+                                          className="p-4 bg-zinc-100 dark:bg-white/5 rounded-2xl text-blue-500 hover:bg-blue-500 hover:text-white transition-all disabled:opacity-30 flex items-center justify-center min-w-[50px]"
                                         >
                                           {isPreviewingVoice ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
                                         </button>
@@ -871,8 +863,8 @@ export default function App() {
                 </div>
 
                 <div className="pt-6 border-t border-zinc-100 dark:border-white/5 flex items-center justify-between">
-                    <button onClick={handleLogOut} className="text-[10px] md:text-xs font-black text-red-500 uppercase tracking-widest hover:underline">Sign Out Account</button>
-                    <button onClick={() => setIsProfileModalOpen(false)} className="px-8 md:px-12 py-3 md:py-5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl md:rounded-[2rem] font-black text-xs md:text-lg transition-all active:scale-[0.98] shadow-2xl">Save Vibe</button>
+                    <button onClick={handleLogOut} className="text-[10px] md:text-xs font-black text-rose-500 uppercase tracking-widest hover:underline">Log Out</button>
+                    <button onClick={() => setIsProfileModalOpen(false)} className="px-8 md:px-12 py-3 md:py-5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl md:rounded-[2rem] font-black text-xs md:text-lg transition-all active:scale-[0.98] shadow-2xl">Confirm Vibe</button>
                 </div>
             </div>
         </div>

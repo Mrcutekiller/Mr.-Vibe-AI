@@ -36,7 +36,6 @@ export const useGeminiLive = ({
   const sessionRef = useRef<any>(null);
   const sessionPromiseRef = useRef<Promise<any> | null>(null);
   
-  const aiClientRef = useRef<GoogleGenAI | null>(null);
   const nextStartTimeRef = useRef<number>(0);
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
 
@@ -104,20 +103,17 @@ export const useGeminiLive = ({
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      // Ensure API Key is available
-      if (!process.env.API_KEY) {
-        throw new Error("API Key missing. Please check your configuration.");
-      }
-
-      aiClientRef.current = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      // Always create a fresh instance before connecting to ensure latest state/keys
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
       const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}
       - Personality: ${personality.name}
       - Context: ${personality.prompt}
       - User: ${user.userName}
-      Rules: Be concise, friendly, and stay in character for voice mode.`;
+      Rules: Be concise, friendly, and stay in character. 
+      IMPORTANT: You are the initiator. When the session starts, speak first to greet the user.`;
 
-      const sessionPromise = aiClientRef.current.live.connect({
+      const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         config: {
             responseModalities: [Modality.AUDIO],
@@ -134,6 +130,11 @@ export const useGeminiLive = ({
             setIsConnecting(false);
             onConnectionStateChange(true);
             
+            // Send internal trigger to make model speak first
+            sessionPromise.then(session => {
+              session.sendRealtimeInput({ text: "Session started. Greet me warmly in your personality!" });
+            });
+
             if (!inputAudioContextRef.current) return;
             const source = inputAudioContextRef.current.createMediaStreamSource(stream);
             const processor = inputAudioContextRef.current.createScriptProcessor(4096, 1, 1);
