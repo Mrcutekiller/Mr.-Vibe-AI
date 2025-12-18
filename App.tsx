@@ -7,7 +7,7 @@ import {
   User as UserIcon, CheckCircle2, Mail, Lock, Sparkles, 
   ChevronRight, MicOff, MessageSquare, AlertCircle, AlertTriangle, RefreshCw,
   Camera, FileText, Upload, Loader2, Play, Image as ImageIcon, Globe,
-  Leaf, Droplets, Share2, ThumbsUp, ThumbsDown, Edit3, Check, Zap, ExternalLink, Activity, Bell, Music, Film, Heart, GraduationCap, Users, Copy, Share, LogOut, AlertOctagon, Key, Wand2, Info, HelpCircle
+  Leaf, Droplets, Share2, ThumbsUp, ThumbsDown, Edit3, Check, Zap, ExternalLink, Activity, Bell, Music, Film, Heart, GraduationCap, Users, Copy, Share, LogOut, AlertOctagon, Key, Wand2, Info, HelpCircle, Eye, EyeOff, Smile, Rocket
 } from 'lucide-react';
 import { PERSONALITIES, BASE_SYSTEM_PROMPT, AVATARS, GEMINI_VOICES, DISCOVERY_DATA, VIBE_VISION_PROMPT } from './constants';
 import { PersonalityId, AppSettings, User, ChatSession, Message, ReactionType, GroundingSource, ApiStatus, Gender } from './types';
@@ -26,7 +26,6 @@ const Logo = ({ className = "w-12 h-12", animated = false }: { className?: strin
     <div className="absolute inset-0 bg-blue-500/20 blur-xl rounded-full opacity-50" />
     <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full relative z-10 drop-shadow-lg">
       <defs>
-        {/* Fixed: Duplicated attribute x2 removed and corrected to y2 for linearGradient definition */}
         <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="#3b82f6" />
           <stop offset="100%" stopColor="#6366f1" />
@@ -95,6 +94,7 @@ export default function App() {
   const [user, setUser] = useState<User | null>(() => JSON.parse(localStorage.getItem('mr_vibe_active_user') || 'null'));
   const [credentials, setCredentials] = useState({ email: '', password: '' });
   const [manualApiKey, setManualApiKey] = useState(() => localStorage.getItem('mr_vibe_manual_api_key') || '');
+  const [showApiKey, setShowApiKey] = useState(false);
   
   const [tempProfile, setTempProfile] = useState<Partial<User>>({ 
     userName: '', 
@@ -105,7 +105,9 @@ export default function App() {
     favoriteArtists: [],
     educationLevel: 'University',
     gender: 'Other',
-    age: '18'
+    age: '18',
+    hobbies: [],
+    mood: 'Chill'
   });
 
   const [settings, setSettings] = useState<AppSettings>(() => JSON.parse(localStorage.getItem('mr_vibe_settings') || '{"language":"English","theme":"dark","personalityId":"FUNNY","voiceName":"Puck"}'));
@@ -131,7 +133,7 @@ export default function App() {
   const currentPersonality = PERSONALITIES[settings.personalityId];
 
   // Primary source of truth for the API Key
-  const currentApiKey = useMemo(() => manualApiKey || (process.env.API_KEY || ''), [manualApiKey]);
+  const currentApiKey = useMemo(() => manualApiKey.trim() || (process.env.API_KEY || ''), [manualApiKey]);
 
   const addNotification = (text: string, type: string = 'info') => {
     setNotifications(prev => [{id: Date.now().toString(), text, type, time: Date.now()}, ...prev.slice(0, 19)]);
@@ -144,21 +146,28 @@ export default function App() {
   };
 
   async function checkApiConnection(keyToTest?: string): Promise<boolean> {
-    const key = keyToTest || currentApiKey;
-    if (!key || key.trim() === '') {
+    const key = (keyToTest || currentApiKey).trim();
+    if (!key) {
       setApiStatus('error');
       return false;
     }
     
     setApiStatus('checking');
+
+    // Create a timeout promise to prevent indefinite hanging (15 seconds)
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error("Vibe connection timed out. Check your link!")), 15000);
+    });
+
     try {
-      // Use the Gemini 3 Flash model for checking the connection as per guidelines
-      const ai = new GoogleGenAI({ apiKey: key.trim() });
-      const response = await ai.models.generateContent({ 
+      const ai = new GoogleGenAI({ apiKey: key });
+      const apiCall = ai.models.generateContent({ 
         model: 'gemini-3-flash-preview', 
-        contents: 'hi', 
+        contents: 'ping', 
         config: { maxOutputTokens: 2, thinkingConfig: { thinkingBudget: 0 } } 
       });
+      
+      const response = await Promise.race([apiCall, timeoutPromise]);
       
       if (response && response.text) { 
         setApiStatus('connected'); 
@@ -174,6 +183,8 @@ export default function App() {
           showToast("Invalid Vibe Key. Double-check your paste! 🔑", "error");
       } else if (msg.includes('requested entity was not found')) {
           showToast("Project not found. Ensure billing is enabled in Google Cloud. 💳", "error");
+      } else if (msg.includes('timed out')) {
+          showToast("Soul link timed out. Is the Vibe Network down? 🌐", "error");
       } else {
           showToast("Soul link failed. Network or Key issue.", "error");
       }
@@ -200,7 +211,7 @@ export default function App() {
     setIsLoading(true);
     try {
       const ai = new GoogleGenAI({ apiKey: currentApiKey });
-      const prompt = `GREETING CHALLENGE: Greet ${user?.userName} based on their profile (Loves ${user?.musicGenre}, studies ${user?.educationLevel}). SOUND LIKE A ${currentPersonality.name.toUpperCase()}!`;
+      const prompt = `GREETING CHALLENGE: Greet ${user?.userName} based on their profile (Mood: ${user?.mood}, Hobbies: ${user?.hobbies?.join(', ')}, Studies: ${user?.educationLevel}). SOUND LIKE A ${currentPersonality.name.toUpperCase()}!`;
       const response = await ai.models.generateContent({ 
         model: 'gemini-3-flash-preview', 
         contents: prompt, 
@@ -340,7 +351,7 @@ export default function App() {
     try {
       const ai = new GoogleGenAI({ apiKey: currentApiKey });
       const personalityPrompt = PERSONALITIES[settings.personalityId].prompt;
-      const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}\n\n${personalityPrompt}\n\nUSER PROFILE: ${user?.userName}, Age ${user?.age}, Likes ${user?.musicGenre} and ${user?.movieGenre}.`;
+      const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}\n\n${personalityPrompt}\n\nUSER PROFILE: ${user?.userName}, Age ${user?.age}, Mood ${user?.mood}, Hobbies: ${user?.hobbies?.join(', ')}, Likes ${user?.musicGenre} and ${user?.movieGenre}.`;
       
       const parts: any[] = [{ text: text || "Check this out!" }];
       if (fileData) parts.push({ inlineData: { mimeType: fileData.mimeType, data: fileData.data } });
@@ -400,11 +411,11 @@ export default function App() {
     const isEmailInputValid = credentials.email ? validateEmail(credentials.email) : null;
     const DiscoveryStep = ({ title, options, current, onSelect, multi = false, onNext }: any) => (
       <div className="space-y-8 animate-slide-in-right">
-        <button onClick={() => setOnboardingStep(onboardingStep - 1)} className="flex items-center gap-2 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-blue-500 transition-colors"><ArrowLeft size={16} /> Back</button>
+        <button onClick={() => setOnboardingStep(Math.floor(onboardingStep) - 1)} className="flex items-center gap-2 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-blue-500 transition-colors"><ArrowLeft size={16} /> Back</button>
         <div className="space-y-2">
           <h2 className="text-3xl font-black italic text-zinc-900 dark:text-white tracking-tighter">{title}</h2>
           <div className="w-full bg-zinc-200 dark:bg-zinc-800 h-1 rounded-full overflow-hidden">
-             <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${(onboardingStep / 8) * 100}%` }} />
+             <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${(onboardingStep / 10) * 100}%` }} />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3 max-h-[45vh] overflow-y-auto pr-2 custom-scrollbar">
@@ -452,18 +463,21 @@ export default function App() {
               <div className="space-y-4 text-center">
                 <div className="w-16 h-16 bg-blue-500/10 rounded-[2rem] flex items-center justify-center mx-auto text-blue-600 mb-6 animate-pulse"><Key size={32} /></div>
                 <h2 className="text-2xl md:text-3xl font-black italic text-zinc-900 dark:text-white tracking-tighter">Soul Connection</h2>
-                <p className="text-zinc-500 text-sm font-medium px-4">Mr. Cute requires a Gemini API key to establish a link. Paste yours below to activate your AI best friend.</p>
+                <p className="text-zinc-500 text-sm font-medium px-4">Establish a link with your Gemini API key. Security is key, no cap.</p>
               </div>
-              <div className="space-y-4">
+              <div className="space-y-4 text-left">
                 <div className="relative">
                   <Activity className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-400" size={20} />
                   <input 
-                    type="password" 
+                    type={showApiKey ? "text" : "password"}
                     placeholder="Paste Gemini API Key here..." 
                     value={manualApiKey} 
                     onChange={e => setManualApiKey(e.target.value)}
-                    className="w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl py-4 pl-14 pr-6 font-bold outline-none border-2 border-transparent focus:border-blue-500 text-zinc-900 dark:text-white text-sm focus:ring-4 focus:ring-blue-500/5" 
+                    className="w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl py-4 pl-14 pr-12 font-bold outline-none border-2 border-transparent focus:border-blue-500 text-zinc-900 dark:text-white text-sm focus:ring-4 focus:ring-blue-500/5" 
                   />
+                  <button onClick={() => setShowApiKey(!showApiKey)} className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-zinc-400 hover:text-blue-500 transition-colors">
+                    {showApiKey ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
                 </div>
                 <button 
                   onClick={async () => { 
@@ -472,18 +486,20 @@ export default function App() {
                         setOnboardingStep(2); 
                     }
                   }} 
-                  className={`w-full py-5 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3 ${apiStatus === 'checking' ? 'bg-zinc-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}
+                  className={`w-full py-5 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3 ${apiStatus === 'checking' ? 'bg-zinc-400 cursor-not-allowed opacity-80' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}
                   disabled={apiStatus === 'checking'}
                 >
-                  {apiStatus === 'checking' ? <Loader2 size={24} className="animate-spin" /> : "Verify & Connect Soul"}
+                  {apiStatus === 'checking' ? (
+                    <>
+                      <Loader2 size={24} className="animate-spin" />
+                      <span>Linking Soul...</span>
+                    </>
+                  ) : "Verify & Connect Soul"}
                 </button>
                 <div className="flex items-center justify-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${apiStatus === 'connected' ? 'bg-green-500' : 'bg-rose-500'}`} />
-                  <span className="text-[10px] font-black uppercase text-zinc-400 tracking-widest">Connection: {apiStatus.toUpperCase()}</span>
+                  <div className={`w-2.5 h-2.5 rounded-full ${apiStatus === 'connected' ? 'bg-green-500' : apiStatus === 'checking' ? 'bg-yellow-500 animate-pulse' : 'bg-rose-500'}`} />
+                  <span className="text-[11px] font-black uppercase text-zinc-400 tracking-widest">Connection: {apiStatus.toUpperCase()}</span>
                 </div>
-                <p className="text-[11px] text-zinc-400 mt-4 leading-relaxed">
-                  <b>Don't have a key?</b> You can get one for free at <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-blue-500 hover:underline">Google AI Studio</a>.
-                </p>
               </div>
             </div>
           ) : onboardingStep === 2 ? (
@@ -496,11 +512,13 @@ export default function App() {
                 ))}
               </div>
               <input type="text" placeholder="What should I call you?" value={tempProfile.userName} onChange={e => setTempProfile({...tempProfile, userName: e.target.value})} className="w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl py-4 md:py-5 px-8 font-bold outline-none border-2 border-transparent focus:border-blue-500 text-zinc-900 dark:text-white text-center text-lg focus:ring-4 focus:ring-blue-500/5" />
-              <button onClick={() => { if (!tempProfile.userName?.trim()) { showToast("I need a name for the records! ✨", "error"); return; } setOnboardingStep(4); }} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 md:py-5 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95">Next</button>
+              <button onClick={() => { if (!tempProfile.userName?.trim()) { showToast("I need a name for the records! ✨", "error"); return; } setOnboardingStep(3); }} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 md:py-5 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95">Next</button>
             </div>
+          ) : onboardingStep === 3 ? (
+             <DiscoveryStep title="Current Mood" options={DISCOVERY_DATA.moods} current={tempProfile.mood} onSelect={(v: string) => setTempProfile({...tempProfile, mood: v})} onNext={() => setOnboardingStep(4)} />
           ) : onboardingStep === 4 ? (
             <div className="space-y-8 animate-slide-in-right">
-              <button onClick={() => setOnboardingStep(2)} className="flex items-center gap-2 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-blue-500"><ArrowLeft size={16} /> Back</button>
+              <button onClick={() => setOnboardingStep(3)} className="flex items-center gap-2 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-blue-500"><ArrowLeft size={16} /> Back</button>
               <h2 className="text-2xl font-black italic text-zinc-900 dark:text-white tracking-tighter text-center">Soul Archetype</h2>
               <div className="grid grid-cols-2 gap-3 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
                 {Object.values(PERSONALITIES).map(p => (
@@ -522,12 +540,19 @@ export default function App() {
           ) : onboardingStep === 6 ? (
             <DiscoveryStep title="Acoustic Essence" options={DISCOVERY_DATA.musicGenres} current={tempProfile.musicGenre} onSelect={(v: string) => setTempProfile({...tempProfile, musicGenre: v, favoriteArtists: []})} onNext={() => setOnboardingStep(7)} />
           ) : onboardingStep === 7 ? (
-            <DiscoveryStep title={`Top Influencers`} options={DISCOVERY_DATA.artists[tempProfile.musicGenre || 'Pop']} current={tempProfile.favoriteArtists} multi={true} onSelect={(v: string) => { const current = tempProfile.favoriteArtists || []; if (current.includes(v)) setTempProfile({...tempProfile, favoriteArtists: current.filter(a => a !== v)}); else setTempProfile({...tempProfile, favoriteArtists: [...current, v]}); }} onNext={() => setOnboardingStep(8)} />
+             <DiscoveryStep title="Soul Hobbies" options={DISCOVERY_DATA.hobbies} current={tempProfile.hobbies} multi={true} onSelect={(v: string) => { const current = tempProfile.hobbies || []; if (current.includes(v)) setTempProfile({...tempProfile, hobbies: current.filter(h => h !== v)}); else setTempProfile({...tempProfile, hobbies: [...current, v]}); }} onNext={() => setOnboardingStep(8)} />
+          ) : onboardingStep === 8 ? (
+            <DiscoveryStep title={`Top Influencers`} options={DISCOVERY_DATA.artists[tempProfile.musicGenre || 'Pop']} current={tempProfile.favoriteArtists} multi={true} onSelect={(v: string) => { const current = tempProfile.favoriteArtists || []; if (current.includes(v)) setTempProfile({...tempProfile, favoriteArtists: current.filter(a => a !== v)}); else setTempProfile({...tempProfile, favoriteArtists: [...current, v]}); }} onNext={() => setOnboardingStep(9)} />
+          ) : onboardingStep === 9 ? (
+            <DiscoveryStep title="Education Path" options={DISCOVERY_DATA.education} current={tempProfile.educationLevel} onSelect={(v: string) => setTempProfile({...tempProfile, educationLevel: v})} onNext={() => setOnboardingStep(10)} />
           ) : (
             <div className="space-y-10 animate-slide-in-right">
-              <button onClick={() => setOnboardingStep(7)} className="flex items-center gap-2 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-blue-500"><ArrowLeft size={16} /> Back</button>
+              <button onClick={() => setOnboardingStep(9)} className="flex items-center gap-2 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-blue-500"><ArrowLeft size={16} /> Back</button>
               <h2 className="text-2xl md:text-3xl font-black italic text-zinc-900 dark:text-white tracking-tighter text-center">Vibe Check</h2>
-              <div className="space-y-4"><p className="text-zinc-400 font-bold text-[10px] uppercase tracking-widest">How long have you been on Earth?</p><input type="number" value={tempProfile.age} onChange={e => setTempProfile({...tempProfile, age: e.target.value})} className="w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl py-5 px-8 font-bold outline-none border-2 border-transparent focus:border-blue-500 text-zinc-900 dark:text-white text-4xl md:text-5xl text-center" /></div>
+              <div className="space-y-4">
+                <p className="text-zinc-400 font-bold text-[10px] uppercase tracking-widest text-center">How long have you been on Earth?</p>
+                <input type="number" value={tempProfile.age} onChange={e => setTempProfile({...tempProfile, age: e.target.value})} className="w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl py-5 px-8 font-bold outline-none border-2 border-transparent focus:border-blue-500 text-zinc-900 dark:text-white text-4xl md:text-5xl text-center" />
+              </div>
               <button onClick={() => setUser(tempProfile as User)} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 md:py-5 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95">Finalize Vibe</button>
             </div>
           )}
@@ -576,6 +601,10 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-2 md:gap-4">
+             <div className="hidden md:flex items-center gap-2 bg-blue-500/10 px-3 py-1.5 rounded-full">
+               <Smile size={14} className="text-blue-500" />
+               <span className="text-[10px] font-black uppercase text-blue-500 tracking-wider">Mood: {user?.mood}</span>
+             </div>
             <div className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all ${
               apiStatus === 'connected' ? 'bg-green-500/10 border-green-500/20 text-green-600 dark:text-green-400' :
               apiStatus === 'checking' ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-600 dark:text-yellow-400 animate-pulse' :
@@ -610,7 +639,7 @@ export default function App() {
                 <Logo className="w-20 h-20 md:w-24 md:h-24" animated />
                 <div className="space-y-3">
                   <h2 className="text-3xl md:text-4xl font-black text-zinc-900 dark:text-white italic tracking-tighter uppercase leading-none">Mr. Cute is in.</h2>
-                  <p className="text-sm font-medium text-zinc-500 max-w-xs mx-auto">Tuned into your ${user?.musicGenre} and ${user?.movieGenre} vibe. Ready to cook?</p>
+                  <p className="text-sm font-medium text-zinc-500 max-w-xs mx-auto">Tuned into your {user?.mood} mood and {user?.hobbies?.join(' & ')} vibe. Ready to cook?</p>
                 </div>
                 <div className="flex gap-4">
                   <button onClick={handleGenerateVibeArt} className="px-8 py-4 bg-zinc-900 dark:bg-white text-white dark:text-black rounded-2xl font-black uppercase tracking-widest shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-3"><Wand2 size={20} /> Vibe Vision</button>
@@ -701,22 +730,29 @@ export default function App() {
                   <div className="p-6 md:p-8 bg-zinc-50 dark:bg-zinc-800/40 rounded-[2.5rem] border border-zinc-100 dark:border-white/5 space-y-5">
                     <div className="flex items-center justify-between"><label className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 block">Vibe Network Key</label><div className={`w-3.5 h-3.5 rounded-full ${apiStatus === 'connected' ? 'bg-green-500 shadow-[0_0_15px_rgba(34,197,94,0.6)]' : apiStatus === 'checking' ? 'bg-yellow-500 animate-pulse' : 'bg-rose-500 animate-pulse'}`} /></div>
                     
-                    <input 
-                      type="password" 
-                      placeholder="Enter API Key manually..." 
-                      className="w-full bg-zinc-200/50 dark:bg-black/20 p-4 rounded-2xl border-2 border-transparent focus:border-blue-500 outline-none font-bold text-sm"
-                      value={manualApiKey}
-                      onChange={(e) => setManualApiKey(e.target.value)}
-                    />
+                    <div className="relative">
+                      <input 
+                        type={showApiKey ? "text" : "password"}
+                        placeholder="Enter API Key manually..." 
+                        className="w-full bg-zinc-200/50 dark:bg-black/20 p-4 rounded-2xl border-2 border-transparent focus:border-blue-500 outline-none font-bold text-sm"
+                        value={manualApiKey}
+                        onChange={(e) => setManualApiKey(e.target.value)}
+                      />
+                      <button onClick={() => setShowApiKey(!showApiKey)} className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-zinc-400 hover:text-blue-500 transition-colors">
+                        {showApiKey ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
 
                     <button 
                       onClick={async () => {
                         const ok = await checkApiConnection(manualApiKey);
                         if (ok) showToast("Link synchronized! ✨", "success");
                       }} 
-                      className="w-full flex items-center justify-center gap-3 bg-zinc-900 dark:bg-white text-white dark:text-black py-4.5 rounded-2xl font-black text-xs md:text-sm uppercase tracking-[0.1em] shadow-xl hover:scale-[1.02] active:scale-95 transition-all"
+                      className={`w-full flex items-center justify-center gap-3 py-4.5 rounded-2xl font-black text-xs md:text-sm uppercase tracking-[0.1em] shadow-xl hover:scale-[1.02] active:scale-95 transition-all ${apiStatus === 'checking' ? 'bg-zinc-400 cursor-not-allowed' : 'bg-zinc-900 dark:bg-white text-white dark:text-black'}`}
+                      disabled={apiStatus === 'checking'}
                     >
-                      <RefreshCw size={18} className={apiStatus === 'checking' ? 'animate-spin' : ''} /> Sync Link
+                      {apiStatus === 'checking' ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />} 
+                      {apiStatus === 'checking' ? 'Testing Link...' : 'Sync Link'}
                     </button>
                     <div className="flex items-center justify-between px-1"><p className={`text-[10px] font-black uppercase tracking-widest ${apiStatus === 'error' ? 'text-rose-500' : 'text-zinc-400'}`}>Status: {apiStatus.toUpperCase()}</p><a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="text-[10px] font-black text-blue-500 hover:underline uppercase tracking-widest">Billing Info</a></div>
                   </div>

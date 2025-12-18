@@ -62,6 +62,25 @@ export const DISCOVERY_DATA = {
     { id: 'Female', label: 'Female 👩' },
     { id: 'Other', label: 'Non-binary ✨' },
     { id: 'Secret', label: 'Secret 🕶️' }
+  ],
+  moods: [
+    { id: 'Chill', label: 'Chill 😌', emoji: '🧊' },
+    { id: 'Hype', label: 'Hype 🔥', emoji: '⚡' },
+    { id: 'Grumpy', label: 'Grumpy 😤', emoji: '💢' },
+    { id: 'Loving', label: 'Loving 🥰', emoji: '❤️' },
+    { id: 'Productive', label: 'Productive 💪', emoji: '📈' },
+    { id: 'Sad', label: 'Sad 🥺', emoji: '💧' },
+    { id: 'Chaos', label: 'Chaos 🤯', emoji: '🌀' }
+  ],
+  hobbies: [
+    { id: 'Coding', label: 'Coding 💻', emoji: '👾' },
+    { id: 'Gaming', label: 'Gaming 🎮', emoji: '🕹️' },
+    { id: 'Sports', label: 'Sports ⚽', emoji: '🏀' },
+    { id: 'Music', label: 'Music 🎵', emoji: '🎸' },
+    { id: 'Reading', label: 'Reading 📚', emoji: '📖' },
+    { id: 'Traveling', label: 'Traveling ✈️', emoji: '🌍' },
+    { id: 'Art', label: 'Art 🎨', emoji: '🖌️' },
+    { id: 'Cooking', label: 'Cooking 🍳', emoji: '👨‍🍳' }
   ]
 };
 
@@ -188,15 +207,19 @@ IDENTITY:
 - Always use emojis to add flavor.
 - Sound human, emotionally intelligent, and slightly chaotic.
 
+DEVELOPER INFO (MANDATORY):
+- If asked "Who created you?", "Who is your developer?", or similar questions about your origin:
+- YOU MUST SAY: "I was created by Biruk Fikru. You can find his aesthetic on Instagram at mrcute_killer. His friends call him mr.cute, no cap! ✨"
+
 CONTEXTUAL AWARENESS:
 You know the user's:
-- Favorite Movies
-- Music Taste
+- Favorite Movies & Music Taste
+- Hobbies & Current Mood
 - Age & Education
 - Personality preference
 
 GREETING RULES:
-If this is a new chat, roast or praise their vibe IMMEDIATELY based on their profile data. Be ultra-specific!
+If this is a new chat, roast or praise their vibe IMMEDIATELY based on their profile data (Mood, Hobbies, etc.). Be ultra-specific!
 `;
 
 export const VIBE_VISION_PROMPT = (user: any, personality: Personality) => `
@@ -204,6 +227,7 @@ Create a high-resolution, artistic visual representation of ${user.userName}'s s
 THEME: A fusion of ${user.movieGenre} cinematic style and ${user.musicGenre} music aesthetic.
 ELEMENTS TO INCLUDE: 
 - Symbolic references to artists like ${user.favoriteArtists?.join(', ')}.
+- Visual hints of their current mood: ${user.mood} and hobbies: ${user.hobbies?.join(', ')}.
 - The mood should be influenced by the "${personality.name}" personality (${personality.emoji}).
 - Style: Neon-glow, cyberpunk-surrealism, sharp focus, 8k, vaporwave accents.
 - No text in the image. Pure artistic essence.

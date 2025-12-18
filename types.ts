@@ -31,6 +31,8 @@ export interface User {
   musicGenre?: string;
   favoriteArtists?: string[];
   educationLevel?: string;
+  hobbies?: string[];
+  mood?: string;
 }
 
 export interface Personality {
