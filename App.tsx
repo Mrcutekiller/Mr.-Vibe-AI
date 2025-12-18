@@ -7,7 +7,7 @@ import {
   User as UserIcon, CheckCircle2, Mail, Lock, Sparkles, 
   ChevronRight, MicOff, MessageSquare, AlertCircle, AlertTriangle, RefreshCw,
   Camera, FileText, Upload, Loader2, Play, Image as ImageIcon, Globe,
-  Leaf, Droplets, Share2, ThumbsUp, ThumbsDown, Edit3, Check, Zap, ExternalLink, Activity
+  Leaf, Droplets, Share2, ThumbsUp, ThumbsDown, Edit3, Check, Zap, ExternalLink, Activity, Key
 } from 'lucide-react';
 import { PERSONALITIES, BASE_SYSTEM_PROMPT, AVATARS, GEMINI_VOICES, SUPPORTED_LANGUAGES } from './constants';
 import { PersonalityId, AppSettings, User, ChatSession, Message, ReactionType, GroundingSource, ApiStatus } from './types';
@@ -58,9 +58,8 @@ const FluidOrb = ({ volume, active }: { volume: number, active: boolean }) => {
 
 export default function App() {
   const [isNewUser, setIsNewUser] = useState<boolean>(() => !localStorage.getItem('mr_vibe_active_user'));
-  const [onboardingStep, setOnboardingStep] = useState<1 | 2 | 3>(1);
+  const [onboardingStep, setOnboardingStep] = useState<1 | 2 | 3 | 4>(1);
   const [authMode, setAuthMode] = useState<'signup' | 'login'>('signup');
-  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [isVibeGenerating, setIsVibeGenerating] = useState(false);
   const [apiStatus, setApiStatus] = useState<ApiStatus>('checking');
   
@@ -79,7 +78,8 @@ export default function App() {
   const [tempProfile, setTempProfile] = useState<Partial<User>>({
     userName: '',
     avatarUrl: AVATARS[0],
-    personalityId: PersonalityId.FUNNY
+    personalityId: PersonalityId.FUNNY,
+    apiKey: ''
   });
 
   const [settings, setSettings] = useState<AppSettings>(() => {
@@ -116,54 +116,91 @@ export default function App() {
   const messages = activeSession?.messages || [];
   const currentPersonality = PERSONALITIES[settings.personalityId];
 
-  // --- API Connection Check ---
-  const checkApiConnection = async () => {
+  const getApiKey = () => {
+    return user?.apiKey || tempProfile.apiKey || (typeof process !== 'undefined' ? process.env.API_KEY : '') || '';
+  };
+
+  const checkApiConnection = async (keyToTest?: string, retryCount = 0): Promise<boolean> => {
+    const key = keyToTest || getApiKey();
+    if (!key) {
+      if (user || onboardingStep === 3) setApiStatus('error');
+      return false;
+    }
+    
     setApiStatus('checking');
     try {
-      if (!process.env.API_KEY) {
-        setApiStatus('error');
-        return;
-      }
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      // Minor lightweight call to verify key
-      await ai.models.generateContent({
+      const ai = new GoogleGenAI({ apiKey: key });
+      // Minimal test call to check key validity
+      const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: [{ role: 'user', parts: [{ text: "hi" }] }],
-        config: { maxOutputTokens: 1, thinkingConfig: { thinkingBudget: 0 } }
+        contents: [{ role: 'user', parts: [{ text: "ping" }] }],
+        config: { maxOutputTokens: 2, thinkingConfig: { thinkingBudget: 0 } }
       });
-      setApiStatus('connected');
-    } catch (error) {
-      console.error("API Status Check Failed:", error);
+      
+      if (response && response.candidates) {
+        setApiStatus('connected');
+        setErrorMessage(null);
+        return true;
+      }
+      throw new Error("Empty response received.");
+    } catch (error: any) {
+      // Handle transient RPC/XHR errors with a limited retry
+      if (retryCount < 2 && (error.message?.includes("Rpc failed") || error.message?.includes("xhr error"))) {
+        console.warn(`Transient RPC error, retrying... (${retryCount + 1})`);
+        await new Promise(r => setTimeout(r, 1000));
+        return checkApiConnection(keyToTest, retryCount + 1);
+      }
+
+      console.error("API Diagnostic Failed:", error);
       setApiStatus('error');
+      
+      const status = Number(error.status || error.code);
+      const originalMsg = error.message?.toLowerCase() || '';
+      
+      let friendlyMsg = "Something went wrong with your Vibe Key. ⚡";
+      
+      if (status === 401 || originalMsg.includes("api_key_invalid") || originalMsg.includes("key not found")) {
+        friendlyMsg = "Invalid Vibe Key. Double-check your API Key. 🔑";
+      } else if (status === 403 || originalMsg.includes("permission denied")) {
+        friendlyMsg = "Vibe Key has no permission for this model. 🚫";
+      } else if (status === 429 || originalMsg.includes("quota") || originalMsg.includes("too many requests")) {
+        friendlyMsg = "Vibe limit reached! Try again later or upgrade your key. 📈";
+      } else if (status === 500 || originalMsg.includes("rpc failed") || originalMsg.includes("xhr error") || originalMsg.includes("internal error")) {
+        friendlyMsg = "Google server vibe check failed (500). Try again in a second! 🔄";
+      } else if (originalMsg.includes("network") || originalMsg.includes("fetch")) {
+        friendlyMsg = "Connection unstable. Check your internet vibe. 🌐";
+      }
+      
+      setErrorMessage(friendlyMsg);
+      return false;
     }
   };
 
   useEffect(() => {
     checkApiConnection();
-    // Re-check periodically
-    const interval = setInterval(checkApiConnection, 60000);
+    const interval = setInterval(() => checkApiConnection(), 120000);
     return () => clearInterval(interval);
-  }, []);
-
-  // --- Functions ---
+  }, [user?.apiKey]);
 
   const handleAISpeakFirst = async (sessionId: string) => {
     if (isLoading) return;
+    const apiKey = getApiKey();
+    if (!apiKey) return;
+
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey });
       const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}
       - Personality: ${currentPersonality.name}
       - Context: ${currentPersonality.prompt}
       - User: ${user?.userName}
       - Language Setting: ${settings.language}
-      - Task: Greet the user in character. Be warm.
       `;
 
       const response = await ai.models.generateContent({
           model: 'gemini-3-flash-preview',
-          contents: [{ role: 'user', parts: [{ text: "Introduce yourself to me." }] }],
+          contents: [{ role: 'user', parts: [{ text: "Introduce yourself to me and say hi!" }] }],
           config: { systemInstruction: fullSystemPrompt, thinkingConfig: { thinkingBudget: 0 } }
       });
 
@@ -179,9 +216,9 @@ export default function App() {
           messages: [...s.messages, aiMessage],
           lastTimestamp: Date.now()
       } : s));
-    } catch (error) {
+    } catch (error: any) {
        console.error("Greeting Error:", error);
-       setErrorMessage("Vibe fail. Check API Key! ⚡");
+       setErrorMessage(`Greeting failure: ${error.message || 'Check your key'}. ⚡`);
     } finally { setIsLoading(false); }
   };
 
@@ -198,9 +235,7 @@ export default function App() {
     setActiveSessionId(newId);
     setIsSidebarOpen(false);
     
-    // AI greets first
     setTimeout(() => handleAISpeakFirst(newId), 300);
-    
     return newId;
   };
 
@@ -224,13 +259,19 @@ export default function App() {
 
   const previewVoice = async (voiceId: string) => {
     if (isPreviewingVoice) return;
+    const apiKey = getApiKey();
+    if (!apiKey) {
+      setErrorMessage("Missing Vibe Key. Add one in settings. 🔑");
+      return;
+    }
+
     setIsPreviewingVoice(true);
+    setErrorMessage(null);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const text = `Vibe check! I'm using the ${voiceId} voice. How do I sound?`;
+      const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text }] }],
+        contents: [{ parts: [{ text: `Say clearly: "Vibe check! This is ${voiceId}. Everything sounds perfect."` }] }],
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
@@ -239,7 +280,9 @@ export default function App() {
         },
       });
 
-      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      const audioPart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+      const base64Audio = audioPart?.inlineData?.data;
+
       if (base64Audio) {
         if (!audioContextRef.current) {
           audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
@@ -252,15 +295,27 @@ export default function App() {
         source.start();
         source.onended = () => setIsPreviewingVoice(false);
       } else {
-        setIsPreviewingVoice(false);
+        throw new Error("Voice synthesis failed: Model returned no audio.");
       }
-    } catch (e) {
-      console.error("Voice preview failed", e);
+    } catch (e: any) {
+      console.error("Voice synthesis failed:", e);
       setIsPreviewingVoice(false);
+      const status = Number(e.status || e.code);
+      const msg = e.message?.toLowerCase() || '';
+      if (msg.includes("non-audio") || msg.includes("audioout")) {
+        setErrorMessage("Vibe Voice Error: This voice failed to speak. Try another personality. 🔇");
+      } else if (msg.includes("quota") || status === 429) {
+        setErrorMessage("Voice quota reached. Slow down the vibes! 📈");
+      } else if (status === 500 || msg.includes("rpc failed") || msg.includes("xhr error")) {
+        setErrorMessage("Server busy. Try clicking the play button again! 🔄");
+      } else {
+        setErrorMessage(`Voice failure: ${e.message || 'Check Vibe Key'}. 🔇`);
+      }
     }
   };
 
   const { connect: connectLive, disconnect: disconnectLive, sendMessage: liveSendMessage, isLive, isConnecting, volume } = useGeminiLive({
+    apiKey: getApiKey(),
     personality: currentPersonality,
     settings,
     user: user || { userName: 'Friend', email: '', age: '', gender: 'Other', avatarUrl: AVATARS[0], personalityId: PersonalityId.FUNNY },
@@ -294,7 +349,6 @@ export default function App() {
     onError: (msg) => setErrorMessage(msg)
   });
 
-  // Persistence and Logic Effects
   useEffect(() => {
     localStorage.setItem('mr_vibe_settings', JSON.stringify(settings));
     document.documentElement.classList.toggle('dark', settings.theme === 'dark');
@@ -320,7 +374,6 @@ export default function App() {
     if (activeSessionId) localStorage.setItem('mr_vibe_active_session_id', activeSessionId);
   }, [activeSessionId]);
 
-  // Auto-scroll
   useEffect(() => {
     const timer = setTimeout(() => {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -341,8 +394,13 @@ export default function App() {
 
   const handleSendToAI = async (text: string, fileData?: { data: string, mimeType: string, fileName: string }) => {
     if ((!text.trim() && !fileData) || isLoading) return;
+    const apiKey = getApiKey();
+    if (!apiKey) {
+        setErrorMessage("Vibe key missing! Add one in settings. 🔑");
+        return;
+    }
+
     const sessionId = activeSessionId || handleNewChat();
-    
     if (isLive && !fileData) {
       liveSendMessage(text);
       setInputText('');
@@ -350,7 +408,6 @@ export default function App() {
     }
 
     const isImageGenerationRequested = text.toLowerCase().includes("generate") || text.toLowerCase().includes("show me a vibe") || text.toLowerCase().includes("create an image");
-
     const isInputImage = fileData?.mimeType.startsWith('image/');
     const userMessage: Message = { 
       id: `user-${Date.now()}`, 
@@ -372,7 +429,7 @@ export default function App() {
     setErrorMessage(null);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey });
       
       if (isImageGenerationRequested) {
         setIsVibeGenerating(true);
@@ -407,7 +464,6 @@ export default function App() {
         - Context: ${currentPersonality.prompt}
         - User Context: ${user?.userName}
         - Language Setting: ${settings.language}
-        - Rules: If user asks for facts or news, use Google Search.
         `;
 
         const parts: any[] = [{ text: text || "Hey, check this out!" }];
@@ -420,7 +476,8 @@ export default function App() {
             contents: [{ role: 'user', parts }],
             config: { 
               systemInstruction: fullSystemPrompt,
-              tools: [{ googleSearch: {} }] 
+              tools: [{ googleSearch: {} }],
+              thinkingConfig: { thinkingBudget: 0 }
             }
         });
 
@@ -441,19 +498,19 @@ export default function App() {
             }]
         } : s));
       }
-    } catch (error) {
+    } catch (error: any) {
        console.error(error);
-       setErrorMessage("Vibe failure. Is your API_KEY correct? ⚡");
+       const status = Number(error.status || error.code);
+       const msg = error.message?.toLowerCase() || '';
+       if (status === 500 || msg.includes("rpc failed") || msg.includes("xhr error")) {
+         setErrorMessage("The AI is having a momentary brain freeze. Just try sending it again! 🔄");
+       } else {
+         setErrorMessage(`Vibe error: ${error.message || 'Check your Vibe Key.'} ⚡`);
+       }
     } finally { 
       setIsLoading(false); 
       setIsVibeGenerating(false);
     }
-  };
-
-  const copyToClipboard = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopyFeedback(id);
-    setTimeout(() => setCopyFeedback(null), 2000);
   };
 
   const handleEmailChange = (val: string) => {
@@ -476,8 +533,8 @@ export default function App() {
                             {authMode === 'signup' ? <UserPlus size={40} className="text-white" /> : <LogIn size={40} className="text-white" />}
                         </div>
                         <div className="space-y-2">
-                            <h1 className="text-3xl md:text-5xl font-black tracking-tighter text-zinc-900 dark:text-white italic">Mr. Vibe AI</h1>
-                            <p className="text-zinc-500 text-sm font-medium">Your companion in the digital void.</p>
+                            <h1 className="text-3xl md:text-5xl font-black tracking-tighter text-zinc-900 dark:text-white italic text-center">Mr. Vibe AI</h1>
+                            <p className="text-zinc-500 text-sm font-medium text-center">Your companion in the digital void.</p>
                         </div>
                         
                         {errorMessage && (
@@ -514,14 +571,23 @@ export default function App() {
                                 onClick={() => {
                                   if (!validateEmail(credentials.email)) { setErrorMessage("Enter a real email! 📧"); return; }
                                   if (credentials.password.length < 4) { setErrorMessage("Password too short! 🔒"); return; }
-                                  authMode === 'signup' ? setOnboardingStep(2) : (accounts.find(a => a.email === credentials.email) ? setUser(accounts.find(a => a.email === credentials.email)!) : setErrorMessage("No account here! ✨"));
+                                  if (authMode === 'login') {
+                                    const match = accounts.find(a => a.email === credentials.email);
+                                    if (match) {
+                                      setUser(match);
+                                    } else {
+                                      setErrorMessage("No account here! ✨");
+                                    }
+                                  } else {
+                                    setOnboardingStep(2);
+                                  }
                                 }}
                                 className="w-full bg-blue-600 hover:bg-blue-500 active:scale-95 text-white py-5 rounded-2xl font-black text-lg transition-all shadow-xl disabled:opacity-50"
                                 disabled={!!emailValidationError}
                             >
                                 {authMode === 'signup' ? "Create Account" : "Log In"}
                             </button>
-                            <button onClick={() => setAuthMode(authMode === 'signup' ? 'login' : 'signup')} className="text-zinc-500 font-bold hover:text-blue-500 text-xs uppercase tracking-widest">
+                            <button onClick={() => setAuthMode(authMode === 'signup' ? 'login' : 'signup')} className="text-zinc-500 font-bold hover:text-blue-500 text-xs uppercase tracking-widest block w-full text-center">
                                 {authMode === 'signup' ? "Got an account? Log in" : "New vibe? Sign up"}
                             </button>
                         </div>
@@ -560,9 +626,70 @@ export default function App() {
                             </button>
                         </div>
                     </div>
-                ) : (
+                ) : onboardingStep === 3 ? (
                     <div className="space-y-8 animate-slide-in-right">
                         <button onClick={() => setOnboardingStep(2)} className="flex items-center gap-2 text-zinc-500 font-bold hover:text-blue-500 transition-all text-xs uppercase tracking-widest">
+                            <ArrowLeft size={16} /> Back
+                        </button>
+                        <div className="text-center space-y-2">
+                            <h2 className="text-2xl md:text-4xl font-black italic text-zinc-900 dark:text-white">Vibe Key</h2>
+                            <p className="text-zinc-500 text-sm">Input your Gemini API Key to power Mr. Cute.</p>
+                        </div>
+                        
+                        {errorMessage && (
+                          <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-500 rounded-2xl text-xs font-bold flex items-center justify-center gap-2">
+                            <AlertCircle size={16}/> {errorMessage}
+                          </div>
+                        )}
+
+                        <div className="space-y-4">
+                            <div className="relative group">
+                                <Key className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-blue-500" size={20} />
+                                <input 
+                                    type="password" 
+                                    placeholder="Paste API Key here..." 
+                                    value={tempProfile.apiKey}
+                                    onChange={e => {
+                                      setTempProfile({...tempProfile, apiKey: e.target.value});
+                                      setErrorMessage(null);
+                                    }}
+                                    className="w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl py-5 pl-14 font-bold outline-none border-2 border-transparent focus:border-blue-500 text-zinc-900 dark:text-white" 
+                                />
+                            </div>
+                            <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest px-2">
+                                <div className="flex items-center gap-2">
+                                  <div className={`w-2 h-2 rounded-full ${apiStatus === 'connected' ? 'bg-green-500' : apiStatus === 'checking' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'}`} />
+                                  <span className={apiStatus === 'connected' ? 'text-green-500' : 'text-zinc-400'}>
+                                      {apiStatus === 'connected' ? 'Vibe Ready' : apiStatus === 'checking' ? 'Checking...' : 'Check Failed'}
+                                  </span>
+                                </div>
+                                <button onClick={() => checkApiConnection(tempProfile.apiKey)} className="text-blue-500 hover:underline">Test Key</button>
+                            </div>
+                            <button onClick={async () => {
+                                  if (!tempProfile.apiKey?.trim()) { 
+                                    setErrorMessage("Key is required to unlock vibes! 🔑"); 
+                                    return; 
+                                  }
+                                  const ok = await checkApiConnection(tempProfile.apiKey);
+                                  if (ok) {
+                                    setOnboardingStep(4);
+                                    setErrorMessage(null);
+                                  } else {
+                                    // Error message is already set by checkApiConnection
+                                  }
+                                }}
+                                className="w-full bg-blue-600 hover:bg-blue-500 active:scale-95 text-white py-5 rounded-2xl font-black text-lg shadow-xl"
+                            >
+                                Secure Vibe <CheckCircle2 size={22} className="inline ml-2"/>
+                            </button>
+                            <p className="text-[10px] text-zinc-400 text-center leading-relaxed">
+                                Don't have one? Get it at <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-blue-500 underline">Google AI Studio</a>.
+                            </p>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="space-y-8 animate-slide-in-right">
+                        <button onClick={() => setOnboardingStep(3)} className="flex items-center gap-2 text-zinc-500 font-bold hover:text-blue-500 transition-all text-xs uppercase tracking-widest">
                             <ArrowLeft size={16} /> Back
                         </button>
                         <div className="text-center space-y-2">
@@ -595,7 +722,8 @@ export default function App() {
                                     avatarUrl: tempProfile.avatarUrl || AVATARS[0], 
                                     age: '18', 
                                     gender: 'Other',
-                                    personalityId: tempProfile.personalityId || PersonalityId.FUNNY
+                                    personalityId: tempProfile.personalityId || PersonalityId.FUNNY,
+                                    apiKey: tempProfile.apiKey
                                   };
                                   setAccounts([...accounts, newUser]);
                                   setUser(newUser);
@@ -699,11 +827,12 @@ export default function App() {
           <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[200] w-full max-w-md px-4 animate-slide-up">
             <div className="bg-red-500 text-white p-4 rounded-2xl shadow-2xl flex items-center gap-4">
               <AlertTriangle size={24} className="shrink-0" />
-              <div>
+              <div className="flex-1">
                 <p className="font-bold text-sm">Vibe Connection Lost</p>
-                <p className="text-[10px] opacity-80 uppercase tracking-wider font-black">Verify your API Key environment variable.</p>
+                <p className="text-[10px] opacity-80 uppercase tracking-wider font-black leading-none mt-1">{errorMessage || 'Check Vibe Key in Settings.'}</p>
               </div>
-              <button onClick={checkApiConnection} className="ml-auto p-2 bg-white/20 rounded-xl hover:bg-white/30 transition-all">
+              <button onClick={() => setIsProfileModalOpen(true)} className="px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-xl transition-all text-[10px] font-black uppercase tracking-widest">Update Key</button>
+              <button onClick={() => checkApiConnection()} className="p-2 bg-white/20 rounded-xl hover:bg-white/30 transition-all">
                 <RefreshCw size={16} />
               </button>
             </div>
@@ -744,7 +873,9 @@ export default function App() {
 
                                 <div className="mt-4 flex items-center gap-3 opacity-40 hover:opacity-100 transition-opacity">
                                   <button onClick={() => handleReaction(msg.id, 'like')} className={`p-1 ${msg.reaction === 'like' ? 'text-blue-500' : ''}`}><ThumbsUp size={14}/></button>
-                                  <button onClick={() => copyToClipboard(msg.text, msg.id)}><Share2 size={14}/></button>
+                                  <button onClick={() => {
+                                    navigator.clipboard.writeText(msg.text);
+                                  }}><Share2 size={14}/></button>
                                   <div className="flex-1" />
                                   <span className="text-[10px] font-black uppercase tracking-tighter">{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                                 </div>
@@ -808,7 +939,29 @@ export default function App() {
                 <div className="space-y-10">
                     <div className="flex flex-col items-center gap-6">
                         <img src={user?.avatarUrl} className="w-24 h-24 md:w-32 md:h-32 rounded-[2.5rem] shadow-2xl border-4 border-white dark:border-zinc-800" alt="Avatar" />
-                        <input type="text" value={user?.userName} onChange={(e) => handleUpdateUserName(e.target.value)} className="bg-zinc-100 dark:bg-white/5 rounded-2xl py-4 px-6 font-black text-center border-2 border-transparent focus:border-blue-500 transition-all text-zinc-900 dark:text-white" />
+                        <div className="w-full space-y-3">
+                            <input type="text" value={user?.userName} onChange={(e) => handleUpdateUserName(e.target.value)} className="w-full bg-zinc-100 dark:bg-white/5 rounded-2xl py-4 px-6 font-black text-center border-2 border-transparent focus:border-blue-500 transition-all text-zinc-900 dark:text-white" />
+                            <div className="relative group">
+                                <Key className={`absolute left-5 top-1/2 -translate-y-1/2 ${apiStatus === 'connected' ? 'text-green-500' : 'text-zinc-400'} group-focus-within:text-blue-500`} size={16} />
+                                <input 
+                                    type="password" 
+                                    value={user?.apiKey || ''} 
+                                    placeholder="Update Vibe Key (API Key)"
+                                    onChange={(e) => {
+                                        if (!user) return;
+                                        const updated = { ...user, apiKey: e.target.value };
+                                        setUser(updated);
+                                        setAccounts(prev => prev.map(a => a.email === user.email ? updated : a));
+                                        setErrorMessage(null);
+                                    }}
+                                    className="w-full bg-zinc-100 dark:bg-white/5 rounded-2xl py-3 pl-12 pr-4 font-bold text-xs outline-none border-2 border-transparent focus:border-blue-500 text-zinc-900 dark:text-white" 
+                                />
+                            </div>
+                            <div className="flex justify-between items-center px-2">
+                                <span className={`text-[9px] font-black uppercase ${apiStatus === 'connected' ? 'text-green-500' : 'text-red-500'}`}>Status: {apiStatus}</span>
+                                <button onClick={() => checkApiConnection()} className="text-[9px] font-black uppercase text-blue-500 hover:underline">Re-Verify Key</button>
+                            </div>
+                        </div>
                     </div>
 
                     <div className="space-y-4">
@@ -837,10 +990,11 @@ export default function App() {
                                 <select value={settings.voiceName} onChange={e => setSettings({...settings, voiceName: e.target.value})} className="flex-1 bg-zinc-100 dark:bg-white/5 rounded-2xl py-4 px-6 font-black text-xs outline-none text-zinc-900 dark:text-white">
                                     {GEMINI_VOICES.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
                                 </select>
-                                <button onClick={() => previewVoice(settings.voiceName)} disabled={isPreviewingVoice} className="p-4 bg-zinc-100 dark:bg-white/5 rounded-2xl text-blue-500 hover:bg-blue-500 hover:text-white transition-all">
+                                <button onClick={() => previewVoice(settings.voiceName)} disabled={isPreviewingVoice || apiStatus !== 'connected'} className="p-4 bg-zinc-100 dark:bg-white/5 rounded-2xl text-blue-500 hover:bg-blue-500 hover:text-white transition-all disabled:opacity-20">
                                     {isPreviewingVoice ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
                                 </button>
                             </div>
+                            {errorMessage && <p className="text-[10px] text-red-500 font-bold px-2">{errorMessage}</p>}
                         </div>
                     </div>
 

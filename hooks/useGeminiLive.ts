@@ -6,6 +6,7 @@ import { Personality, AppSettings, User } from '../types';
 import { BASE_SYSTEM_PROMPT } from '../constants';
 
 interface UseGeminiLiveProps {
+  apiKey: string;
   personality: Personality;
   settings: AppSettings;
   user: User;
@@ -16,6 +17,7 @@ interface UseGeminiLiveProps {
 }
 
 export const useGeminiLive = ({
+  apiKey,
   personality,
   settings,
   user,
@@ -94,7 +96,7 @@ export const useGeminiLive = ({
   }, []);
 
   const connect = useCallback(async () => {
-    if (isLive || isConnecting) return;
+    if (isLive || isConnecting || !apiKey) return;
 
     try {
       setIsConnecting(true);
@@ -103,7 +105,7 @@ export const useGeminiLive = ({
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey });
 
       const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}
       - Personality: ${personality.name}
@@ -128,7 +130,6 @@ export const useGeminiLive = ({
             setIsConnecting(false);
             onConnectionStateChange(true);
             
-            // Critical: Wait for session promise resolution before sending
             sessionPromise.then(session => {
               session.sendRealtimeInput({ text: "Introduce yourself and greet me warmly based on your personality!" });
             });
@@ -204,7 +205,7 @@ export const useGeminiLive = ({
       onError(error.message || "Vibe connection failed.");
       disconnect(); 
     }
-  }, [personality, settings, user, isLive, isConnecting, onConnectionStateChange, onTranscript, onTurnComplete, initAudio, disconnect, onError]);
+  }, [apiKey, personality, settings, user, isLive, isConnecting, onConnectionStateChange, onTranscript, onTurnComplete, initAudio, disconnect, onError]);
 
   return { connect, disconnect, sendMessage, isLive, isConnecting, volume };
 };

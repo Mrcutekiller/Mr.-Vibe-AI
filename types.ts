@@ -27,6 +27,7 @@ export interface User {
   gender: Gender;
   avatarUrl: string;
   personalityId: PersonalityId;
+  apiKey?: string;
 }
 
 export interface Personality {
