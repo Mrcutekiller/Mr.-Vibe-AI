@@ -117,30 +117,38 @@ export default function App() {
   const handleAISpeakFirst = async (sessionId: string) => {
     if (isLoading) return;
     setIsLoading(true);
+    setErrorMessage(null);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}
       - Personality: ${currentPersonality.name}
-      - User Context: ${user?.userName}
+      - Context: ${currentPersonality.prompt}
+      - User: ${user?.userName}
       - Language Setting: ${settings.language}
-      - Task: Greet the user first with your unique personality energy. Use the selected language: ${settings.language}. Sound extremely excited to meet them!
+      - Task: You are starting a new conversation. Greet the user for the first time in ${settings.language} using your personality. Be extremely cute and friendly.
       `;
 
       const response = await ai.models.generateContent({
           model: 'gemini-3-flash-preview',
-          contents: [{ role: 'user', parts: [{ text: `Act as ${currentPersonality.name} and greet me for the first time in ${settings.language}! Keep it short but high energy.` }] }],
+          contents: [{ role: 'user', parts: [{ text: "Hello! Introduce yourself to me." }] }],
           config: { systemInstruction: fullSystemPrompt }
       });
 
-      const newMessage: Message = { id: `ai-greet-${Date.now()}`, role: 'model', text: response.text || 'Hey there! ✨', timestamp: Date.now() };
+      const aiMessage: Message = { 
+        id: `ai-greet-${Date.now()}`, 
+        role: 'model', 
+        text: response.text || 'Hey there! Let’s vibe! ✨', 
+        timestamp: Date.now() 
+      };
 
       setSessions(prev => prev.map(s => s.id === sessionId ? {
           ...s,
-          messages: [...s.messages, newMessage],
+          messages: [...s.messages, aiMessage],
           lastTimestamp: Date.now()
       } : s));
     } catch (error) {
        console.error("Greeting Error:", error);
+       setErrorMessage("Vibe failure. Make sure your API_KEY is set in Vercel! ⚡");
     } finally { setIsLoading(false); }
   };
 
@@ -157,23 +165,21 @@ export default function App() {
     setActiveSessionId(newId);
     setIsSidebarOpen(false);
     
-    // Defer the greeting slightly to ensure UI transition
-    setTimeout(() => {
-      handleAISpeakFirst(newId);
-    }, 100);
+    // AI greets first
+    setTimeout(() => handleAISpeakFirst(newId), 300);
     
     return newId;
   };
 
   const handleReaction = (messageId: string, type: ReactionType) => {
     if (!activeSessionId) return;
-    setSessions(prev => {
-      const updated = prev.map(s => s.id === activeSessionId ? {
-        ...s,
-        messages: s.messages.map(m => m.id === messageId ? { ...m, reaction: m.reaction === type ? null : type } : m)
-      } : s);
-      return updated;
-    });
+    setSessions(prev => prev.map(s => s.id === activeSessionId ? {
+      ...s,
+      messages: s.messages.map(m => m.id === messageId ? { 
+        ...m, 
+        reaction: m.reaction === type ? null : type 
+      } : m)
+    } : s));
   };
 
   const handleUpdateUserName = (newName: string) => {
@@ -269,10 +275,7 @@ export default function App() {
     if (user) {
         localStorage.setItem('mr_vibe_active_user', JSON.stringify(user));
         setIsNewUser(false);
-        // Auto-start a chat if none exist
-        if (sessions.length === 0) {
-            handleNewChat();
-        }
+        if (sessions.length === 0) handleNewChat();
     }
   }, [user]);
 
@@ -281,12 +284,10 @@ export default function App() {
   }, [sessions]);
 
   useEffect(() => {
-    if (activeSessionId) {
-        localStorage.setItem('mr_vibe_active_session_id', activeSessionId);
-    }
+    if (activeSessionId) localStorage.setItem('mr_vibe_active_session_id', activeSessionId);
   }, [activeSessionId]);
 
-  // Comprehensive Auto-scroll
+  // Auto-scroll
   useEffect(() => {
     const timer = setTimeout(() => {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -333,11 +334,13 @@ export default function App() {
 
     setIsLoading(true);
     setInputText('');
+    setErrorMessage(null);
 
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}
       - Personality: ${currentPersonality.name}
+      - Context: ${currentPersonality.prompt}
       - User Context: ${user?.userName}
       - Language Setting: ${settings.language}
       `;
@@ -359,7 +362,7 @@ export default function App() {
       } : s));
     } catch (error) {
        console.error(error);
-       setErrorMessage("Vibe check failed. Try again? ⚡");
+       setErrorMessage("Vibe failure. Is your API_KEY correct in Vercel? ⚡");
     } finally { setIsLoading(false); }
   };
 
@@ -380,7 +383,7 @@ export default function App() {
                         </div>
                         <div className="space-y-1">
                             <h1 className="text-2xl md:text-4xl font-black tracking-tighter text-zinc-900 dark:text-white">Mr. Vibe AI</h1>
-                            <p className="text-zinc-500 text-xs md:text-sm font-medium">Your AI best friend, Mr. Cute.</p>
+                            <p className="text-zinc-500 text-xs md:text-sm font-medium">Your companion in the digital void.</p>
                         </div>
                         {errorMessage && <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl text-[10px] md:text-xs font-bold flex items-center gap-2"><AlertCircle size={14}/> {errorMessage}</div>}
                         <div className="space-y-3 md:space-y-4 text-left">
@@ -405,18 +408,18 @@ export default function App() {
                         </div>
                         <button 
                             onClick={() => {
-                              if (!validateEmail(credentials.email)) { setErrorMessage("Please enter a valid email address!"); return; }
-                              authMode === 'signup' ? setOnboardingStep(2) : (accounts.find(a => a.email === credentials.email) ? setUser(accounts.find(a => a.email === credentials.email)!) : setErrorMessage("Account not found!"));
+                              if (!validateEmail(credentials.email)) { setErrorMessage("Please enter a valid email! 📧"); return; }
+                              authMode === 'signup' ? setOnboardingStep(2) : (accounts.find(a => a.email === credentials.email) ? setUser(accounts.find(a => a.email === credentials.email)!) : setErrorMessage("Account not found! ✨"));
                             }}
                             className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 md:py-6 rounded-xl md:rounded-3xl font-black text-sm md:text-xl transition-all shadow-xl active:scale-[0.98]"
                         >
-                            {authMode === 'signup' ? "Get Started" : "Enter the Vibe"}
+                            {authMode === 'signup' ? "Create Account" : "Log In"}
                         </button>
                         <button 
                             onClick={() => { setAuthMode(authMode === 'signup' ? 'login' : 'signup'); setErrorMessage(null); }}
                             className="text-zinc-500 font-bold hover:text-blue-500 transition-colors text-[10px] md:text-sm"
                         >
-                            {authMode === 'signup' ? "Already a member? Log in" : "New? Create an account"}
+                            {authMode === 'signup' ? "Already a member? Log in" : "New here? Create account"}
                         </button>
                     </div>
                 ) : (
@@ -425,8 +428,8 @@ export default function App() {
                             <ArrowLeft size={16} /> Back
                         </button>
                         <div className="text-center space-y-1">
-                            <h2 className="text-xl md:text-3xl font-black tracking-tighter text-zinc-900 dark:text-white">Profile Setup</h2>
-                            <p className="text-zinc-500 text-[10px] md:text-sm">How should Mr. Cute see you?</p>
+                            <h2 className="text-xl md:text-3xl font-black tracking-tighter text-zinc-900 dark:text-white">Profile Identity</h2>
+                            <p className="text-zinc-500 text-[10px] md:text-sm">Choose how you look to Mr. Cute.</p>
                         </div>
                         <div className="grid grid-cols-5 gap-2 md:gap-4 overflow-x-auto pb-2 custom-scrollbar">
                             {AVATARS.map((url, i) => (
@@ -437,21 +440,21 @@ export default function App() {
                         </div>
                         <div className="space-y-4">
                             <input 
-                                type="text" placeholder="Your Name" 
+                                type="text" placeholder="Display Name" 
                                 value={tempProfile.userName}
                                 onChange={e => setTempProfile({...tempProfile, userName: e.target.value})}
                                 className="w-full bg-zinc-100 dark:bg-white/5 rounded-xl md:rounded-3xl py-4 md:py-6 px-6 md:px-8 font-bold outline-none border-2 border-transparent focus:border-blue-500 transition-all text-zinc-900 dark:text-white text-sm" 
                             />
                             <button 
                                 onClick={() => {
-                                  if (!tempProfile.userName?.trim()) { setErrorMessage("Enter your name!"); return; }
+                                  if (!tempProfile.userName?.trim()) { setErrorMessage("Enter a name! ✨"); return; }
                                   const newUser: User = { email: credentials.email, userName: tempProfile.userName, avatarUrl: tempProfile.avatarUrl || AVATARS[0], age: '18', gender: 'Other' };
                                   setAccounts([...accounts, newUser]);
                                   setUser(newUser);
                                 }}
                                 className="w-full bg-blue-600 text-white py-4 md:py-6 rounded-xl md:rounded-3xl font-black text-sm md:text-xl hover:bg-blue-500 transition-all shadow-xl"
                             >
-                                Complete Setup
+                                Let's Vibe
                             </button>
                         </div>
                     </div>
@@ -497,9 +500,9 @@ export default function App() {
       <div className={`fixed inset-y-0 left-0 z-[160] w-80 bg-white dark:bg-zinc-950 border-r border-zinc-200 dark:border-white/5 transition-transform duration-500 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} md:relative`}>
         <div className="flex flex-col h-full">
             <div className="p-8 flex items-center justify-between">
-                <h2 className="text-2xl font-black italic tracking-tighter uppercase">Memories</h2>
+                <h2 className="text-2xl font-black italic tracking-tighter uppercase text-zinc-900 dark:text-white">Memories</h2>
                 <button onClick={() => setIsSidebarOpen(false)} className="p-2 hover:bg-zinc-100 dark:hover:bg-white/5 rounded-xl md:hidden">
-                    <X size={20} />
+                    <X size={20} className="text-zinc-900 dark:text-white" />
                 </button>
             </div>
             <div className="px-8 pb-6">
@@ -538,12 +541,12 @@ export default function App() {
         <header className="px-8 py-6 border-b border-zinc-100 dark:border-white/5 flex items-center justify-between backdrop-blur-xl bg-white/50 dark:bg-black/50 sticky top-0 z-[100]">
             <div className="flex items-center gap-3">
                 <button onClick={() => setIsSidebarOpen(true)} className="p-3 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-xl md:hidden">
-                    <Menu size={18} />
+                    <Menu size={18} className="text-zinc-900 dark:text-white" />
                 </button>
                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => setIsProfileModalOpen(true)}>
                     <img src={user?.avatarUrl} className="w-11 h-11 rounded-xl border-2 border-white dark:border-zinc-800 shadow-md" alt="Profile" />
                     <div className="hidden xs:block">
-                        <h1 className="text-base font-black tracking-tighter leading-none">{user?.userName}</h1>
+                        <h1 className="text-base font-black tracking-tighter leading-none text-zinc-900 dark:text-white">{user?.userName}</h1>
                         <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mt-0.5">Vibe Partner</p>
                     </div>
                 </div>
@@ -560,13 +563,20 @@ export default function App() {
 
         <main className="flex-1 overflow-y-auto px-4 md:px-12 py-10 custom-scrollbar bg-zinc-50 dark:bg-black relative">
             <div className="max-w-3xl mx-auto flex flex-col gap-8">
+                {errorMessage && (
+                  <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-500 rounded-2xl text-xs font-black flex items-center gap-2 animate-in slide-in-from-top-4">
+                    <AlertTriangle size={16} /> {errorMessage}
+                    <button onClick={() => setErrorMessage(null)} className="ml-auto opacity-50 hover:opacity-100"><X size={14} /></button>
+                  </div>
+                )}
+
                 {messages.length === 0 && !isLoading ? (
                     <div className="min-h-[50vh] flex flex-col items-center justify-center text-center space-y-8 animate-in fade-in zoom-in-95 duration-1000">
                         <Waves size={48} className="text-blue-500 animate-float" />
                         <div className="space-y-2 px-4">
                             <h2 className="text-3xl md:text-4xl font-black tracking-tighter text-zinc-900 dark:text-white leading-tight">Start the Vibe.</h2>
                             <p className="text-sm font-medium text-zinc-500 max-w-sm mx-auto leading-relaxed">
-                                I'm Mr. Cute. I was born for this. Let's talk!
+                                I'm Mr. Cute. Born to vibe. Talk to me!
                             </p>
                         </div>
                     </div>
@@ -576,7 +586,9 @@ export default function App() {
                             <div className={`max-w-[92%] md:max-w-[80%] rounded-[2rem] md:rounded-[2.5rem] p-5 md:p-6 shadow-lg relative transition-all duration-300 
                                 ${msg.reaction === 'eco' ? 'border-2 border-green-500/50 bg-green-50/10 dark:bg-green-900/10' : ''} 
                                 ${msg.reaction === 'pee' ? 'border-2 border-yellow-500/50 bg-yellow-50/10 dark:bg-yellow-900/10' : ''} 
-                                ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white dark:bg-zinc-800/60 dark:text-white text-zinc-900 border border-zinc-100 dark:border-white/5 rounded-bl-none'}`}>
+                                ${msg.reaction === 'like' ? 'border-2 border-blue-500/50' : ''}
+                                ${msg.reaction === 'dislike' ? 'border-2 border-red-500/50' : ''}
+                                ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-br-none shadow-blue-500/20' : 'bg-white dark:bg-zinc-800/60 dark:text-white text-zinc-900 border border-zinc-100 dark:border-white/5 rounded-bl-none shadow-black/5'}`}>
                                 {msg.image && (
                                   <div className="mb-4 rounded-2xl overflow-hidden shadow-lg">
                                     <img src={msg.image} alt="Vibe Content" className="w-full h-auto object-contain max-h-[300px]" />
@@ -586,10 +598,10 @@ export default function App() {
                                 
                                 {/* Reaction Buttons */}
                                 <div className={`mt-4 flex items-center gap-2 border-t pt-3 transition-opacity ${msg.role === 'user' ? 'border-white/10 opacity-60' : 'border-black/5 dark:border-white/5 opacity-40 hover:opacity-100'}`}>
-                                  <button onClick={() => handleReaction(msg.id, 'eco')} className={`p-2 rounded-lg transition-colors ${msg.reaction === 'eco' ? 'text-green-500 bg-green-500/10' : 'text-zinc-400 hover:text-green-500'}`} title="Eco Vibe">
+                                  <button onClick={() => handleReaction(msg.id, 'eco')} className={`p-2 rounded-lg transition-colors ${msg.reaction === 'eco' ? 'text-green-500 bg-green-500/20' : 'text-zinc-400 hover:text-green-500'}`} title="Eco Vibe">
                                     <Leaf size={14} />
                                   </button>
-                                  <button onClick={() => handleReaction(msg.id, 'pee')} className={`p-2 rounded-lg transition-colors ${msg.reaction === 'pee' ? 'text-yellow-500 bg-yellow-500/10' : 'text-zinc-400 hover:text-yellow-500'}`} title="Pee Vibe">
+                                  <button onClick={() => handleReaction(msg.id, 'pee')} className={`p-2 rounded-lg transition-colors ${msg.reaction === 'pee' ? 'text-yellow-500 bg-yellow-500/20' : 'text-zinc-400 hover:text-yellow-500'}`} title="Pee Vibe">
                                     <Droplets size={14} />
                                   </button>
                                   <button onClick={() => copyToClipboard(msg.text, msg.id)} className={`p-2 rounded-lg transition-colors ${copyFeedback === msg.id ? 'text-blue-500 bg-blue-500/10' : 'text-zinc-400 hover:text-blue-500'}`} title="Share">
@@ -637,7 +649,14 @@ export default function App() {
                         reader.readAsDataURL(file);
                       }
                     }} />
-                    <input type="text" placeholder="Drop a vibe..." value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} className="w-full bg-transparent border-none py-5 text-sm md:text-base font-bold outline-none pl-2" />
+                    <input 
+                      type="text" 
+                      placeholder="Type your vibe..." 
+                      value={inputText} 
+                      onChange={e => setInputText(e.target.value)} 
+                      onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} 
+                      className="w-full bg-transparent border-none py-5 text-sm md:text-base font-bold outline-none pl-2 text-zinc-900 dark:text-white placeholder-zinc-400" 
+                    />
                 </div>
                 <button onClick={() => handleSendToAI(inputText)} disabled={!inputText.trim() || isLoading} className="p-5 bg-blue-600 hover:bg-blue-500 text-white rounded-[1.8rem] shadow-2xl transition-all active:scale-90 disabled:opacity-30 flex items-center justify-center min-w-[64px]">
                     {isLoading ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
@@ -651,14 +670,20 @@ export default function App() {
             <div className="absolute inset-0 bg-black/80 backdrop-blur-xl animate-in fade-in" onClick={() => setIsProfileModalOpen(false)} />
             <div className="relative w-full md:max-w-3xl bg-white dark:bg-zinc-900 border-t md:border border-zinc-200 dark:border-white/10 rounded-t-[2.5rem] md:rounded-[3.5rem] p-8 md:p-12 shadow-3xl animate-in slide-in-from-bottom-20 md:zoom-in-95 duration-400 max-h-[95vh] flex flex-col">
                 <div className="flex justify-between items-center mb-10">
-                    <h2 className="text-3xl font-black uppercase italic tracking-tighter">Vibe Config</h2>
-                    <button onClick={() => setIsProfileModalOpen(false)} className="p-3 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 rounded-2xl transition-all"><X size={20}/></button>
+                    <h2 className="text-3xl font-black uppercase italic tracking-tighter text-zinc-900 dark:text-white">Vibe Config</h2>
+                    <button onClick={() => setIsProfileModalOpen(false)} className="p-3 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-2xl transition-all"><X size={20} className="text-zinc-900 dark:text-white" /></button>
                 </div>
                 <div className="flex-1 overflow-y-auto custom-scrollbar pr-4 space-y-10 pb-8">
                     <div className="flex flex-col items-center gap-6">
                         <img src={user?.avatarUrl} className="w-32 h-32 rounded-[2.5rem] shadow-2xl border-4 border-white dark:border-zinc-800" alt="Avatar" />
                         <div className="w-full max-w-xs space-y-3 text-center">
-                            <input type="text" value={user?.userName} onChange={(e) => handleUpdateUserName(e.target.value)} placeholder="Username" className="w-full bg-zinc-100 dark:bg-white/5 rounded-2xl py-4 px-6 font-black text-center outline-none border-2 border-transparent focus:border-blue-500 transition-all" />
+                            <input 
+                              type="text" 
+                              value={user?.userName} 
+                              onChange={(e) => handleUpdateUserName(e.target.value)} 
+                              placeholder="Username" 
+                              className="w-full bg-zinc-100 dark:bg-white/5 rounded-2xl py-4 px-6 font-black text-center outline-none border-2 border-transparent focus:border-blue-500 transition-all text-zinc-900 dark:text-white" 
+                            />
                             <div className="flex items-center justify-center gap-2 px-4 py-2 bg-zinc-100 dark:bg-white/5 rounded-full"><Mail size={12} className="text-zinc-400" /><p className="text-[10px] font-black text-zinc-500 uppercase">{user?.email}</p></div>
                         </div>
                     </div>
@@ -667,7 +692,7 @@ export default function App() {
                             <label className="text-xs font-black uppercase tracking-widest text-zinc-400 ml-4">Personality Vibe</label>
                             <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
                                 {Object.values(PERSONALITIES).map(p => (
-                                    <button key={p.id} onClick={() => setSettings({...settings, personalityId: p.id})} className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${settings.personalityId === p.id ? 'bg-blue-600 border-blue-500 text-white shadow-xl' : 'bg-zinc-100 dark:bg-white/5 border-transparent hover:bg-zinc-200 dark:hover:bg-white/10 text-left'}`}>
+                                    <button key={p.id} onClick={() => setSettings({...settings, personalityId: p.id})} className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${settings.personalityId === p.id ? 'bg-blue-600 border-blue-500 text-white shadow-xl' : 'bg-zinc-100 dark:bg-white/5 border-transparent hover:bg-zinc-200 dark:hover:bg-white/10 text-left text-zinc-900 dark:text-white'}`}>
                                         <span className="text-xl">{p.emoji}</span>
                                         <div>
                                           <p className="font-black text-xs leading-tight">{p.name}</p>
@@ -682,14 +707,14 @@ export default function App() {
                                 <label className="text-xs font-black uppercase tracking-widest text-zinc-400 ml-4">Settings</label>
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between p-4 bg-zinc-100 dark:bg-white/5 rounded-2xl">
-                                        <div className="flex items-center gap-3">{settings.theme === 'dark' ? <Moon size={18} /> : <Sun size={18} />}<span className="font-bold text-xs">Dark Mode</span></div>
+                                        <div className="flex items-center gap-3 text-zinc-900 dark:text-white">{settings.theme === 'dark' ? <Moon size={18} /> : <Sun size={18} />}<span className="font-bold text-xs">Dark Mode</span></div>
                                         <button onClick={() => setSettings({...settings, theme: settings.theme === 'dark' ? 'light' : 'dark'})} className={`w-12 h-7 rounded-full relative transition-all duration-500 ${settings.theme === 'dark' ? 'bg-blue-600' : 'bg-zinc-300'}`}><div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all duration-500 ${settings.theme === 'dark' ? 'left-6' : 'left-1'}`} /></button>
                                     </div>
-                                    <select value={settings.language} onChange={e => setSettings({...settings, language: e.target.value})} className="w-full bg-zinc-100 dark:bg-white/5 rounded-2xl py-4 px-6 font-black text-xs outline-none appearance-none cursor-pointer">
+                                    <select value={settings.language} onChange={e => setSettings({...settings, language: e.target.value})} className="w-full bg-zinc-100 dark:bg-white/5 rounded-2xl py-4 px-6 font-black text-xs outline-none appearance-none cursor-pointer text-zinc-900 dark:text-white">
                                         {SUPPORTED_LANGUAGES.map(lang => <option key={lang.code} value={lang.code} className="bg-white dark:bg-zinc-900">{lang.name}</option>)}
                                     </select>
                                     <div className="flex items-center gap-2">
-                                        <select value={settings.voiceName} onChange={e => setSettings({...settings, voiceName: e.target.value})} className="flex-1 bg-zinc-100 dark:bg-white/5 rounded-2xl py-4 px-6 font-black text-xs outline-none appearance-none cursor-pointer">
+                                        <select value={settings.voiceName} onChange={e => setSettings({...settings, voiceName: e.target.value})} className="flex-1 bg-zinc-100 dark:bg-white/5 rounded-2xl py-4 px-6 font-black text-xs outline-none appearance-none cursor-pointer text-zinc-900 dark:text-white">
                                             {GEMINI_VOICES.map(v => <option key={v.id} value={v.id} className="bg-white dark:bg-zinc-900">{v.name}</option>)}
                                         </select>
                                         <button onClick={() => previewVoice(settings.voiceName)} disabled={isPreviewingVoice} className="p-4 bg-zinc-100 dark:bg-white/5 rounded-2xl text-blue-500 hover:bg-blue-500 hover:text-white transition-all">
@@ -701,7 +726,7 @@ export default function App() {
                         </div>
                     </div>
                 </div>
-                <div className="pt-6 border-t flex items-center justify-between">
+                <div className="pt-6 border-t flex items-center justify-between border-zinc-100 dark:border-white/5">
                     <button onClick={handleLogOut} className="text-xs font-black text-rose-500 uppercase tracking-widest hover:underline">Log Out Account</button>
                     <button onClick={() => setIsProfileModalOpen(false)} className="px-12 py-5 bg-blue-600 hover:bg-blue-500 text-white rounded-[2rem] font-black text-lg transition-all active:scale-[0.98] shadow-2xl">Confirm Vibe</button>
                 </div>
