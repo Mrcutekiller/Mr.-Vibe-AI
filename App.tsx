@@ -17,8 +17,9 @@ import { decode, decodeAudioData } from './utils/audioUtils';
 // --- Utility Components ---
 
 const validateEmail = (email: string) => {
-  // Fixed Regex: Supports standard email formats like user@domain.com
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  // Simple but effective regex for real-time validation feedback
+  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return regex.test(email);
 };
 
 const Logo = ({ className = "w-12 h-12", animated = false }: { className?: string, animated?: boolean }) => (
@@ -93,6 +94,7 @@ export default function App() {
   
   const [user, setUser] = useState<User | null>(() => JSON.parse(localStorage.getItem('mr_vibe_active_user') || 'null'));
   const [credentials, setCredentials] = useState({ email: '', password: '' });
+  const [manualApiKey, setManualApiKey] = useState('');
   
   const [tempProfile, setTempProfile] = useState<Partial<User>>({ 
     userName: '', 
@@ -117,6 +119,9 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState<{text: string, isModel: boolean}[]>([]);
   const [editUserName, setEditUserName] = useState('');
+
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState('');
   
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -136,13 +141,18 @@ export default function App() {
   };
 
   async function checkApiConnection() {
-    if (!process.env.API_KEY) {
+    // If manual key is provided, we should probably set it to process.env.API_KEY if possible
+    // But since process.env is usually read-only in build, we assume it's injected 
+    // or we'd use a state for the key in a real app. 
+    // For this context, we check the global availability.
+    if (!process.env.API_KEY && !manualApiKey) {
       setApiStatus('error');
       return false;
     }
     setApiStatus('checking');
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      // Create instance right before call as requested
+      const ai = new GoogleGenAI({ apiKey: manualApiKey || process.env.API_KEY });
       const response = await ai.models.generateContent({ 
         model: 'gemini-3-flash-preview', 
         contents: 'ping', 
@@ -157,9 +167,9 @@ export default function App() {
     } catch (error: any) {
       setApiStatus('error');
       if (error.message.includes('Requested entity was not found')) {
-          showToast("Project not found or billing not enabled. 💳", "error");
+          showToast("Project not found. Ensure billing is on. 💳", "error");
       } else {
-          showToast("Vibe key rejected. Try selecting a paid project key.", "error");
+          showToast("Vibe key rejected. Try a different one.", "error");
       }
       return false;
     }
@@ -168,11 +178,10 @@ export default function App() {
   const handleSelectApiKey = async () => {
     if (window.aistudio?.openSelectKey) {
       await window.aistudio.openSelectKey();
-      showToast("Syncing project metadata...", "info");
-      // As per guidelines, assume selection success and move forward
-      setTimeout(checkApiConnection, 1000);
+      showToast("Syncing vibe credentials...", "info");
+      setTimeout(checkApiConnection, 1500);
     } else {
-      showToast("Environment does not support key dialog.", "error");
+      showToast("Manual input required below.", "info");
     }
   };
 
@@ -180,10 +189,11 @@ export default function App() {
   useEffect(() => { if (user) setEditUserName(user.userName); }, [user, isProfileModalOpen]);
 
   async function handleAISpeakFirst(sessionId: string) {
-    if (!process.env.API_KEY) return;
+    const key = manualApiKey || process.env.API_KEY;
+    if (!key) return;
     setIsLoading(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: key });
       const prompt = `GREETING CHALLENGE: Greet ${user?.userName} based on their profile (Loves ${user?.musicGenre}, studies ${user?.educationLevel}). SOUND LIKE A ${currentPersonality.name.toUpperCase()}!`;
       const response = await ai.models.generateContent({ 
         model: 'gemini-3-flash-preview', 
@@ -242,12 +252,14 @@ export default function App() {
 
   async function handleGenerateVibeArt() {
     if (!user || isGeneratingVibe) return;
+    const key = manualApiKey || process.env.API_KEY;
+    if (!key) { showToast("No API Key detected.", "error"); return; }
     let sessionId = activeSessionId || handleNewChat();
     setIsGeneratingVibe(true);
     showToast("Synthesizing your visual aura...", "info");
     
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: key });
       const prompt = VIBE_VISION_PROMPT(user, currentPersonality);
       
       const response = await ai.models.generateContent({
@@ -293,19 +305,34 @@ export default function App() {
     ));
   };
 
-  async function handleSendToAI(text: string, fileData?: { data: string, mimeType: string, fileName: string }) {
+  async function handleSendToAI(text: string, fileData?: { data: string, mimeType: string, fileName: string }, regenerateFromId?: string) {
     if ((!text.trim() && !fileData) || isLoading) return;
+    
+    const key = manualApiKey || process.env.API_KEY;
     if (apiStatus !== 'connected') {
       const isOk = await checkApiConnection();
       if (!isOk) { showToast("Soul Link Required. Check your API key.", "error"); return; }
     }
+
     let sessionId = activeSessionId;
     if (!sessionId) sessionId = handleNewChat();
-    const userMessage: Message = { id: `u-${Date.now()}`, role: 'user', text: text || 'Analyze this snapshot!', timestamp: Date.now(), image: fileData ? `data:${fileData.mimeType};base64,${fileData.data}` : undefined };
-    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, userMessage], lastTimestamp: Date.now() } : s));
+
+    if (regenerateFromId) {
+        // Find messages up to the edited one and drop following ones
+        setSessions(prev => prev.map(s => {
+            if (s.id !== sessionId) return s;
+            const idx = s.messages.findIndex(m => m.id === regenerateFromId);
+            const newMessages = [...s.messages.slice(0, idx + 1)];
+            return { ...s, messages: newMessages, lastTimestamp: Date.now() };
+        }));
+    } else {
+        const userMessage: Message = { id: `u-${Date.now()}`, role: 'user', text: text || 'Analyze this snapshot!', timestamp: Date.now(), image: fileData ? `data:${fileData.mimeType};base64,${fileData.data}` : undefined };
+        setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, userMessage], lastTimestamp: Date.now() } : s));
+    }
+
     setIsLoading(true); setInputText('');
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: manualApiKey || process.env.API_KEY });
       const personalityPrompt = PERSONALITIES[settings.personalityId].prompt;
       const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}\n\n${personalityPrompt}\n\nUSER PROFILE: ${user?.userName}, Age ${user?.age}, Likes ${user?.musicGenre} and ${user?.movieGenre}.`;
       
@@ -321,6 +348,24 @@ export default function App() {
       setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, aiMessage] } : s));
     } catch (e: any) { showToast("Network vibes are weak. Retrying...", "error"); } finally { setIsLoading(false); }
   }
+
+  const handleEditMessage = (id: string, text: string) => {
+    setEditingMessageId(id);
+    setEditingText(text);
+  };
+
+  const saveEditMessage = (id: string) => {
+    if (!editingText.trim()) return;
+    setSessions(prev => prev.map(s => {
+        if (s.id !== activeSessionId) return s;
+        return {
+            ...s,
+            messages: s.messages.map(m => m.id === id ? { ...m, text: editingText } : m)
+        };
+    }));
+    setEditingMessageId(null);
+    handleSendToAI(editingText, undefined, id);
+  };
 
   const { connect: connectLive, disconnect: disconnectLive, isLive, isConnecting, volume } = useGeminiLive({
     personality: currentPersonality, settings, user: user || tempProfile as User,
@@ -383,30 +428,41 @@ export default function App() {
                 <div className="relative group">
                   <Mail className={`absolute left-5 top-1/2 -translate-y-1/2 transition-colors ${isEmailInputValid === true ? 'text-green-500' : isEmailInputValid === false ? 'text-rose-500' : 'text-zinc-400'}`} size={20} />
                   <input type="email" placeholder="Email Address" value={credentials.email} onChange={e => setCredentials({...credentials, email: e.target.value})} className={`w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl py-4 md:py-5 pl-14 pr-12 font-bold outline-none border-2 transition-all text-zinc-900 dark:text-white text-sm md:text-base ${isEmailInputValid === true ? 'border-green-500 ring-4 ring-green-500/5' : isEmailInputValid === false ? 'border-rose-500 ring-4 ring-rose-500/5' : 'border-transparent focus:border-blue-500'}`} />
-                  <div className="absolute right-5 top-1/2 -translate-y-1/2">{isEmailInputValid === true && <CheckCircle2 className="text-green-500 animate-scale-in" size={20} />}{isEmailInputValid === false && <AlertOctagon className="text-rose-500 animate-scale-in" size={20} />}</div>
+                  <div className="absolute right-5 top-1/2 -translate-y-1/2">
+                    {isEmailInputValid === true && <CheckCircle2 className="text-green-500 animate-scale-in" size={20} />}
+                    {isEmailInputValid === false && credentials.email.length > 0 && <AlertOctagon className="text-rose-500 animate-scale-in" size={20} />}
+                  </div>
                 </div>
                 <div className="relative"><Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-400" size={20} /><input type="password" placeholder="Password" value={credentials.password} onChange={e => setCredentials({...credentials, password: e.target.value})} className="w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl py-4 md:py-5 pl-14 font-bold outline-none border-2 border-transparent focus:border-blue-500 text-zinc-900 dark:text-white text-sm focus:ring-4 focus:ring-blue-500/5" /></div>
               </div>
               <button onClick={() => { if (!validateEmail(credentials.email)) { showToast("Check that email, chief. 📧", "error"); return; } setOnboardingStep(1.5); }} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 md:py-5 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95">Continue</button>
             </div>
           ) : onboardingStep === 1.5 ? (
-            <div className="space-y-8 animate-slide-in-right">
+            <div className="space-y-10 animate-slide-in-right">
               <button onClick={() => setOnboardingStep(1)} className="flex items-center gap-2 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-blue-500"><ArrowLeft size={16} /> Back</button>
               <div className="space-y-4 text-center">
                 <div className="w-16 h-16 bg-blue-500/10 rounded-[2rem] flex items-center justify-center mx-auto text-blue-600 mb-6 animate-pulse"><Key size={32} /></div>
                 <h2 className="text-2xl md:text-3xl font-black italic text-zinc-900 dark:text-white tracking-tighter">Enter Vibe Key</h2>
-                <p className="text-zinc-500 text-sm font-medium px-4">Mr. Cute needs a paid Gemini API key to operate. Click below to select or link your project.</p>
+                <p className="text-zinc-500 text-sm font-medium px-4">Mr. Cute needs a Gemini API key. Paste yours below or select from the prompt.</p>
               </div>
-              <div className="space-y-6">
-                <button onClick={async () => { await handleSelectApiKey(); setOnboardingStep(2); }} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-5 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3"><Zap size={22} fill="white" /> Link Gemini API</button>
-                
-                <div className="bg-zinc-100 dark:bg-white/5 p-4 rounded-2xl border border-black/5 dark:border-white/5 space-y-3">
-                    <div className="flex items-center gap-2 text-[10px] font-black uppercase text-zinc-400 tracking-widest"><HelpCircle size={14} /> Stuck?</div>
-                    <p className="text-[11px] text-zinc-500 font-medium text-left">The system requires a key from a <b>paid Google Cloud project</b>. If you see red, ensure your project is linked in the browser's key selector.</p>
-                    <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="flex items-center gap-1 text-[10px] font-black text-blue-500 uppercase tracking-widest hover:underline">View Billing Guide <ExternalLink size={12}/></a>
+              <div className="space-y-4">
+                <div className="relative">
+                  <Activity className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-400" size={20} />
+                  <input 
+                    type="password" 
+                    placeholder="Paste Gemini API Key here..." 
+                    value={manualApiKey} 
+                    onChange={e => setManualApiKey(e.target.value)}
+                    className="w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl py-4 pl-14 pr-6 font-bold outline-none border-2 border-transparent focus:border-blue-500 text-zinc-900 dark:text-white text-sm focus:ring-4 focus:ring-blue-500/5" 
+                  />
                 </div>
-
-                <div className="flex items-center justify-center gap-2"><div className={`w-2 h-2 rounded-full ${apiStatus === 'connected' ? 'bg-green-500' : apiStatus === 'checking' ? 'bg-yellow-500 animate-pulse' : 'bg-rose-500'}`} /><span className="text-[10px] font-black uppercase text-zinc-400 tracking-widest">Connection: {apiStatus.toUpperCase()}</span></div>
+                <button onClick={async () => { await handleSelectApiKey(); setOnboardingStep(2); }} className="w-full bg-zinc-900 dark:bg-white text-white dark:text-black py-4 md:py-5 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3">
+                    {manualApiKey ? "Verify Manual Key" : "Select Paid Project Key"}
+                </button>
+                <div className="flex items-center justify-center gap-2"><div className={`w-2 h-2 rounded-full ${apiStatus === 'connected' ? 'bg-green-500' : 'bg-rose-500'}`} /><span className="text-[10px] font-black uppercase text-zinc-400 tracking-widest">Connection: {apiStatus.toUpperCase()}</span></div>
+                <div className="mt-4 p-4 bg-blue-500/5 rounded-2xl border border-blue-500/10 text-left">
+                  <p className="text-[11px] text-zinc-500 font-medium"><b>Note:</b> Make sure your project has billing enabled for visual features. <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="text-blue-500 hover:underline">Read docs</a></p>
+                </div>
               </div>
             </div>
           ) : onboardingStep === 2 ? (
@@ -427,7 +483,15 @@ export default function App() {
               <h2 className="text-2xl font-black italic text-zinc-900 dark:text-white tracking-tighter text-center">Soul Archetype</h2>
               <div className="grid grid-cols-2 gap-3 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
                 {Object.values(PERSONALITIES).map(p => (
-                  <button key={p.id} onClick={() => { setTempProfile({...tempProfile, personalityId: p.id}); setSettings(prev => ({ ...prev, personalityId: p.id, voiceName: p.voiceName })); }} className={`p-4 rounded-[1.5rem] border-2 transition-all text-left ${tempProfile.personalityId === p.id ? 'bg-blue-600 border-blue-500 text-white shadow-xl scale-[1.02]' : 'bg-zinc-100 dark:bg-zinc-800/40 border-transparent text-zinc-900 dark:text-white hover:bg-zinc-200 dark:hover:bg-zinc-800'}`}><span className="text-2xl">{p.emoji}</span><p className="font-black text-[10px] mt-1 uppercase leading-none">{p.name}</p></button>
+                  <button key={p.id} onClick={() => { setTempProfile({...tempProfile, personalityId: p.id}); setSettings(prev => ({ ...prev, personalityId: p.id, voiceName: p.voiceName })); }} className={`p-4 rounded-[1.5rem] border-2 transition-all text-left flex flex-col items-start gap-1 ${tempProfile.personalityId === p.id ? 'bg-blue-600 border-blue-500 text-white shadow-xl scale-[1.02]' : 'bg-zinc-100 dark:bg-zinc-800/40 border-transparent text-zinc-900 dark:text-white hover:bg-zinc-200 dark:hover:bg-zinc-800'}`}>
+                    <span className="text-2xl">{p.emoji}</span>
+                    <div className="flex flex-col">
+                      <p className="font-black text-[10px] uppercase leading-none">{p.name}</p>
+                      <p className={`text-[9px] mt-1 font-medium leading-tight ${tempProfile.personalityId === p.id ? 'text-blue-100' : 'text-zinc-500 dark:text-zinc-400'}`}>
+                        {p.description}
+                      </p>
+                    </div>
+                  </button>
                 ))}
               </div>
               <button onClick={() => setOnboardingStep(5)} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95">Next</button>
@@ -486,11 +550,21 @@ export default function App() {
           <div className="flex items-center gap-4">
             <button onClick={() => setIsSidebarOpen(true)} className="p-2.5 bg-zinc-100 dark:bg-zinc-800 rounded-2xl md:hidden text-zinc-900 dark:text-white shadow-sm hover:text-blue-500 transition-colors"><Menu size={22} /></button>
             <div className="flex items-center gap-2 cursor-pointer group" onClick={() => setIsProfileModalOpen(true)}>
-              <div className="relative"><img src={user?.avatarUrl} className="w-9 h-9 md:w-11 md:h-11 rounded-[1rem] md:rounded-[1.4rem] border-2 border-white dark:border-zinc-800 shadow-lg group-hover:scale-110 transition-transform" alt="Avatar" /><div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-zinc-900 shadow-sm ${apiStatus === 'connected' ? 'bg-green-500' : apiStatus === 'checking' ? 'bg-yellow-500' : 'bg-rose-500 animate-pulse'}`} /></div>
+              <div className="relative"><img src={user?.avatarUrl} className="w-9 h-9 md:w-11 md:h-11 rounded-[1rem] md:rounded-[1.4rem] border-2 border-white dark:border-zinc-800 shadow-lg group-hover:scale-110 transition-transform" alt="Avatar" /><div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-zinc-900 shadow-sm ${apiStatus === 'connected' ? 'bg-green-500' : apiStatus === 'checking' ? 'bg-yellow-500 animate-pulse' : 'bg-rose-500 animate-pulse'}`} /></div>
               <div className="hidden sm:block"><h1 className="text-sm font-black text-zinc-900 dark:text-white tracking-tight">{user?.userName}</h1><p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mt-0.5">Aura: {user?.personalityId}</p></div>
             </div>
           </div>
           <div className="flex items-center gap-2 md:gap-4">
+            {/* Persistent Status Indicator */}
+            <div className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all ${
+              apiStatus === 'connected' ? 'bg-green-500/10 border-green-500/20 text-green-600 dark:text-green-400' :
+              apiStatus === 'checking' ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-600 dark:text-yellow-400 animate-pulse' :
+              'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400'
+            }`}>
+              <div className={`w-1.5 h-1.5 rounded-full ${apiStatus === 'connected' ? 'bg-green-500' : apiStatus === 'checking' ? 'bg-yellow-500' : 'bg-rose-500'}`} />
+              {apiStatus === 'connected' ? 'Online' : apiStatus === 'checking' ? 'Syncing' : 'Link Failed'}
+            </div>
+            
             <button onClick={handleGenerateVibeArt} className="hidden lg:flex px-5 py-2.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all items-center gap-2 shadow-sm border border-black/5 dark:border-white/5"><Wand2 size={16} /> Vibe Vision</button>
             <button onClick={() => setIsNotifOpen(true)} className={`p-2.5 md:p-3 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-blue-500 transition-all relative ${notifications.length > 0 && 'animate-vibe-in'}`}><Bell size={22} />{notifications.length > 0 && <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white dark:border-zinc-800" />}</button>
             <button onClick={connectLive} className="p-2.5 md:p-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl shadow-xl hover:rotate-12 active:scale-90 transition-all"><Mic size={22} /></button>
@@ -540,9 +614,35 @@ export default function App() {
                           )}
                         </div>
                       )}
-                      <p className="whitespace-pre-wrap">{msg.text}</p>
+                      
+                      {editingMessageId === msg.id ? (
+                        <div className="flex flex-col gap-2 min-w-[200px]">
+                           <textarea 
+                             autoFocus
+                             className="w-full bg-white/10 p-2 rounded-lg border-2 border-white/20 outline-none text-white font-bold"
+                             value={editingText}
+                             onChange={(e) => setEditingText(e.target.value)}
+                           />
+                           <div className="flex justify-end gap-2">
+                             <button onClick={() => setEditingMessageId(null)} className="p-1 px-3 bg-black/20 rounded-lg text-[10px] uppercase font-black tracking-widest">Cancel</button>
+                             <button onClick={() => saveEditMessage(msg.id)} className="p-1 px-3 bg-white text-blue-600 rounded-lg text-[10px] uppercase font-black tracking-widest">Save & Regenerate</button>
+                           </div>
+                        </div>
+                      ) : (
+                        <p className="whitespace-pre-wrap">{msg.text}</p>
+                      )}
                     </div>
-                    <div className={`flex items-center gap-4 px-2 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}><span className="text-[9px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span><div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all"><button onClick={() => handleReaction(msg.id, 'like')} title="Like" className={`p-1.5 rounded-full transition-all ${msg.reaction === 'like' ? 'text-blue-500 bg-blue-500/10' : 'text-zinc-400 hover:text-blue-500'}`}><ThumbsUp size={14} fill={msg.reaction === 'like' ? 'currentColor' : 'none'} /></button><button onClick={() => handleCopy(msg.text)} title="Copy" className="p-1.5 rounded-full text-zinc-400 hover:text-blue-500"><Copy size={14} /></button><button onClick={() => handleShare(msg.text)} className="p-1.5 rounded-full text-zinc-400 hover:text-blue-500"><Share2 size={14} /></button></div></div>
+                    <div className={`flex items-center gap-4 px-2 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                      <span className="text-[9px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                        {msg.role === 'user' && editingMessageId !== msg.id && (
+                          <button onClick={() => handleEditMessage(msg.id, msg.text)} title="Edit" className="p-1.5 rounded-full text-zinc-400 hover:text-blue-500"><Edit3 size={14} /></button>
+                        )}
+                        <button onClick={() => handleReaction(msg.id, 'like')} title="Like" className={`p-1.5 rounded-full transition-all ${msg.reaction === 'like' ? 'text-blue-500 bg-blue-500/10' : 'text-zinc-400 hover:text-blue-500'}`}><ThumbsUp size={14} fill={msg.reaction === 'like' ? 'currentColor' : 'none'} /></button>
+                        <button onClick={() => handleCopy(msg.text)} title="Copy" className="p-1.5 rounded-full text-zinc-400 hover:text-blue-500"><Copy size={14} /></button>
+                        <button onClick={() => handleShare(msg.text)} className="p-1.5 rounded-full text-zinc-400 hover:text-blue-500"><Share2 size={14} /></button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -580,13 +680,32 @@ export default function App() {
                   <div className="space-y-2 px-1"><label className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 block">Avatar Alias</label><div className="flex gap-3"><input type="text" value={editUserName} onChange={e => setEditUserName(e.target.value)} className="flex-1 bg-zinc-100 dark:bg-zinc-800 border-2 border-transparent focus:border-blue-500 rounded-2xl py-4 px-6 font-bold outline-none text-zinc-900 dark:text-white transition-all text-base" /><button onClick={handleUpdateUser} className="bg-blue-600 text-white px-6 rounded-2xl hover:bg-blue-500 transition-all active:scale-95 shadow-xl shadow-blue-500/20"><Check size={20} strokeWidth={3} /></button></div></div>
                   <div className="p-6 md:p-8 bg-zinc-50 dark:bg-zinc-800/40 rounded-[2.5rem] border border-zinc-100 dark:border-white/5 space-y-5">
                     <div className="flex items-center justify-between"><label className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 block">Vibe Network Key</label><div className={`w-3.5 h-3.5 rounded-full ${apiStatus === 'connected' ? 'bg-green-500 shadow-[0_0_15px_rgba(34,197,94,0.6)]' : apiStatus === 'checking' ? 'bg-yellow-500 animate-pulse' : 'bg-rose-500 animate-pulse'}`} /></div>
-                    <button onClick={handleSelectApiKey} className="w-full flex items-center justify-center gap-3 bg-zinc-900 dark:bg-white text-white dark:text-black py-4.5 rounded-2xl font-black text-xs md:text-sm uppercase tracking-[0.1em] shadow-xl hover:scale-[1.02] active:scale-95 transition-all"><RefreshCw size={18} className={apiStatus === 'checking' ? 'animate-spin' : ''} /> Refresh Soul Link</button>
+                    
+                    <input 
+                      type="password" 
+                      placeholder="Enter API Key manually..." 
+                      className="w-full bg-zinc-200/50 dark:bg-black/20 p-4 rounded-2xl border-2 border-transparent focus:border-blue-500 outline-none font-bold text-sm"
+                      value={manualApiKey}
+                      onChange={(e) => setManualApiKey(e.target.value)}
+                    />
+
+                    <button onClick={handleSelectApiKey} className="w-full flex items-center justify-center gap-3 bg-zinc-900 dark:bg-white text-white dark:text-black py-4.5 rounded-2xl font-black text-xs md:text-sm uppercase tracking-[0.1em] shadow-xl hover:scale-[1.02] active:scale-95 transition-all"><RefreshCw size={18} className={apiStatus === 'checking' ? 'animate-spin' : ''} /> Sync Connection</button>
                     <div className="flex items-center justify-between px-1"><p className={`text-[10px] font-black uppercase tracking-widest ${apiStatus === 'error' ? 'text-rose-500' : 'text-zinc-400'}`}>Status: {apiStatus.toUpperCase()}</p><a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="text-[10px] font-black text-blue-500 hover:underline uppercase tracking-widest">Billing Info</a></div>
                   </div>
                 </div>
               </div>
               <div className="space-y-8"><label className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 px-1">Personality Shift</label><div className="grid grid-cols-2 gap-3 md:gap-4 max-h-[35vh] md:max-h-none overflow-y-auto custom-scrollbar">
-                  {Object.values(PERSONALITIES).map(p => (<button key={p.id} onClick={() => { setSettings({...settings, personalityId: p.id, voiceName: p.voiceName}); showToast(`${p.name} activated! ✨`, "success"); }} className={`flex items-center gap-3 md:gap-4 p-4 md:p-5 rounded-[2rem] border-2 transition-all shadow-sm ${settings.personalityId === p.id ? 'bg-blue-600 border-blue-500 text-white shadow-xl scale-[1.03]' : 'bg-zinc-100 dark:bg-zinc-800 border-transparent text-zinc-900 dark:text-white hover:bg-zinc-200 dark:hover:bg-zinc-800'}`}><span className="text-xl md:text-2xl">{p.emoji}</span><p className="font-black text-[10px] md:text-xs uppercase tracking-tight leading-none text-left truncate">{p.name}</p></button>))}
+                  {Object.values(PERSONALITIES).map(p => (
+                    <button key={p.id} onClick={() => { setSettings({...settings, personalityId: p.id, voiceName: p.voiceName}); showToast(`${p.name} activated! ✨`, "success"); }} className={`flex items-center gap-3 md:gap-4 p-4 md:p-5 rounded-[2rem] border-2 transition-all shadow-sm ${settings.personalityId === p.id ? 'bg-blue-600 border-blue-500 text-white shadow-xl scale-[1.03]' : 'bg-zinc-100 dark:bg-zinc-800 border-transparent text-zinc-900 dark:text-white hover:bg-zinc-200 dark:hover:bg-zinc-800'}`}>
+                      <span className="text-xl md:text-2xl">{p.emoji}</span>
+                      <div className="flex flex-col text-left">
+                        <p className="font-black text-[10px] md:text-xs uppercase tracking-tight leading-none">{p.name}</p>
+                        <p className={`text-[9px] md:text-[10px] mt-1 font-medium leading-tight ${settings.personalityId === p.id ? 'text-blue-100' : 'text-zinc-500 dark:text-zinc-400'}`}>
+                          {p.description}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
                 </div></div>
               <div className="pt-8"><button onClick={handleLogOut} className="w-full py-6 text-[12px] text-rose-500 font-black uppercase tracking-[0.5em] hover:bg-rose-500/10 rounded-[2.5rem] transition-all border-2 border-rose-500/20 shadow-xl shadow-rose-500/5">Disconnect Permanent</button></div>
             </div>
