@@ -103,7 +103,6 @@ export const useGeminiLive = ({
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      // Always create a fresh instance before connecting to ensure latest state/keys
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
       const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}
@@ -111,7 +110,7 @@ export const useGeminiLive = ({
       - Context: ${personality.prompt}
       - User: ${user.userName}
       Rules: Be concise, friendly, and stay in character. 
-      IMPORTANT: You are the initiator. When the session starts, speak first to greet the user.`;
+      IMPORTANT: You are the initiator. When the session starts, speak first to greet the user warmly!`;
 
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
@@ -130,9 +129,9 @@ export const useGeminiLive = ({
             setIsConnecting(false);
             onConnectionStateChange(true);
             
-            // Send internal trigger to make model speak first
+            // AI Greets First
             sessionPromise.then(session => {
-              session.sendRealtimeInput({ text: "Session started. Greet me warmly in your personality!" });
+              session.sendRealtimeInput({ text: "I'm ready! Introduce yourself and greet me warmly based on your personality!" });
             });
 
             if (!inputAudioContextRef.current) return;
@@ -145,7 +144,6 @@ export const useGeminiLive = ({
               for(let i=0; i<inputData.length; i++) sum += inputData[i] * inputData[i];
               const vol = Math.sqrt(sum / inputData.length);
               setVolume(vol);
-              
               const pcmBlob = createPcmBlob(inputData);
               sessionPromise.then((session) => { 
                   sessionRef.current = session;
@@ -180,19 +178,16 @@ export const useGeminiLive = ({
                 currentInputText.current += text;
                 onTranscript(text, false, true);
              }
-
              if (message.serverContent?.outputTranscription) {
                 const text = message.serverContent.outputTranscription.text;
                 currentOutputText.current += text;
                 onTranscript(text, true, true);
              }
-
              if (message.serverContent?.turnComplete) {
                 onTurnComplete(currentInputText.current, currentOutputText.current);
                 currentInputText.current = '';
                 currentOutputText.current = '';
              }
-
              if (message.serverContent?.interrupted) {
                sourcesRef.current.forEach(s => { try { s.stop(); } catch(e) {} });
                sourcesRef.current.clear();
@@ -201,14 +196,14 @@ export const useGeminiLive = ({
           },
           onclose: () => disconnect(),
           onerror: (e) => {
-            onError("Connection Error. Please try again.");
+            onError("Network error. Checking connection...");
             disconnect();
           }
         }
       });
       sessionPromiseRef.current = sessionPromise;
     } catch (error: any) { 
-      onError(error.message || "Network error occurred.");
+      onError(error.message || "Failed to establish connection.");
       disconnect(); 
     }
   }, [personality, settings, user, isLive, isConnecting, onConnectionStateChange, onTranscript, onTurnComplete, initAudio, disconnect, onError]);

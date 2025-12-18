@@ -37,12 +37,15 @@ export interface Personality {
   voiceName: string;
 }
 
+export type ReactionType = 'like' | 'dislike' | 'eco' | 'pee' | null;
+
 export interface Message {
   id: string;
   role: 'user' | 'model';
   text: string;
   image?: string; // base64
   timestamp: number;
+  reaction?: ReactionType;
 }
 
 export interface ChatSession {
