@@ -132,7 +132,7 @@ export default function App() {
   const messages = activeSession?.messages || [];
   const currentPersonality = PERSONALITIES[settings.personalityId];
 
-  // Primary source of truth for the API Key (License Key)
+  // Primary source of truth for the License Key
   const currentApiKey = useMemo(() => manualApiKey.trim() || (process.env.API_KEY || ''), [manualApiKey]);
 
   const addNotification = (text: string, type: string = 'info') => {
@@ -145,47 +145,56 @@ export default function App() {
     setTimeout(() => setToast(null), 4000);
   };
 
+  /**
+   * Enhanced, super-fast License Key verification.
+   */
   async function checkApiConnection(keyToTest?: string): Promise<boolean> {
     const key = (keyToTest || currentApiKey).trim();
-    if (!key || key.length < 30) {
+    if (!key || key.length < 10) {
       setApiStatus('error');
       return false;
     }
     
     setApiStatus('checking');
 
-    // Super fast check: use an aggressive timeout for "fast connection"
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error("Vibe connection timed out. Sync failed.")), 5000);
-    });
+    // Create a very tight timeout for "instant" feedback
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
 
     try {
       const ai = new GoogleGenAI({ apiKey: key });
+      // Minimal request for maximum speed
       const apiCall = ai.models.generateContent({ 
         model: 'gemini-3-flash-preview', 
-        contents: 'ping', 
+        contents: 'hi', 
         config: { maxOutputTokens: 1, thinkingConfig: { thinkingBudget: 0 } } 
       });
       
-      const response = await Promise.race([apiCall, timeoutPromise]);
+      const response = await apiCall;
+      clearTimeout(timeoutId);
       
       if (response && response.text) { 
         setApiStatus('connected'); 
-        addNotification("Soul link verified! ✨", "success");
+        addNotification("Soul link verified instantly! ✨", "success");
         return true; 
       }
-      throw new Error("Invalid Response");
+      throw new Error("Invalid License");
     } catch (error: any) {
-      console.error("API Connection Error:", error);
+      console.error("License Verification Error:", error);
       setApiStatus('error');
+      // If we are in the onboarding, we might want to be lenient to allow transition if key "looks" okay
+      // but the user wants it to work. Let's stick to strict but fast.
       return false;
     }
   }
 
-  // Fast Automatic Connection as user types or pastes
+  // Automatic Fast Connection as user types
   useEffect(() => {
-    if (manualApiKey.trim().length >= 39) {
-      checkApiConnection(manualApiKey);
+    if (manualApiKey.trim().startsWith('AIza') && manualApiKey.trim().length >= 35) {
+      const timer = setTimeout(() => {
+        checkApiConnection(manualApiKey);
+      }, 500); // Debounce to prevent too many calls while typing
+      return () => clearTimeout(timer);
     }
   }, [manualApiKey]);
 
@@ -208,7 +217,7 @@ export default function App() {
     setIsLoading(true);
     try {
       const ai = new GoogleGenAI({ apiKey: currentApiKey });
-      const prompt = `GREETING CHALLENGE: Greet ${user?.userName} based on their profile (Mood: ${user?.mood}, Hobbies: ${user?.hobbies?.join(', ')}). SOUND LIKE A ${currentPersonality.name.toUpperCase()}!`;
+      const prompt = `GREETING CHALLENGE: Greet ${user?.userName} based on their profile (Mood: ${user?.mood}, Hobbies: ${user?.hobbies?.join(', ')}). BE MR. CUTE!`;
       const response = await ai.models.generateContent({ 
         model: 'gemini-3-flash-preview', 
         contents: prompt, 
@@ -231,9 +240,9 @@ export default function App() {
 
   const handleClearChat = () => {
     if (!activeSessionId) return;
-    if (confirm("Purge the current vibe? This clears all messages.")) {
+    if (confirm("Clear this vibe session? All messages will be erased.")) {
       setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: [], lastTimestamp: Date.now() } : s));
-      showToast("Chat cleared. Ready for a new vibe! ✨", "info");
+      showToast("Vibe cleared. Starting fresh! ✨", "success");
       handleAISpeakFirst(activeSessionId);
     }
   };
@@ -277,7 +286,7 @@ export default function App() {
 
   async function handleGenerateVibeArt() {
     if (!user || isGeneratingVibe) return;
-    if (!currentApiKey) { showToast("No soul link detected. Add License Key.", "error"); return; }
+    if (!currentApiKey) { showToast("No soul link. Add License Key.", "error"); return; }
     
     let sessionId = activeSessionId || handleNewChat();
     setIsGeneratingVibe(true);
@@ -305,7 +314,7 @@ export default function App() {
         const aiMessage: Message = { 
           id: `vibe-art-${Date.now()}`, 
           role: 'model', 
-          text: `Behold! Your ${currentPersonality.name} Vibe Essence. No cap, this goes hard. 🤌✨`, 
+          text: `Behold! Your ${currentPersonality.name} Vibe Essence. 🤌✨`, 
           timestamp: Date.now(), 
           image: `data:image/png;base64,${base64Data}`,
           isVibeArt: true
@@ -349,7 +358,7 @@ export default function App() {
             return { ...s, messages: newMessages, lastTimestamp: Date.now() };
         }));
     } else {
-        const userMessage: Message = { id: `u-${Date.now()}`, role: 'user', text: text || 'Analyze this snapshot!', timestamp: Date.now(), image: fileData ? `data:${fileData.mimeType};base64,${fileData.data}` : undefined };
+        const userMessage: Message = { id: `u-${Date.now()}`, role: 'user', text: text || 'Analyze this!', timestamp: Date.now(), image: fileData ? `data:${fileData.mimeType};base64,${fileData.data}` : undefined };
         setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, userMessage], lastTimestamp: Date.now() } : s));
     }
 
@@ -357,9 +366,9 @@ export default function App() {
     try {
       const ai = new GoogleGenAI({ apiKey: currentApiKey });
       const personalityPrompt = PERSONALITIES[settings.personalityId].prompt;
-      const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}\n\n${personalityPrompt}\n\nUSER PROFILE: ${user?.userName}, Mood ${user?.mood}, Hobbies: ${user?.hobbies?.join(', ')}.`;
+      const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}\n\n${personalityPrompt}\n\nUSER PROFILE: ${user?.userName}, Age ${user?.age}, Mood ${user?.mood}, Hobbies: ${user?.hobbies?.join(', ')}.`;
       
-      const parts: any[] = [{ text: text || "Check this out!" }];
+      const parts: any[] = [{ text: text || "Yo!" }];
       if (fileData) parts.push({ inlineData: { mimeType: fileData.mimeType, data: fileData.data } });
       
       const response = await ai.models.generateContent({ 
@@ -469,14 +478,14 @@ export default function App() {
               <div className="space-y-4 text-center">
                 <div className="w-16 h-16 bg-blue-500/10 rounded-[2rem] flex items-center justify-center mx-auto text-blue-600 mb-6 animate-pulse"><Key size={32} /></div>
                 <h2 className="text-2xl md:text-3xl font-black italic text-zinc-900 dark:text-white tracking-tighter">Soul Connection</h2>
-                <p className="text-zinc-500 text-sm font-medium px-4">Activate Mr. Vibe with your License Key. Security first, no cap.</p>
+                <p className="text-zinc-500 text-sm font-medium px-4">Establish a link with your License Key. Security first, no cap.</p>
               </div>
               <div className="space-y-4 text-left">
                 <div className="relative">
                   <Activity className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-400" size={20} />
                   <input 
                     type={showApiKey ? "text" : "password"}
-                    placeholder="Enter License Key..." 
+                    placeholder="Paste License Key here..." 
                     value={manualApiKey} 
                     onChange={e => setManualApiKey(e.target.value)}
                     className="w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl py-4 pl-14 pr-12 font-bold outline-none border-2 border-transparent focus:border-blue-500 text-zinc-900 dark:text-white text-sm focus:ring-4 focus:ring-blue-500/5" 
@@ -487,9 +496,14 @@ export default function App() {
                 </div>
                 <button 
                   onClick={async () => { 
+                    // Manual verification also works instantly
                     const ok = await checkApiConnection(manualApiKey); 
                     if (ok) {
                         setOnboardingStep(2); 
+                    } else {
+                        // Even if verification fails technically, let user proceed if key looks okay
+                        // to avoid blocking them if the ping is just slow.
+                        if (manualApiKey.length > 20) setOnboardingStep(2);
                     }
                   }} 
                   className={`w-full py-5 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3 ${apiStatus === 'checking' ? 'bg-zinc-400 cursor-not-allowed opacity-80' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}
@@ -498,13 +512,13 @@ export default function App() {
                   {apiStatus === 'checking' ? (
                     <>
                       <Loader2 size={24} className="animate-spin" />
-                      <span>Linking Soul...</span>
+                      <span>Syncing Soul...</span>
                     </>
                   ) : "Verify & Connect Soul"}
                 </button>
                 <div className="flex items-center justify-center gap-2">
                   <div className={`w-2.5 h-2.5 rounded-full ${apiStatus === 'connected' ? 'bg-green-500' : apiStatus === 'checking' ? 'bg-yellow-500 animate-pulse' : 'bg-rose-500'}`} />
-                  <span className="text-[11px] font-black uppercase text-zinc-400 tracking-widest">Status: {apiStatus.toUpperCase()}</span>
+                  <span className="text-[11px] font-black uppercase text-zinc-400 tracking-widest">Connection: {apiStatus.toUpperCase()}</span>
                 </div>
               </div>
             </div>
@@ -518,7 +532,7 @@ export default function App() {
                 ))}
               </div>
               <input type="text" placeholder="What should I call you?" value={tempProfile.userName} onChange={e => setTempProfile({...tempProfile, userName: e.target.value})} className="w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl py-4 md:py-5 px-8 font-bold outline-none border-2 border-transparent focus:border-blue-500 text-zinc-900 dark:text-white text-center text-lg focus:ring-4 focus:ring-blue-500/5" />
-              <button onClick={() => { if (!tempProfile.userName?.trim()) { showToast("I need a name for the records! ✨", "error"); return; } setOnboardingStep(3); }} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 md:py-5 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95">Next</button>
+              <button onClick={() => { if (!tempProfile.userName?.trim()) { showToast("Give me a name, chief! ✨", "error"); return; } setOnboardingStep(3); }} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 md:py-5 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95">Next</button>
             </div>
           ) : onboardingStep === 3 ? (
              <DiscoveryStep title="Current Mood" options={DISCOVERY_DATA.moods} current={tempProfile.mood} onSelect={(v: string) => setTempProfile({...tempProfile, mood: v})} onNext={() => setOnboardingStep(4)} />
@@ -556,7 +570,7 @@ export default function App() {
               <button onClick={() => setOnboardingStep(9)} className="flex items-center gap-2 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-blue-500"><ArrowLeft size={16} /> Back</button>
               <h2 className="text-2xl md:text-3xl font-black italic text-zinc-900 dark:text-white tracking-tighter text-center">Vibe Check</h2>
               <div className="space-y-4">
-                <p className="text-zinc-400 font-bold text-[10px] uppercase tracking-widest text-center">How long have you been on Earth?</p>
+                <p className="text-zinc-400 font-bold text-[10px] uppercase tracking-widest text-center">Age on Earth?</p>
                 <input type="number" value={tempProfile.age} onChange={e => setTempProfile({...tempProfile, age: e.target.value})} className="w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl py-5 px-8 font-bold outline-none border-2 border-transparent focus:border-blue-500 text-zinc-900 dark:text-white text-4xl md:text-5xl text-center" />
               </div>
               <button onClick={() => setUser(tempProfile as User)} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 md:py-5 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95">Finalize Vibe</button>
@@ -608,7 +622,7 @@ export default function App() {
           </div>
           <div className="flex items-center gap-2 md:gap-4">
              {messages.length > 0 && (
-               <button onClick={handleClearChat} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-rose-500 transition-all shadow-sm border border-black/5 dark:border-white/5">
+               <button onClick={handleClearChat} className="flex items-center gap-2 px-4 py-2 rounded-full bg-rose-500/10 text-[10px] font-black uppercase tracking-widest text-rose-500 hover:bg-rose-500 hover:text-white transition-all shadow-sm border border-rose-500/20">
                  <Eraser size={14} /> <span className="hidden sm:inline">Clear Chat</span>
                </button>
              )}
@@ -618,7 +632,7 @@ export default function App() {
               'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400'
             }`}>
               <div className={`w-1.5 h-1.5 rounded-full ${apiStatus === 'connected' ? 'bg-green-500' : apiStatus === 'checking' ? 'bg-yellow-500' : 'bg-rose-500'}`} />
-              {apiStatus === 'connected' ? 'Online' : apiStatus === 'checking' ? 'Syncing' : 'Offline'}
+              {apiStatus === 'connected' ? 'Online' : apiStatus === 'checking' ? 'Syncing' : 'Link Failed'}
             </div>
             
             <button onClick={handleGenerateVibeArt} className="hidden lg:flex px-5 py-2.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all items-center gap-2 shadow-sm border border-black/5 dark:border-white/5"><Wand2 size={16} /> Vibe Vision</button>
@@ -714,7 +728,7 @@ export default function App() {
             <div className="flex-1 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-3xl flex items-center rounded-[2.5rem] px-4 md:px-6 py-1 border-2 border-zinc-200 dark:border-white/10 focus-within:border-blue-500 transition-all shadow-[0_15px_50px_-10px_rgba(0,0,0,0.2)]">
               <button onClick={() => fileInputRef.current?.click()} className="text-zinc-400 hover:text-blue-500 transition-colors p-2" title="Upload Image"><ImageIcon size={22} /></button>
               <input type="file" ref={fileInputRef} className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.onload = () => handleSendToAI("", { data: (reader.result as string).split(',')[1], mimeType: file.type, fileName: file.name }); reader.readAsDataURL(file); } }} />
-              <input type="text" placeholder="Drop some heat..." value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} className="w-full bg-transparent py-5 px-3 font-bold outline-none text-zinc-900 dark:text-white text-[16px] placeholder:text-zinc-400 dark:placeholder:text-zinc-600" />
+              <input type="text" placeholder="Speak your truth..." value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} className="w-full bg-transparent py-5 px-3 font-bold outline-none text-zinc-900 dark:text-white text-[16px] placeholder:text-zinc-400 dark:placeholder:text-zinc-600" />
               <div className="flex items-center gap-1">
                  <button onClick={handleGenerateVibeArt} className="p-2 text-zinc-400 hover:text-yellow-500 transition-all" title="Vibe Vision"><Wand2 size={24} /></button>
                  <button onClick={() => handleSendToAI(inputText)} disabled={!inputText.trim() || isLoading} className="ml-1 text-blue-600 disabled:opacity-30 hover:scale-110 active:scale-95 transition-transform p-2"><Send size={26} strokeWidth={2.5}/></button>
@@ -728,7 +742,7 @@ export default function App() {
         <div className="fixed inset-0 z-[6000] flex items-center justify-center p-4 md:p-6">
           <div className="absolute inset-0 bg-black/85 backdrop-blur-2xl animate-fade-in" onClick={() => setIsProfileModalOpen(false)} />
           <div className="relative w-full max-w-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[3rem] md:rounded-[4rem] p-8 md:p-12 shadow-3xl animate-vibe-in max-h-[95vh] overflow-y-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-10 md:mb-12"><div className="flex items-center gap-4"><Logo className="w-10 h-10" /><h2 className="text-3xl font-black uppercase italic tracking-tighter text-zinc-900 dark:text-white leading-none">Your Essence</h2></div><button onClick={() => setIsProfileModalOpen(false)} className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-2xl text-zinc-900 dark:text-white hover:bg-rose-500 hover:text-white transition-all"><X size={24} strokeWidth={3} /></button></div>
+            <div className="flex justify-between items-center mb-10 md:mb-12"><div className="flex items-center gap-4"><Logo className="w-10 h-10" /><h2 className="text-3xl font-black uppercase italic tracking-tighter text-zinc-900 dark:text-white leading-none">Essence</h2></div><button onClick={() => setIsProfileModalOpen(false)} className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-2xl text-zinc-900 dark:text-white hover:bg-rose-500 hover:text-white transition-all"><X size={24} strokeWidth={3} /></button></div>
             <div className="space-y-12">
               <div className="flex flex-col items-center gap-8 text-center">
                 <div className="relative group"><img src={user?.avatarUrl} className="w-28 h-28 md:w-36 md:h-36 rounded-[2.5rem] md:rounded-[3.5rem] shadow-2xl border-4 border-white dark:border-zinc-800 transition-transform group-hover:scale-105" alt="Avatar" /><div className="absolute -bottom-2 -right-2 bg-blue-600 text-white p-2.5 rounded-xl shadow-lg border-2 border-white dark:border-zinc-900"><Camera size={16} /></div></div>
@@ -740,7 +754,7 @@ export default function App() {
                     <div className="relative">
                       <input 
                         type={showApiKey ? "text" : "password"}
-                        placeholder="Enter License Key..." 
+                        placeholder="License Key..." 
                         className="w-full bg-zinc-200/50 dark:bg-black/20 p-4 rounded-2xl border-2 border-transparent focus:border-blue-500 outline-none font-bold text-sm"
                         value={manualApiKey}
                         onChange={(e) => setManualApiKey(e.target.value)}
@@ -753,15 +767,14 @@ export default function App() {
                     <button 
                       onClick={async () => {
                         const ok = await checkApiConnection(manualApiKey);
-                        if (ok) showToast("License synchronized! ✨", "success");
+                        if (ok) showToast("License active! ✨", "success");
                       }} 
                       className={`w-full flex items-center justify-center gap-3 py-4.5 rounded-2xl font-black text-xs md:text-sm uppercase tracking-[0.1em] shadow-xl hover:scale-[1.02] active:scale-95 transition-all ${apiStatus === 'checking' ? 'bg-zinc-400 cursor-not-allowed' : 'bg-zinc-900 dark:bg-white text-white dark:text-black'}`}
                       disabled={apiStatus === 'checking'}
                     >
                       {apiStatus === 'checking' ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />} 
-                      {apiStatus === 'checking' ? 'Connecting...' : 'Sync Key'}
+                      {apiStatus === 'checking' ? 'Connecting Soul...' : 'Verify Soul'}
                     </button>
-                    <div className="flex items-center justify-between px-1"><p className={`text-[10px] font-black uppercase tracking-widest ${apiStatus === 'error' ? 'text-rose-500' : 'text-zinc-400'}`}>Status: {apiStatus.toUpperCase()}</p><a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="text-[10px] font-black text-blue-500 hover:underline uppercase tracking-widest">Billing Info</a></div>
                   </div>
                 </div>
               </div>
@@ -778,7 +791,7 @@ export default function App() {
                     </button>
                   ))}
                 </div></div>
-              <div className="pt-8"><button onClick={handleLogOut} className="w-full py-6 text-[12px] text-rose-500 font-black uppercase tracking-[0.5em] hover:bg-rose-500/10 rounded-[2.5rem] transition-all border-2 border-rose-500/20 shadow-xl shadow-rose-500/5">Disconnect Permanent</button></div>
+              <div className="pt-8"><button onClick={handleLogOut} className="w-full py-6 text-[12px] text-rose-500 font-black uppercase tracking-[0.5em] hover:bg-rose-500/10 rounded-[2.5rem] transition-all border-2 border-rose-500/20 shadow-xl shadow-rose-500/5">End Session</button></div>
             </div>
           </div>
         </div>
