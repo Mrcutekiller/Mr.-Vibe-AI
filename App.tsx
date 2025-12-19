@@ -197,14 +197,14 @@ const ReactionPicker = ({ onSelect, onClose, align = 'left' }: { onSelect: (r: R
 };
 
 const NotificationToast = ({ message, type, onClose }: { message: string, type: 'info' | 'success' | 'error', onClose: () => void }) => (
-  <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[2000] w-[90%] max-w-sm animate-vibe-in">
-    <div className={`px-5 py-4 rounded-[2rem] shadow-2xl backdrop-blur-3xl border flex items-center gap-3 font-bold text-sm uppercase tracking-wider ${
+  <div className="fixed top-6 md:top-20 left-1/2 -translate-x-1/2 z-[10000] w-[92%] max-w-sm animate-vibe-in">
+    <div className={`px-5 py-4 rounded-[2rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] backdrop-blur-3xl border flex items-center gap-3 font-bold text-sm uppercase tracking-wider ${
       type === 'success' ? 'bg-green-500/20 border-green-500/30 text-green-800 dark:text-green-300' :
       type === 'error' ? 'bg-rose-500/20 border-rose-500/30 text-rose-800 dark:text-rose-300' :
       'bg-blue-500/20 border-blue-500/30 text-blue-800 dark:text-blue-300'
     }`}>
       {type === 'success' ? <CheckCircle2 size={18} /> : type === 'error' ? <AlertCircle size={18} /> : <Bell size={18} />}
-      <span className="flex-1 truncate">{message}</span>
+      <span className="flex-1 truncate leading-tight">{message}</span>
       <button onClick={onClose} className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors"><X size={16}/></button>
     </div>
   </div>
@@ -515,21 +515,45 @@ export default function App() {
   }
 
   async function handleSummarize() {
-    if (!activeSession || messages.length < 2) { showToast("Not enough heat to summarize yet. 🔥", "error"); return; }
+    if (!activeSession || messages.length < 2) { 
+      showToast("Not enough heat to summarize yet. 🔥", "error"); 
+      return; 
+    }
+    
     setIsSummarizing(true);
     showToast("Distilling the essence...", "info");
+    
     try {
       const ai = new GoogleGenAI({ apiKey: currentApiKey });
-      const transcript = messages.map(m => `${m.role.toUpperCase()}: ${m.text}`).join('\n');
+      // Create a shorter transcript to avoid context overflow issues
+      const transcript = messages.slice(-20).map(m => `${m.role.toUpperCase()}: ${m.text}`).join('\n');
+      
       const response = await ai.models.generateContent({ 
-        model: 'gemini-3-pro-preview', 
+        model: 'gemini-3-flash-preview', // Switch to flash for faster, more reliable summaries on mobile
         contents: `Summarize the following conversation highlights into a "Vibe Report". Focus on key questions and main takeaways. Keep it snappy and use emojis.\n\n${transcript}`, 
-        config: { systemInstruction: "You are an expert summarizer. Be brief, use bullet points, and maintain the Mr. Cute vibe.", thinkingConfig: { thinkingBudget: 0 } } 
+        config: { 
+          systemInstruction: "You are an expert summarizer. Be brief, use bullet points, and maintain the Mr. Cute vibe.", 
+          thinkingConfig: { thinkingBudget: 0 } 
+        } 
       });
-      const summaryMessage: Message = { id: `summary-${Date.now()}`, role: 'model', text: response.text || 'Synthesis failed.', timestamp: Date.now(), isNote: true };
+      
+      const summaryText = response.text || 'Synthesis failed.';
+      const summaryMessage: Message = { 
+        id: `summary-${Date.now()}`, 
+        role: 'model', 
+        text: summaryText, 
+        timestamp: Date.now(), 
+        isNote: true 
+      };
+      
       setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: [...s.messages, summaryMessage] } : s));
       showToast("Vibe synthesized! 📝", "success");
-    } catch (e) { showToast("Synthesis glitch.", "error"); } finally { setIsSummarizing(false); }
+    } catch (e: any) { 
+      console.error("Summary error:", e);
+      showToast("Synthesis glitch. Check link.", "error"); 
+    } finally { 
+      setIsSummarizing(false); 
+    }
   }
 
   const handleEditMessage = (id: string, text: string) => { setEditingMessageId(id); setEditingText(text); };
@@ -542,6 +566,7 @@ export default function App() {
         if (isModel) {
           setIsAiSpeakingGlobal(true);
         } else {
+          // Reactive Animation Logic for User Speech
           const lower = t.toLowerCase();
           if (t.includes('?')) {
             setAvatarAnimation('tilt');
@@ -682,21 +707,21 @@ export default function App() {
     <div className="flex h-[100dvh] w-full font-sans overflow-hidden bg-zinc-50 dark:bg-[#050505] transition-colors duration-500 relative select-none">
       {toast && <NotificationToast {...toast} onClose={() => setToast(null)} />}
       
-      {(isLive || isConnecting || isSummarizing) && (
+      {(isLive || isConnecting) && (
         <div className="fixed inset-0 z-[5000] bg-white dark:bg-black/95 backdrop-blur-3xl flex flex-col items-center justify-between p-6 animate-fade-in overflow-hidden">
-          <div className="w-full flex justify-end"><button onClick={() => { disconnectLive(); setIsSummarizing(false); }} className="p-4 bg-zinc-900/10 dark:bg-white/10 hover:bg-rose-500 text-zinc-900 dark:text-white hover:text-white rounded-full transition-all"><X size={24}/></button></div>
+          <div className="w-full flex justify-end"><button onClick={() => { disconnectLive(); }} className="p-4 bg-zinc-900/10 dark:bg-white/10 hover:bg-rose-500 text-zinc-900 dark:text-white hover:text-white rounded-full transition-all"><X size={24}/></button></div>
           <div className="flex-1 flex flex-col items-center justify-center gap-6 md:gap-8 text-center w-full px-4 overflow-hidden">
             <AIVibeAvatar 
                volume={volume} 
                active={isLive} 
-               isThinking={isSummarizing || isConnecting} 
+               isThinking={isConnecting} 
                personality={currentPersonality} 
                isAiSpeaking={isAiSpeakingGlobal}
                animationState={avatarAnimation}
             />
             <div className="space-y-2">
               <h2 className="text-2xl md:text-5xl font-black text-zinc-900 dark:text-white italic tracking-tighter uppercase leading-none">
-                {isConnecting ? "Tuning..." : isSummarizing ? "Summarizing..." : isAiSpeakingGlobal ? "Mr. Cute is Talking" : "Listening to Vibe..."}
+                {isConnecting ? "Tuning..." : isAiSpeakingGlobal ? "Mr. Cute is Talking" : "Listening to Vibe..."}
               </h2>
               <p className="text-blue-600 dark:text-blue-400 font-bold uppercase tracking-widest text-[10px] animate-pulse">
                 {isLive ? "Link Active (Noise Canceling On)" : "Establishing Link..."}
@@ -712,7 +737,7 @@ export default function App() {
               </div>
             </div>
           </div>
-          <button onClick={() => { disconnectLive(); setIsSummarizing(false); }} className="w-full md:w-auto px-10 py-5 bg-rose-600 text-white rounded-[2rem] font-black shadow-3xl flex items-center justify-center gap-3 active:scale-95 transition-all"><MicOff size={24} /> Close Session</button>
+          <button onClick={() => { disconnectLive(); }} className="w-full md:w-auto px-10 py-5 bg-rose-600 text-white rounded-[2rem] font-black shadow-3xl flex items-center justify-center gap-3 active:scale-95 transition-all"><MicOff size={24} /> Close Session</button>
         </div>
       )}
 
@@ -753,8 +778,8 @@ export default function App() {
             </button>
           </div>
           <div className="flex items-center gap-1.5 md:gap-2">
-            <button onClick={handleSummarize} className="flex items-center gap-1.5 px-2.5 py-1.5 md:px-3 md:py-2 rounded-full bg-blue-600/10 text-[9px] md:text-[10px] font-black uppercase tracking-widest text-blue-600 border border-blue-500/20 active:scale-95 transition-all">
-              <ListFilter size={14} /> <span className="hidden sm:inline">Summarize</span>
+            <button onClick={handleSummarize} disabled={isSummarizing} className="flex items-center gap-1.5 px-2.5 py-1.5 md:px-3 md:py-2 rounded-full bg-blue-600/10 text-[9px] md:text-[10px] font-black uppercase tracking-widest text-blue-600 border border-blue-500/20 active:scale-95 transition-all disabled:opacity-50">
+              <ListFilter size={14} className={isSummarizing ? "animate-spin" : ""} /> <span className="hidden sm:inline">{isSummarizing ? "Cooking..." : "Summarize"}</span>
             </button>
             <button onClick={handleClearChat} className="flex items-center gap-1.5 px-2.5 py-1.5 md:px-3 md:py-2 rounded-full bg-rose-500/10 text-[9px] md:text-[10px] font-black uppercase tracking-widest text-rose-500 border border-rose-500/20 active:scale-95 transition-all">
               <Eraser size={14} /> <span className="hidden sm:inline">Reset</span>
@@ -789,7 +814,7 @@ export default function App() {
 
         <main className="flex-1 overflow-y-auto px-4 md:px-12 py-6 custom-scrollbar bg-zinc-50 dark:bg-[#050505] w-full">
           <div className="max-w-3xl mx-auto flex flex-col gap-4 md:gap-6 pb-36">
-            {messages.length === 0 && !isLoading ? (
+            {messages.length === 0 && !isLoading && !isSummarizing ? (
               <div className="min-h-[60vh] flex flex-col items-center justify-center text-center space-y-8 animate-vibe-in px-4">
                 <Logo className="w-20 h-20" animated />
                 <div className="space-y-2">
@@ -922,7 +947,7 @@ export default function App() {
                     <div className="h-6 w-[1px] bg-zinc-200 dark:bg-zinc-800 mx-1 hidden sm:block" />
                   </>
                 )}
-                <button onClick={() => handleSendToAI(inputText)} disabled={(!inputText.trim() && !stagedFile) || isLoading} className="text-blue-600 disabled:opacity-30 active:scale-90 transition-transform p-2 shrink-0"><Send size={24} strokeWidth={2.5}/></button>
+                <button onClick={() => handleSendToAI(inputText)} disabled={(!inputText.trim() && !stagedFile) || isLoading || isSummarizing} className="text-blue-600 disabled:opacity-30 active:scale-90 transition-transform p-2 shrink-0"><Send size={24} strokeWidth={2.5}/></button>
               </div>
             </div>
           </div>
