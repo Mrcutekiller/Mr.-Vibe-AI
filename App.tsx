@@ -198,14 +198,14 @@ const ReactionPicker = ({ onSelect, onClose, align = 'left' }: { onSelect: (r: R
 
 const NotificationToast = ({ message, type, onClose }: { message: string, type: 'info' | 'success' | 'error', onClose: () => void }) => (
   <div className="fixed top-6 md:top-20 left-1/2 -translate-x-1/2 z-[10000] w-[92%] max-w-sm animate-vibe-in">
-    <div className={`px-5 py-4 rounded-[2rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] backdrop-blur-3xl border flex items-center gap-3 font-bold text-sm uppercase tracking-wider ${
+    <div className={`px-5 py-4 rounded-[2rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] backdrop-blur-3xl border flex items-center gap-4 font-bold text-sm uppercase tracking-wider ${
       type === 'success' ? 'bg-green-500/20 border-green-500/30 text-green-800 dark:text-green-300' :
       type === 'error' ? 'bg-rose-500/20 border-rose-500/30 text-rose-800 dark:text-rose-300' :
       'bg-blue-500/20 border-blue-500/30 text-blue-800 dark:text-blue-300'
     }`}>
-      {type === 'success' ? <CheckCircle2 size={18} /> : type === 'error' ? <AlertCircle size={18} /> : <Bell size={18} />}
-      <span className="flex-1 truncate leading-tight">{message}</span>
-      <button onClick={onClose} className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors"><X size={16}/></button>
+      {type === 'success' ? <CheckCircle2 size={18} className="shrink-0" /> : type === 'error' ? <AlertCircle size={18} className="shrink-0" /> : <Bell size={18} className="shrink-0" />}
+      <span className="flex-1 leading-tight">{message}</span>
+      <button onClick={onClose} className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors shrink-0"><X size={16}/></button>
     </div>
   </div>
 );
@@ -484,8 +484,15 @@ export default function App() {
 
   const handleDeleteSession = (id: string) => {
     if (confirm("End this session permanently?")) {
-      setSessions(prev => prev.filter(s => s.id !== id));
-      if (activeSessionId === id) setActiveSessionId(null);
+      const remainingSessions = sessions.filter(s => s.id !== id);
+      setSessions(remainingSessions);
+      if (activeSessionId === id || remainingSessions.length === 0) {
+        if (remainingSessions.length > 0) {
+          setActiveSessionId(remainingSessions[0].id);
+        } else {
+          handleNewChat();
+        }
+      }
       showToast("Session purged.", "info");
     }
   };
@@ -884,111 +891,94 @@ export default function App() {
 
         <main className="flex-1 overflow-y-auto px-4 md:px-12 py-6 custom-scrollbar bg-zinc-50 dark:bg-[#050505] w-full">
           <div className="max-w-3xl mx-auto flex flex-col gap-4 md:gap-6 pb-36">
-            {messages.length === 0 && !isLoading && !isSummarizing ? (
-              <div className="min-h-[60vh] flex flex-col items-center justify-center text-center space-y-8 animate-vibe-in px-4">
-                <Logo className="w-20 h-20" animated />
-                <div className="space-y-2">
-                  <h2 className="text-3xl md:text-4xl font-black text-zinc-900 dark:text-white italic tracking-tighter uppercase leading-none">Smart Note Taker</h2>
-                  <p className="text-sm font-medium text-zinc-500 max-w-xs mx-auto">Ask questions or share ideas. I'll pin them and provide instant answers. You can also use voice commands! ✨</p>
+            {notes.length > 0 && (
+              <div className="mb-8 space-y-3 animate-slide-up">
+                <div className="flex items-center gap-2 px-1">
+                  <Pin size={14} className="text-blue-500" />
+                  <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">Pinned Essentials</h3>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-4 w-full max-w-xs">
-                  <button onClick={connectLive} className="w-full px-8 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3">
-                    <Mic size={20} /> Launch Note Taker
-                  </button>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {notes.map(note => (
+                    <div key={note.id} className="p-4 bg-blue-500/5 dark:bg-blue-500/10 border border-blue-500/20 rounded-2xl shadow-sm hover:scale-[1.02] transition-transform cursor-pointer overflow-hidden relative">
+                       <div className="absolute top-3 right-3 opacity-30"><StickyNote size={14} /></div>
+                       <p className="text-xs font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1">{note.role === 'user' ? 'Inquiry' : 'Insight'}</p>
+                       <p className="text-sm font-bold text-zinc-900 dark:text-white line-clamp-3 leading-snug">{note.text}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ) : (
-              <>
-                {notes.length > 0 && (
-                  <div className="mb-8 space-y-3 animate-slide-up">
-                    <div className="flex items-center gap-2 px-1">
-                      <Pin size={14} className="text-blue-500" />
-                      <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">Pinned Essentials</h3>
+            )}
+            
+            {messages.map((msg, idx) => (
+              <div key={msg.id} className={`flex w-full group ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-vibe-in`} style={{ animationDelay: `${idx * 0.05}s` }}>
+                <div className={`flex items-end gap-2 max-w-[92%] sm:max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                  {msg.role === 'model' && (
+                    <div className="w-7 h-7 rounded-[0.7rem] bg-blue-500/10 flex items-center justify-center text-base shrink-0 overflow-hidden shadow-sm border border-zinc-100 dark:border-white/5">
+                      <span>{PERSONALITIES[activeSession?.personalityId || settings.personalityId]?.emoji || currentPersonality.emoji}</span>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {notes.map(note => (
-                        <div key={note.id} className="p-4 bg-blue-500/5 dark:bg-blue-500/10 border border-blue-500/20 rounded-2xl shadow-sm hover:scale-[1.02] transition-transform cursor-pointer overflow-hidden relative">
-                           <div className="absolute top-3 right-3 opacity-30"><StickyNote size={14} /></div>
-                           <p className="text-xs font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1">{note.role === 'user' ? 'Inquiry' : 'Insight'}</p>
-                           <p className="text-sm font-bold text-zinc-900 dark:text-white line-clamp-3 leading-snug">{note.text}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                {messages.map((msg, idx) => (
-                  <div key={msg.id} className={`flex w-full group ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-vibe-in`} style={{ animationDelay: `${idx * 0.05}s` }}>
-                    <div className={`flex items-end gap-2 max-w-[92%] sm:max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                      {msg.role === 'model' && (
-                        <div className="w-7 h-7 rounded-[0.7rem] bg-blue-500/10 flex items-center justify-center text-base shrink-0 overflow-hidden shadow-sm border border-zinc-100 dark:border-white/5">
-                          <span>{PERSONALITIES[activeSession?.personalityId || settings.personalityId]?.emoji || currentPersonality.emoji}</span>
+                  )}
+                  <div className={`flex flex-col gap-1 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                    <div className={`px-4 py-2.5 rounded-[1.2rem] md:rounded-[1.5rem] shadow-lg text-[14px] md:text-[15px] font-bold relative transition-all ${
+                      msg.role === 'user' 
+                      ? 'bg-blue-600 text-white rounded-br-none' 
+                      : 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white border border-zinc-100 dark:border-white/5 rounded-bl-none shadow-zinc-200/50 dark:shadow-black/30'
+                    } ${msg.isQuestion || msg.isNote ? 'ring-2 ring-blue-500/50' : ''}`}>
+                      {msg.isQuestion && (
+                        <div className="flex items-center gap-1.5 mb-1.5 px-2 py-0.5 bg-white/10 dark:bg-black/20 rounded-full w-fit">
+                          <Pin size={10} />
+                          <span className="text-[9px] font-black uppercase tracking-widest">Question Detected</span>
                         </div>
                       )}
-                      <div className={`flex flex-col gap-1 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                        <div className={`px-4 py-2.5 rounded-[1.2rem] md:rounded-[1.5rem] shadow-lg text-[14px] md:text-[15px] font-bold relative transition-all ${
-                          msg.role === 'user' 
-                          ? 'bg-blue-600 text-white rounded-br-none' 
-                          : 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white border border-zinc-100 dark:border-white/5 rounded-bl-none shadow-zinc-200/50 dark:shadow-black/30'
-                        } ${msg.isQuestion || msg.isNote ? 'ring-2 ring-blue-500/50' : ''}`}>
-                          {msg.isQuestion && (
-                            <div className="flex items-center gap-1.5 mb-1.5 px-2 py-0.5 bg-white/10 dark:bg-black/20 rounded-full w-fit">
-                              <Pin size={10} />
-                              <span className="text-[9px] font-black uppercase tracking-widest">Question Detected</span>
-                            </div>
-                          )}
-                          {msg.isNote && !msg.isQuestion && (
-                            <div className="flex items-center gap-1.5 mb-1.5 px-2 py-0.5 bg-blue-500/20 rounded-full w-fit">
-                              <StickyNote size={10} className="text-blue-500" />
-                              <span className="text-[9px] font-black uppercase tracking-widest text-blue-500">Smart Answer</span>
-                            </div>
-                          )}
-                          {msg.image && (<div className="mb-2 rounded-xl overflow-hidden shadow-md border border-white/10"><img src={msg.image} alt="Vibe" className="w-full h-auto max-h-[350px] object-cover" /></div>)}
-                          {editingMessageId === msg.id ? (
-                            <div className="flex flex-col gap-2 min-w-[180px]"><textarea autoFocus className="w-full bg-white/10 p-2 rounded-lg border-2 border-white/20 outline-none text-white font-bold text-sm" value={editingText} onChange={(e) => setEditingText(e.target.value)} /><div className="flex justify-end gap-2"><button onClick={() => setEditingMessageId(null)} className="px-3 py-1 bg-black/20 rounded-lg text-[10px] uppercase font-black">Cancel</button><button onClick={() => saveEditMessage(msg.id)} className="px-3 py-1 bg-white text-blue-600 rounded-lg text-[10px] uppercase font-black">Update</button></div></div>
-                          ) : (<MarkdownText text={msg.text} />)}
-                          {msg.reaction && (
-                            <div className="absolute -bottom-2 -right-1 bg-white dark:bg-zinc-800 rounded-full px-1.5 py-0.5 shadow-md border border-black/5 dark:border-white/10 flex items-center gap-1">
-                              <span className="text-xs">{msg.reaction}</span>
-                            </div>
-                          )}
-                          
-                          {/* Quick Reaction Button for Model Messages */}
-                          {msg.role === 'model' && (
-                            <div className="absolute top-1/2 -right-10 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <div className="relative">
-                                <button 
-                                  onClick={(e) => { e.stopPropagation(); setActiveReactionMenu(activeReactionMenu === msg.id ? null : msg.id); }} 
-                                  className={`p-2 bg-zinc-100 dark:bg-zinc-800 rounded-full shadow-sm hover:scale-110 active:scale-95 transition-all text-zinc-400 hover:text-blue-500 ${activeReactionMenu === msg.id ? 'text-blue-500' : ''}`}
-                                >
-                                  <Smile size={18} />
-                                </button>
-                                {activeReactionMenu === msg.id && (
-                                  <ReactionPicker align="left" onSelect={(r) => handleReaction(msg.id, r)} onClose={() => setActiveReactionMenu(null)} />
-                                )}
-                              </div>
-                            </div>
-                          )}
+                      {msg.isNote && !msg.isQuestion && (
+                        <div className="flex items-center gap-1.5 mb-1.5 px-2 py-0.5 bg-blue-500/20 rounded-full w-fit">
+                          <StickyNote size={10} className="text-blue-500" />
+                          <span className="text-[9px] font-black uppercase tracking-widest text-blue-500">Smart Answer</span>
                         </div>
-                        <div className={`flex items-center gap-2 px-1 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                          <span className="text-[8px] font-black text-zinc-400 uppercase tracking-widest">{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                          <div className="flex items-center gap-1.5 md:opacity-0 md:group-hover:opacity-100 transition-all relative">
-                            {msg.role === 'user' && editingMessageId !== msg.id && (<button onClick={() => handleEditMessage(msg.id, msg.text)} className="p-1 text-zinc-400 hover:text-blue-500"><Edit3 size={12} /></button>)}
-                            <div className="relative">
-                              <button onClick={() => setActiveReactionMenu(activeReactionMenu === msg.id ? null : msg.id)} className={`p-1 transition-all ${msg.reaction ? 'text-blue-500' : 'text-zinc-400'} hover:text-blue-500`}>
-                                <Smile size={12} />
-                              </button>
-                              {activeReactionMenu === msg.id && <ReactionPicker align={msg.role === 'user' ? 'right' : 'left'} onSelect={(r) => handleReaction(msg.id, r)} onClose={() => setActiveReactionMenu(null)} />}
-                            </div>
-                            <button onClick={() => handleCopy(msg.text)} className="p-1 text-zinc-400 hover:text-blue-500"><Copy size={12} /></button>
+                      )}
+                      {msg.image && (<div className="mb-2 rounded-xl overflow-hidden shadow-md border border-white/10"><img src={msg.image} alt="Vibe" className="w-full h-auto max-h-[350px] object-cover" /></div>)}
+                      {editingMessageId === msg.id ? (
+                        <div className="flex flex-col gap-2 min-w-[180px]"><textarea autoFocus className="w-full bg-white/10 p-2 rounded-lg border-2 border-white/20 outline-none text-white font-bold text-sm" value={editingText} onChange={(e) => setEditingText(e.target.value)} /><div className="flex justify-end gap-2"><button onClick={() => setEditingMessageId(null)} className="px-3 py-1 bg-black/20 rounded-lg text-[10px] uppercase font-black">Cancel</button><button onClick={() => saveEditMessage(msg.id)} className="px-3 py-1 bg-white text-blue-600 rounded-lg text-[10px] uppercase font-black">Update</button></div></div>
+                      ) : (<MarkdownText text={msg.text} />)}
+                      {msg.reaction && (
+                        <div className="absolute -bottom-2 -right-1 bg-white dark:bg-zinc-800 rounded-full px-1.5 py-0.5 shadow-md border border-black/5 dark:border-white/10 flex items-center gap-1">
+                          <span className="text-xs">{msg.reaction}</span>
+                        </div>
+                      )}
+                      
+                      {/* Quick Reaction Button for Model Messages */}
+                      {msg.role === 'model' && (
+                        <div className="absolute top-1/2 -right-10 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="relative">
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); setActiveReactionMenu(activeReactionMenu === msg.id ? null : msg.id); }} 
+                              className={`p-2 bg-zinc-100 dark:bg-zinc-800 rounded-full shadow-sm hover:scale-110 active:scale-95 transition-all text-zinc-400 hover:text-blue-500 ${activeReactionMenu === msg.id ? 'text-blue-500' : ''}`}
+                            >
+                              <Smile size={18} />
+                            </button>
+                            {activeReactionMenu === msg.id && (
+                              <ReactionPicker align="left" onSelect={(r) => handleReaction(msg.id, r)} onClose={() => setActiveReactionMenu(null)} />
+                            )}
                           </div>
                         </div>
+                      )}
+                    </div>
+                    <div className={`flex items-center gap-2 px-1 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                      <span className="text-[8px] font-black text-zinc-400 uppercase tracking-widest">{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                      <div className="flex items-center gap-1.5 md:opacity-0 md:group-hover:opacity-100 transition-all relative">
+                        {msg.role === 'user' && editingMessageId !== msg.id && (<button onClick={() => handleEditMessage(msg.id, msg.text)} className="p-1 text-zinc-400 hover:text-blue-500"><Edit3 size={12} /></button>)}
+                        <div className="relative">
+                          <button onClick={() => setActiveReactionMenu(activeReactionMenu === msg.id ? null : msg.id)} className={`p-1 transition-all ${msg.reaction ? 'text-blue-500' : 'text-zinc-400'} hover:text-blue-500`}>
+                            <Smile size={12} />
+                          </button>
+                          {activeReactionMenu === msg.id && <ReactionPicker align={msg.role === 'user' ? 'right' : 'left'} onSelect={(r) => handleReaction(msg.id, r)} onClose={() => setActiveReactionMenu(null)} />}
+                        </div>
+                        <button onClick={() => handleCopy(msg.text)} className="p-1 text-zinc-400 hover:text-blue-500"><Copy size={12} /></button>
                       </div>
                     </div>
                   </div>
-                ))}
-              </>
-            )}
+                </div>
+              </div>
+            ))}
             {isLoading && <NoteWritingIndicator personality={currentPersonality} />}
             {isSummarizing && <TypingIndicator personality={currentPersonality} label="Distilling..." />}
             <div ref={bottomRef} className="h-24" />
