@@ -1,5 +1,6 @@
 
 export enum PersonalityId {
+  NORMAL = 'NORMAL',
   ROAST = 'ROAST',
   RIZZ_GOD = 'RIZZ_GOD',
   BIG_BRO = 'BIG_BRO',
@@ -76,6 +77,8 @@ export interface AppSettings {
   theme: Theme;
   personalityId: PersonalityId;
   voiceName: string;
+  speakingRate: number;
+  speakingPitch: number;
 }
 
 export type ApiStatus = 'checking' | 'connected' | 'error';

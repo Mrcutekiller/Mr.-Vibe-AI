@@ -45,6 +45,12 @@ export const useGeminiLive = ({
   const currentInputText = useRef('');
   const currentOutputText = useRef('');
 
+  // Track settings in a ref for use in asynchronous callbacks
+  const settingsRef = useRef(settings);
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
+
   const initAudio = useCallback(async () => {
     try {
       if (!audioContextRef.current) {
@@ -107,7 +113,6 @@ export const useGeminiLive = ({
       setIsConnecting(true);
       await initAudio();
       
-      // Request microphone with Noise Suppression enabled
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           noiseSuppression: true,
@@ -214,9 +219,19 @@ export const useGeminiLive = ({
                   const audioBuffer = await decodeAudioData(decode(base64Audio), ctx, 24000, 1);
                   const source = ctx.createBufferSource();
                   source.buffer = audioBuffer;
+                  
+                  // Adjust playback speed based on settings (Rate and Pitch combined in one value for source node)
+                  // Gemini Live provides raw PCM, we manipulate playback rate.
+                  // Combining rate and pitch as a single multiplier for playbackRate.
+                  const speedMultiplier = settingsRef.current.speakingRate * settingsRef.current.speakingPitch;
+                  source.playbackRate.value = speedMultiplier;
+
                   source.connect(ctx.destination);
                   source.start(nextStartTimeRef.current);
-                  nextStartTimeRef.current += audioBuffer.duration;
+                  
+                  // Duration must be adjusted by the playback rate to track the end time correctly
+                  nextStartTimeRef.current += (audioBuffer.duration / speedMultiplier);
+                  
                   sourcesRef.current.add(source);
                   source.onended = () => sourcesRef.current.delete(source);
                 } catch (err) { console.error("Audio output error", err); }

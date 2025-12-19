@@ -46,6 +46,14 @@ CONTEXTUAL AWARENESS:
 - Adapt your "vibe" to match theirs perfectly.`;
 
 export const PERSONALITIES: Record<string, Personality> = {
+  [PersonalityId.NORMAL]: {
+    id: PersonalityId.NORMAL,
+    name: 'OG Vibe',
+    emoji: '✨',
+    description: 'The perfectly balanced best friend.',
+    prompt: 'You are the standard Mr. Cute. You are helpful, friendly, smart, and use a moderate amount of slang. You are the "main character" bestie. Balanced in all things: humor, rizz, and wisdom.',
+    voiceName: 'Zephyr'
+  },
   [PersonalityId.ROAST]: {
     id: PersonalityId.ROAST,
     name: 'Roast Master',
@@ -168,6 +176,12 @@ export const DISCOVERY_DATA: any = {
     { id: 'Productive', label: 'Productive', emoji: '💪' },
     { id: 'Chaotic', label: 'Chaotic', emoji: '🌀' },
     { id: 'Romantic', label: 'Romantic', emoji: '🌹' }
+  ],
+  genders: [
+    { id: 'Male', label: 'Male', emoji: '🙋‍♂️' },
+    { id: 'Female', label: 'Female', emoji: '🙋‍♀️' },
+    { id: 'Other', label: 'Other', emoji: '🌈' },
+    { id: 'Secret', label: 'Secret', emoji: '🤫' }
   ],
   movies: [
     { id: 'Sci-Fi', label: 'Sci-Fi', emoji: '🛸' },

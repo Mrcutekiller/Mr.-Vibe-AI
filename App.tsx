@@ -7,7 +7,7 @@ import {
   User as UserIcon, CheckCircle2, Mail, Lock, Sparkles, 
   ChevronRight, MicOff, MessageSquare, AlertCircle, AlertTriangle, RefreshCw,
   Camera, FileText, Upload, Loader2, Play, Image as ImageIcon, Globe,
-  Leaf, Droplets, Share2, ThumbsUp, ThumbsDown, Edit3, Check, Zap, ExternalLink, Activity, Bell, Music, Film, Heart, GraduationCap, Users, Copy, Share, LogOut, AlertOctagon, Key, Wand2, Info, HelpCircle, Eye, EyeOff, Smile, Rocket, Eraser, Pin, StickyNote, ListFilter
+  Leaf, Droplets, Share2, ThumbsUp, ThumbsDown, Edit3, Check, Zap, ExternalLink, Activity, Bell, Music, Film, Heart, GraduationCap, Users, Copy, Share, LogOut, AlertOctagon, Key, Wand2, Info, HelpCircle, Eye, EyeOff, Smile, Rocket, Eraser, Pin, StickyNote, ListFilter, Mic2, UserCheck, ShieldCheck, Palette, FastForward, Sliders
 } from 'lucide-react';
 import { PERSONALITIES, BASE_SYSTEM_PROMPT, AVATARS, GEMINI_VOICES, DISCOVERY_DATA } from './constants';
 import { PersonalityId, Personality, AppSettings, User, ChatSession, Message, ReactionType, GroundingSource, ApiStatus, Gender } from './types';
@@ -156,7 +156,7 @@ const MarkdownText = ({ text }: { text: string }) => {
   return (
     <div className="space-y-3">
       {renderedBlocks.map((block, i) => {
-        if (block.type === 'code') return <React.Fragment key={i}><CodeBlock content={block.content} /></React.Fragment>;
+        if (block.type === 'code') return <CodeBlock key={i} content={block.content} />;
         if (block.type === 'list') {
           const ListTag = block.listType === 'ul' ? 'ul' : 'ol';
           return (
@@ -224,16 +224,61 @@ const TypingIndicator = ({ personality, label = "Cooking..." }: { personality: a
   </div>
 );
 
-const FluidOrb = ({ volume, active, isThinking }: { volume: number, active: boolean, isThinking?: boolean }) => {
-  const scale = 1 + (active ? volume * 2.5 : isThinking ? 0.1 : 0);
+const AIVibeAvatar = ({ volume, active, isThinking, personality }: { volume: number, active: boolean, isThinking: boolean, personality: Personality }) => {
+  const scale = 1 + (active ? volume * 3.5 : isThinking ? 0.2 : 0);
+  
+  // Custom colors based on personality
+  const getVibeColor = () => {
+    const id = personality.id;
+    if (id === PersonalityId.ROAST || id === PersonalityId.CRAZY) return '#f43f5e'; // Rose/Red
+    if (id === PersonalityId.RIZZ_GOD || id === PersonalityId.GIRLFRIEND) return '#d946ef'; // Fuchsia
+    if (id === PersonalityId.WISDOM_GURU) return '#10b981'; // Emerald
+    if (id === PersonalityId.BIG_BRO || id === PersonalityId.ROMAN) return '#2563eb'; // Blue
+    return '#6366f1'; // Default Indigo
+  };
+
+  const vibeColor = getVibeColor();
+
   return (
     <div className="relative flex items-center justify-center transition-all duration-500">
-      <div className={`absolute inset-0 bg-blue-500/20 blur-[60px] md:blur-[100px] rounded-full transition-transform duration-700 ${active || isThinking ? 'scale-150 opacity-100' : 'scale-100 opacity-0'}`} />
-      <div className={`w-40 h-40 md:w-56 md:h-56 rounded-full relative overflow-hidden transition-all duration-300 shadow-[0_0_80px_rgba(59,130,246,0.4)] ${isThinking ? 'animate-pulse' : ''}`}
-        style={{ transform: `scale(${scale})`, opacity: active || isThinking ? 1 : 0.4, background: 'radial-gradient(circle at 30% 30%, #3b82f6, #6366f1, #1e40af)' }}>
-        <div className={`absolute inset-0 bg-gradient-to-tr from-white/30 to-transparent opacity-40 ${isThinking ? 'animate-spin' : 'animate-spin-slow'}`} />
-        {isThinking && <div className="absolute inset-0 flex items-center justify-center"><Sparkles className="text-white animate-bounce w-12 h-12 opacity-50" /></div>}
+      {/* Background glow layers */}
+      <div className={`absolute inset-0 blur-[60px] md:blur-[120px] rounded-full transition-all duration-700 ${active || isThinking ? 'scale-150 opacity-60' : 'scale-100 opacity-0'}`}
+        style={{ backgroundColor: vibeColor }} />
+      
+      {/* Main Core */}
+      <div className={`w-48 h-48 md:w-64 md:h-64 rounded-full relative overflow-hidden transition-all duration-150 shadow-2xl flex items-center justify-center border-4 border-white/20`}
+        style={{ 
+          transform: `scale(${scale})`, 
+          opacity: active || isThinking ? 1 : 0.4, 
+          background: `radial-gradient(circle at 30% 30%, ${vibeColor}, #000000)` 
+        }}>
+        
+        {/* Animated Rings */}
+        <div className={`absolute inset-0 border-2 border-white/10 rounded-full ${active ? 'animate-ping' : ''}`} />
+        <div className={`absolute inset-0 bg-gradient-to-tr from-white/20 to-transparent opacity-40 ${isThinking ? 'animate-spin' : 'animate-spin-slow'}`} />
+        
+        {/* The Soul (Emoji) */}
+        <div className={`text-6xl md:text-8xl transition-all duration-200 select-none ${active ? 'scale-110 rotate-3' : 'scale-100'} ${isThinking ? 'animate-bounce' : ''}`}>
+          {personality.emoji}
+        </div>
+
+        {/* Reaction overlays */}
+        {isThinking && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <Sparkles className="text-white animate-pulse w-16 h-16 opacity-30" />
+          </div>
+        )}
       </div>
+
+      {/* Audio Wave Visualizers when active */}
+      {active && (
+        <div className="absolute -bottom-8 flex gap-1 h-8 items-end">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="w-1.5 bg-white rounded-full animate-bounce" 
+                 style={{ height: `${20 + volume * 150 * Math.random()}%`, animationDelay: `${i * 0.1}s` }} />
+          ))}
+        </div>
+      )}
     </div>
   );
 };
@@ -254,7 +299,7 @@ export default function App() {
   const [tempProfile, setTempProfile] = useState<Partial<User>>({ 
     userName: '', 
     avatarUrl: AVATARS[0], 
-    personalityId: PersonalityId.FUNNY, 
+    personalityId: PersonalityId.NORMAL, 
     movieGenre: 'Sci-Fi',
     musicGenre: 'Pop',
     favoriteArtists: [],
@@ -265,7 +310,26 @@ export default function App() {
     mood: 'Chill'
   });
 
-  const [settings, setSettings] = useState<AppSettings>(() => JSON.parse(localStorage.getItem('mr_vibe_settings') || '{"language":"English","theme":"dark","personalityId":"FUNNY","voiceName":"Puck"}'));
+  const [settings, setSettings] = useState<AppSettings>(() => {
+    const saved = localStorage.getItem('mr_vibe_settings');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return {
+        ...parsed,
+        speakingRate: parsed.speakingRate || 1.0,
+        speakingPitch: parsed.speakingPitch || 1.0
+      };
+    }
+    return {
+      language: "English",
+      theme: "dark",
+      personalityId: PersonalityId.NORMAL,
+      voiceName: "Zephyr",
+      speakingRate: 1.0,
+      speakingPitch: 1.0
+    };
+  });
+  
   const [sessions, setSessions] = useState<ChatSession[]>(() => JSON.parse(localStorage.getItem('mr_vibe_sessions') || '[]'));
   const [activeSessionId, setActiveSessionId] = useState<string | null>(localStorage.getItem('mr_vibe_active_session_id'));
 
@@ -464,71 +528,76 @@ export default function App() {
         <button onClick={() => setOnboardingStep(Math.floor(onboardingStep) - 1)} className="flex items-center gap-2 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-blue-500 transition-colors"><ArrowLeft size={16} /> Back</button>
         <div className="space-y-2">
           <h2 className="text-2xl md:text-3xl font-black italic text-zinc-900 dark:text-white tracking-tighter">{title}</h2>
-          <div className="w-full bg-zinc-200 dark:bg-zinc-800 h-1 rounded-full overflow-hidden"><div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${(onboardingStep / 10) * 100}%` }} /></div>
+          <div className="w-full bg-zinc-200 dark:bg-zinc-800 h-1 rounded-full overflow-hidden"><div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${(onboardingStep / 11) * 100}%` }} /></div>
         </div>
-        <div className="grid grid-cols-2 gap-3 max-h-[45vh] overflow-y-auto pr-2 custom-scrollbar">
+        <div className="grid grid-cols-2 gap-4 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar p-1">
           {options.map((opt: any) => {
             const optId = opt.id || opt;
             const isSelected = multi ? (current as string[]).includes(optId) : current === optId;
             return (
-              <button key={optId} onClick={() => onSelect(optId)} className={`p-4 rounded-[2rem] border-2 transition-all text-center shadow-sm ${isSelected ? 'bg-blue-600 border-blue-500 text-white scale-[1.02]' : 'bg-zinc-100 dark:bg-zinc-800/40 border-transparent text-zinc-900 dark:text-white'}`}>
-                {opt.emoji && <span className="text-xl md:text-2xl block mb-1">{opt.emoji}</span>}
-                <p className="font-black text-[10px] uppercase">{opt.label || opt}</p>
+              <button key={optId} onClick={() => onSelect(optId)} className={`group relative p-6 rounded-[2.5rem] border-2 transition-all text-center shadow-lg active:scale-95 flex flex-col items-center justify-center gap-2 ${isSelected ? 'bg-blue-600 border-blue-500 text-white' : 'bg-white dark:bg-zinc-800/60 border-zinc-100 dark:border-white/5 text-zinc-900 dark:text-white hover:border-blue-500/50 shadow-zinc-200/50 dark:shadow-black/50'}`}>
+                {opt.emoji && <span className={`text-3xl transition-transform group-hover:scale-110 ${isSelected ? 'animate-bounce' : ''}`}>{opt.emoji}</span>}
+                <p className="font-black text-[11px] uppercase tracking-wider">{opt.label || opt}</p>
+                {isSelected && <div className="absolute top-3 right-3 bg-white text-blue-600 rounded-full p-0.5"><Check size={12} strokeWidth={4} /></div>}
               </button>
             );
           })}
         </div>
-        <button onClick={onNext} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2">Next <ArrowRight size={20}/></button>
+        <button onClick={onNext} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-5 rounded-3xl font-black text-lg shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-2 mt-4">Next <ArrowRight size={20}/></button>
       </div>
     );
 
     return (
       <div className="fixed inset-0 z-[2000] bg-zinc-50 dark:bg-[#030303] flex items-center justify-center p-4 overflow-y-auto transition-colors duration-500 h-[100dvh]">
-        <div className="w-full max-w-lg bg-white/95 dark:bg-zinc-900/70 border border-zinc-200 dark:border-white/10 p-6 md:p-10 rounded-[3rem] backdrop-blur-3xl shadow-3xl animate-scale-in text-center my-auto">
+        <div className="w-full max-w-xl bg-white/95 dark:bg-zinc-900/70 border border-zinc-200 dark:border-white/10 p-6 md:p-12 rounded-[4rem] backdrop-blur-3xl shadow-3xl animate-scale-in text-center my-auto">
           {onboardingStep === 1 ? (
             <div className="space-y-8 animate-slide-up">
-              <Logo className="w-16 h-16 md:w-20 md:h-20 mx-auto" animated />
-              <div className="space-y-2">
-                <h1 className="text-3xl md:text-4xl font-black text-zinc-900 dark:text-white italic tracking-tighter uppercase leading-none">Mr. Vibe AI</h1>
-                <p className="text-zinc-500 font-medium text-sm">Meet Mr. Cute, your AI soulmate.</p>
+              <Logo className="w-20 h-20 md:w-24 md:h-24 mx-auto" animated />
+              <div className="space-y-3">
+                <h1 className="text-4xl md:text-5xl font-black text-zinc-900 dark:text-white italic tracking-tighter uppercase leading-none">Mr. Vibe AI</h1>
+                <p className="text-zinc-500 font-bold text-sm tracking-wide">YOUR PERSONAL AI SOULMATE & SMART ASSISTANT.</p>
               </div>
               <div className="space-y-3 text-left">
-                <div className="relative group"><Mail className={`absolute left-5 top-1/2 -translate-y-1/2 ${isEmailInputValid === true ? 'text-green-500' : isEmailInputValid === false ? 'text-rose-500' : 'text-zinc-400'}`} size={20} /><input type="email" placeholder="Email Address" value={credentials.email} onChange={e => setCredentials({...credentials, email: e.target.value})} className={`w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl py-4 pl-14 pr-12 font-bold outline-none border-2 transition-all text-zinc-900 dark:text-white text-sm ${isEmailInputValid === true ? 'border-green-500' : isEmailInputValid === false ? 'border-rose-500' : 'border-transparent focus:border-blue-500'}`} /></div>
-                <div className="relative"><Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-400" size={20} /><input type="password" placeholder="Password" value={credentials.password} onChange={e => setCredentials({...credentials, password: e.target.value})} className="w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl py-4 pl-14 font-bold outline-none border-2 border-transparent focus:border-blue-500 text-zinc-900 dark:text-white text-sm" /></div>
+                <div className="relative group"><Mail className={`absolute left-5 top-1/2 -translate-y-1/2 ${isEmailInputValid === true ? 'text-green-500' : isEmailInputValid === false ? 'text-rose-500' : 'text-zinc-400'}`} size={20} /><input type="email" placeholder="Email Address" value={credentials.email} onChange={e => setCredentials({...credentials, email: e.target.value})} className={`w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl py-5 pl-14 pr-12 font-bold outline-none border-2 transition-all text-zinc-900 dark:text-white text-sm ${isEmailInputValid === true ? 'border-green-500' : isEmailInputValid === false ? 'border-rose-500' : 'border-transparent focus:border-blue-500 shadow-inner'}`} /></div>
+                <div className="relative"><Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-400" size={20} /><input type="password" placeholder="Password" value={credentials.password} onChange={e => setCredentials({...credentials, password: e.target.value})} className="w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl py-5 pl-14 font-bold outline-none border-2 border-transparent focus:border-blue-500 text-zinc-900 dark:text-white text-sm shadow-inner" /></div>
               </div>
-              <button onClick={() => { if (!validateEmail(credentials.email)) { showToast("Check that email, chief. 📧", "error"); return; } setOnboardingStep(1.5); }} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95">Continue</button>
+              <button onClick={() => { if (!validateEmail(credentials.email)) { showToast("Check that email, chief. 📧", "error"); return; } setOnboardingStep(1.5); }} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-5 rounded-3xl font-black text-lg shadow-2xl transition-all active:scale-95">Link Soul</button>
             </div>
           ) : onboardingStep === 1.5 ? (
             <div className="space-y-8 animate-slide-in-right">
-              <button onClick={() => setOnboardingStep(1)} className="flex items-center gap-2 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-blue-500"><ArrowLeft size={16} /> Back</button>
-              <div className="space-y-4 text-center"><div className="w-16 h-16 bg-blue-500/10 rounded-[2rem] flex items-center justify-center mx-auto text-blue-600 mb-2 animate-pulse"><Key size={32} /></div><h2 className="text-2xl md:text-3xl font-black italic text-zinc-900 dark:text-white tracking-tighter">Soul Connection</h2><p className="text-zinc-500 text-sm font-medium px-4">Instant sync with your License Key. Security is no cap.</p></div>
-              <div className="space-y-4 text-left"><div className="relative"><Activity className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-400" size={20} /><input type={showApiKey ? "text" : "password"} placeholder="Paste License Key here..." value={manualApiKey} onChange={e => setManualApiKey(e.target.value)} className="w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl py-4 pl-14 pr-12 font-bold outline-none border-2 border-transparent focus:border-blue-500 text-zinc-900 dark:text-white text-sm" /><button onClick={() => setShowApiKey(!showApiKey)} className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-zinc-400 hover:text-blue-500 transition-colors">{showApiKey ? <EyeOff size={18} /> : <Eye size={18} />}</button></div><button onClick={async () => { const ok = await checkApiConnection(manualApiKey); if (ok || manualApiKey.trim().length >= 20) { setOnboardingStep(2); } else { showToast("Key too short.", "error"); } }} className="w-full py-5 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95 bg-blue-600 text-white">Verify & Connect Soul</button></div>
+              <button onClick={() => setOnboardingStep(1)} className="flex items-center gap-2 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-blue-500 transition-colors"><ArrowLeft size={16} /> Back</button>
+              <div className="space-y-4 text-center"><div className="w-20 h-20 bg-blue-500/10 rounded-[2.5rem] flex items-center justify-center mx-auto text-blue-600 mb-2 animate-pulse"><Key size={36} /></div><h2 className="text-3xl md:text-4xl font-black italic text-zinc-900 dark:text-white tracking-tighter">Connect Consciousness</h2><p className="text-zinc-500 text-sm font-bold px-4 tracking-wide">SECURE SYNC WITH YOUR PERSONAL LICENSE KEY.</p></div>
+              <div className="space-y-4 text-left"><div className="relative shadow-inner"><Activity className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-400" size={20} /><input type={showApiKey ? "text" : "password"} placeholder="Paste License Key..." value={manualApiKey} onChange={e => setManualApiKey(e.target.value)} className="w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl py-5 pl-14 pr-12 font-bold outline-none border-2 border-transparent focus:border-blue-500 text-zinc-900 dark:text-white text-sm" /><button onClick={() => setShowApiKey(!showApiKey)} className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-zinc-400 hover:text-blue-500 transition-colors">{showApiKey ? <EyeOff size={18} /> : <Eye size={18} />}</button></div><button onClick={async () => { const ok = await checkApiConnection(manualApiKey); if (ok || manualApiKey.trim().length >= 20) { setOnboardingStep(2); } else { showToast("Key too short.", "error"); } }} className="w-full py-5 rounded-3xl font-black text-xl shadow-2xl transition-all active:scale-95 bg-blue-600 text-white">Establish Link</button></div>
             </div>
           ) : onboardingStep === 2 ? (
             <div className="space-y-8 animate-slide-in-right">
-              <button onClick={() => setOnboardingStep(1.5)} className="flex items-center gap-2 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-blue-500"><ArrowLeft size={16} /> Back</button>
-              <h2 className="text-2xl md:text-3xl font-black italic text-zinc-900 dark:text-white tracking-tighter text-center">Identity Sync</h2>
-              <div className="grid grid-cols-4 gap-2 max-h-[30vh] overflow-y-auto px-1 custom-scrollbar">{AVATARS.map((url) => (<button key={url} onClick={() => setTempProfile({...tempProfile, avatarUrl: url})} className={`w-full aspect-square rounded-[1.2rem] overflow-hidden transition-all shadow-md border-4 ${tempProfile.avatarUrl === url ? 'border-blue-500 scale-105' : 'border-transparent opacity-50'}`}><img src={url} className="w-full h-full" alt="Avatar" /></button>))}</div>
-              <input type="text" placeholder="Call me..." value={tempProfile.userName} onChange={e => setTempProfile({...tempProfile, userName: e.target.value})} className="w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl py-4 px-8 font-bold outline-none border-2 border-transparent focus:border-blue-500 text-zinc-900 dark:text-white text-center text-lg" />
-              <button onClick={() => { if (!tempProfile.userName?.trim()) { showToast("Name required! ✨", "error"); return; } setOnboardingStep(3); }} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95">Next</button>
+              <button onClick={() => setOnboardingStep(1.5)} className="flex items-center gap-2 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-blue-500 transition-colors"><ArrowLeft size={16} /> Back</button>
+              <h2 className="text-3xl md:text-4xl font-black italic text-zinc-900 dark:text-white tracking-tighter text-center">Avatar Sync</h2>
+              <div className="grid grid-cols-4 gap-3 max-h-[35vh] overflow-y-auto px-1 custom-scrollbar p-2">{AVATARS.map((url) => (<button key={url} onClick={() => setTempProfile({...tempProfile, avatarUrl: url})} className={`w-full aspect-square rounded-[2rem] overflow-hidden transition-all shadow-xl border-4 active:scale-95 ${tempProfile.avatarUrl === url ? 'border-blue-500 scale-110 z-10' : 'border-transparent opacity-40 hover:opacity-100 hover:scale-105'}`}><img src={url} className="w-full h-full" alt="Avatar" /></button>))}</div>
+              <input type="text" placeholder="Identity Label..." value={tempProfile.userName} onChange={e => setTempProfile({...tempProfile, userName: e.target.value})} className="w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl py-5 px-10 font-black outline-none border-2 border-transparent focus:border-blue-500 text-zinc-900 dark:text-white text-center text-xl shadow-inner uppercase tracking-wider" />
+              <button onClick={() => { if (!tempProfile.userName?.trim()) { showToast("Name required! ✨", "error"); return; } setOnboardingStep(2.5); }} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-5 rounded-3xl font-black text-lg shadow-2xl transition-all active:scale-95">Proceed</button>
             </div>
-          ) : onboardingStep === 3 ? ( <DiscoveryStep title="Current Mood" options={DISCOVERY_DATA.moods} current={tempProfile.mood} onSelect={(v: string) => setTempProfile({...tempProfile, mood: v})} onNext={() => setOnboardingStep(4)} />
+          ) : onboardingStep === 2.5 ? ( <DiscoveryStep title="Soul Gender" options={DISCOVERY_DATA.genders} current={tempProfile.gender} onSelect={(v: any) => setTempProfile({...tempProfile, gender: v})} onNext={() => setOnboardingStep(3)} />
+          ) : onboardingStep === 3 ? ( <DiscoveryStep title="Current Frequency" options={DISCOVERY_DATA.moods} current={tempProfile.mood} onSelect={(v: string) => setTempProfile({...tempProfile, mood: v})} onNext={() => setOnboardingStep(4)} />
           ) : onboardingStep === 4 ? (
             <div className="space-y-8 animate-slide-in-right">
-              <button onClick={() => setOnboardingStep(3)} className="flex items-center gap-2 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-blue-500"><ArrowLeft size={16} /> Back</button>
-              <h2 className="text-2xl font-black italic text-zinc-900 dark:text-white tracking-tighter text-center">Soul Archetype</h2>
-              <div className="grid grid-cols-2 gap-2 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">{(Object.values(PERSONALITIES) as Personality[]).map(p => (<button key={p.id} onClick={() => { setTempProfile({...tempProfile, personalityId: p.id}); setSettings(prev => ({ ...prev, personalityId: p.id, voiceName: p.voiceName })); }} className={`p-4 rounded-[1.5rem] border-2 transition-all text-left flex flex-col items-start gap-1 ${tempProfile.personalityId === p.id ? 'bg-blue-600 border-blue-500 text-white' : 'bg-zinc-100 dark:bg-zinc-800/40 border-transparent text-zinc-900 dark:text-white'}`}><span className="text-xl">{p.emoji}</span><p className="font-black text-[10px] uppercase leading-none">{p.name}</p></button>))}</div>
-              <button onClick={() => setOnboardingStep(5)} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95">Next</button>
+              <button onClick={() => setOnboardingStep(3)} className="flex items-center gap-2 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-blue-500 transition-colors"><ArrowLeft size={16} /> Back</button>
+              <div className="space-y-2">
+                <h2 className="text-3xl font-black italic text-zinc-900 dark:text-white tracking-tighter text-center">Archetype Core</h2>
+                <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest text-center">CHOOSE HOW MR. CUTE VIBES WITH YOU.</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[45vh] overflow-y-auto pr-2 custom-scrollbar p-1">{(Object.values(PERSONALITIES) as Personality[]).map(p => (<button key={p.id} onClick={() => { setTempProfile({...tempProfile, personalityId: p.id}); setSettings(prev => ({ ...prev, personalityId: p.id, voiceName: p.voiceName })); }} className={`group relative p-6 rounded-[2.5rem] border-2 transition-all text-left flex items-center gap-4 ${tempProfile.personalityId === p.id ? 'bg-blue-600 border-blue-500 text-white scale-[1.02]' : 'bg-white dark:bg-zinc-800/60 border-zinc-100 dark:border-white/5 text-zinc-900 dark:text-white hover:border-blue-500/50 shadow-xl'}`}><span className="text-3xl group-hover:scale-110 transition-transform">{p.emoji}</span><div className="flex flex-col"><p className="font-black text-[12px] uppercase leading-none">{p.name}</p><p className={`text-[9px] font-bold mt-1 leading-tight ${tempProfile.personalityId === p.id ? 'text-white/80' : 'text-zinc-500'}`}>{p.description}</p></div></button>))}</div>
+              <button onClick={() => setOnboardingStep(5)} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-5 rounded-3xl font-black text-lg shadow-2xl transition-all active:scale-95">Calibrate Personality</button>
             </div>
           ) : onboardingStep >= 5 && onboardingStep <= 9 ? (
-             <DiscoveryStep title={onboardingStep === 5 ? "Cinematic Vibe" : onboardingStep === 6 ? "Acoustic Essence" : onboardingStep === 7 ? "Soul Hobbies" : onboardingStep === 8 ? "Top Influencers" : "Education Path"} options={onboardingStep === 5 ? DISCOVERY_DATA.movies : onboardingStep === 6 ? DISCOVERY_DATA.musicGenres : onboardingStep === 7 ? DISCOVERY_DATA.hobbies : onboardingStep === 8 ? DISCOVERY_DATA.artists[tempProfile.musicGenre || 'Pop'] : DISCOVERY_DATA.education} current={onboardingStep === 7 || onboardingStep === 8 ? (onboardingStep === 7 ? tempProfile.hobbies : tempProfile.favoriteArtists) : (onboardingStep === 5 ? tempProfile.movieGenre : onboardingStep === 6 ? tempProfile.musicGenre : tempProfile.educationLevel)} multi={onboardingStep === 7 || onboardingStep === 8} onSelect={(v: any) => { if(onboardingStep === 7 || onboardingStep === 8) { const key = onboardingStep === 7 ? 'hobbies' : 'favoriteArtists'; const current = tempProfile[key] || []; setTempProfile({...tempProfile, [key]: current.includes(v) ? current.filter(x => x !== v) : [...current, v]}); } else { const keys = ['movieGenre', 'musicGenre', 'educationLevel']; setTempProfile({...tempProfile, [onboardingStep === 5 ? 'movieGenre' : onboardingStep === 6 ? 'musicGenre' : 'educationLevel']: v}); } }} onNext={() => setOnboardingStep(onboardingStep + 1)} />
+             <DiscoveryStep title={onboardingStep === 5 ? "Cinematic Style" : onboardingStep === 6 ? "Audio Dimension" : onboardingStep === 7 ? "Human Activity" : onboardingStep === 8 ? "Top Influencers" : "Educational Path"} options={onboardingStep === 5 ? DISCOVERY_DATA.movies : onboardingStep === 6 ? DISCOVERY_DATA.musicGenres : onboardingStep === 7 ? DISCOVERY_DATA.hobbies : onboardingStep === 8 ? DISCOVERY_DATA.artists[tempProfile.musicGenre || 'Pop'] : DISCOVERY_DATA.education} current={onboardingStep === 7 || onboardingStep === 8 ? (onboardingStep === 7 ? tempProfile.hobbies : tempProfile.favoriteArtists) : (onboardingStep === 5 ? tempProfile.movieGenre : onboardingStep === 6 ? tempProfile.musicGenre : tempProfile.educationLevel)} multi={onboardingStep === 7 || onboardingStep === 8} onSelect={(v: any) => { if(onboardingStep === 7 || onboardingStep === 8) { const key = onboardingStep === 7 ? 'hobbies' : 'favoriteArtists'; const current = tempProfile[key] || []; setTempProfile({...tempProfile, [key]: current.includes(v) ? current.filter(x => x !== v) : [...current, v]}); } else { const keys = ['movieGenre', 'musicGenre', 'educationLevel']; setTempProfile({...tempProfile, [onboardingStep === 5 ? 'movieGenre' : onboardingStep === 6 ? 'musicGenre' : 'educationLevel']: v}); } }} onNext={() => setOnboardingStep(onboardingStep + 1)} />
           ) : (
             <div className="space-y-8 animate-slide-in-right">
-              <button onClick={() => setOnboardingStep(9)} className="flex items-center gap-2 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-blue-500"><ArrowLeft size={16} /> Back</button>
-              <h2 className="text-2xl font-black italic text-zinc-900 dark:text-white tracking-tighter text-center">Vibe Check</h2>
-              <p className="text-zinc-400 font-bold text-[10px] uppercase tracking-widest">Age on Earth?</p>
-              <input type="number" value={tempProfile.age} onChange={e => setTempProfile({...tempProfile, age: e.target.value})} className="w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl py-4 px-8 font-bold outline-none border-2 border-transparent focus:border-blue-500 text-zinc-900 dark:text-white text-4xl text-center" />
-              <button onClick={() => setUser(tempProfile as User)} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black text-lg shadow-xl transition-all active:scale-95">Finalize Vibe</button>
+              <button onClick={() => setOnboardingStep(9)} className="flex items-center gap-2 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-blue-500 transition-colors"><ArrowLeft size={16} /> Back</button>
+              <h2 className="text-3xl md:text-4xl font-black italic text-zinc-900 dark:text-white tracking-tighter text-center">Orbit Time</h2>
+              <p className="text-zinc-400 font-black text-[10px] uppercase tracking-widest text-center">HOW MANY ROTATIONS HAVE YOU EXPERIENCED?</p>
+              <div className="relative group max-w-xs mx-auto"><input type="number" value={tempProfile.age} onChange={e => setTempProfile({...tempProfile, age: e.target.value})} className="w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-[3rem] py-10 px-8 font-black outline-none border-4 border-transparent focus:border-blue-500 text-zinc-900 dark:text-white text-6xl text-center shadow-inner transition-all" /><div className="absolute top-2 right-6 text-zinc-300 font-black uppercase text-xs tracking-widest">YEARS</div></div>
+              <button onClick={() => setUser(tempProfile as User)} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-6 rounded-[2.5rem] font-black text-2xl shadow-3xl transition-all active:scale-95 flex items-center justify-center gap-4">Initialize Vibe <Rocket size={28}/></button>
             </div>
           )}
         </div>
@@ -544,7 +613,7 @@ export default function App() {
         <div className="fixed inset-0 z-[5000] bg-white dark:bg-black/95 backdrop-blur-3xl flex flex-col items-center justify-between p-6 animate-fade-in">
           <div className="w-full flex justify-end"><button onClick={() => { disconnectLive(); setIsSummarizing(false); }} className="p-4 bg-zinc-900/10 dark:bg-white/10 hover:bg-rose-500 text-zinc-900 dark:text-white hover:text-white rounded-full transition-all"><X size={24}/></button></div>
           <div className="flex-1 flex flex-col items-center justify-center gap-8 text-center w-full">
-            <FluidOrb volume={volume} active={isLive} isThinking={isSummarizing} />
+            <AIVibeAvatar volume={volume} active={isLive} isThinking={isSummarizing || isConnecting} personality={currentPersonality} />
             <div className="space-y-2">
               <h2 className="text-3xl md:text-5xl font-black text-zinc-900 dark:text-white italic tracking-tighter uppercase leading-none">
                 {isConnecting ? "Tuning..." : isSummarizing ? "Summarizing..." : "Voice Control Active"}
@@ -610,9 +679,14 @@ export default function App() {
             <button onClick={handleClearChat} className="flex items-center gap-2 px-3 py-2 rounded-full bg-rose-500/10 text-[10px] font-black uppercase tracking-widest text-rose-500 border border-rose-500/20 active:scale-95 transition-all">
               <Eraser size={14} /> <span className="hidden sm:inline">Reset</span>
             </button>
+            <div className="h-8 w-[1px] bg-zinc-100 dark:bg-white/5 mx-1" />
             <button onClick={() => setIsNotifOpen(true)} className="p-2.5 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-blue-500 transition-all relative">
               {notifications.length > 0 && <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full animate-ping" />}
               <Bell size={22} />
+            </button>
+            <button onClick={connectLive} className="flex items-center gap-2 px-3 py-2.5 bg-zinc-900 dark:bg-white text-white dark:text-black rounded-2xl shadow-xl active:scale-90 transition-all font-black text-[10px] uppercase tracking-widest">
+              <FileText size={18} />
+              <span className="hidden lg:inline">Voice Note</span>
             </button>
             <button onClick={connectLive} className="p-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl shadow-xl active:scale-90 transition-all">
               <Mic size={22} />
@@ -677,7 +751,7 @@ export default function App() {
                     <div className={`flex items-end gap-2 max-w-[92%] sm:max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
                       {msg.role === 'model' && (
                         <div className="w-7 h-7 rounded-[0.7rem] bg-blue-500/10 flex items-center justify-center text-base shrink-0 overflow-hidden shadow-sm border border-zinc-100 dark:border-white/5">
-                          <span>{currentPersonality.emoji}</span>
+                          <span>{PERSONALITIES[activeSession?.personalityId || settings.personalityId]?.emoji || currentPersonality.emoji}</span>
                         </div>
                       )}
                       <div className={`flex flex-col gap-1 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
@@ -765,22 +839,196 @@ export default function App() {
       {isProfileModalOpen && (
         <div className="fixed inset-0 z-[6000] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/85 backdrop-blur-2xl animate-fade-in" onClick={() => setIsProfileModalOpen(false)} />
-          <div className="relative w-full max-w-xl bg-white dark:bg-zinc-900 rounded-[2.5rem] p-6 md:p-12 shadow-3xl animate-vibe-in max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-8 shrink-0"><div className="flex items-center gap-4"><Logo className="w-10 h-10" /><h2 className="text-2xl font-black uppercase italic text-zinc-900 dark:text-white leading-none">Identity</h2></div><button onClick={() => setIsProfileModalOpen(false)} className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-2xl active:scale-90"><X size={24}/></button></div>
-            <div className="overflow-y-auto custom-scrollbar pr-2 flex-1 space-y-10">
-              <div className="flex flex-col items-center gap-6 text-center">
-                <div className="relative group"><img src={user?.avatarUrl} className="w-24 h-24 md:w-32 md:h-32 rounded-[2rem] shadow-2xl border-4 border-white dark:border-zinc-800" alt="Avatar" /><div className="absolute -bottom-2 -right-2 bg-blue-600 text-white p-2.5 rounded-xl shadow-lg border-2 border-white dark:border-zinc-900"><Camera size={16} /></div></div>
-                <div className="w-full space-y-4 text-left">
-                  <div className="space-y-2"><label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block px-1">Alias</label><div className="flex gap-2"><input type="text" value={editUserName} onChange={e => setEditUserName(e.target.value)} className="flex-1 bg-zinc-100 dark:bg-zinc-800 border-2 border-transparent focus:border-blue-500 rounded-2xl py-4 px-5 font-bold outline-none text-zinc-900 dark:text-white" /><button onClick={handleUpdateUser} className="bg-blue-600 text-white px-5 rounded-2xl active:scale-95"><Check size={20} strokeWidth={3} /></button></div></div>
-                  <div className="p-6 bg-zinc-50 dark:bg-zinc-800/40 rounded-[2rem] border border-zinc-100 dark:border-white/5 space-y-4">
-                    <div className="flex items-center justify-between"><label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block">License Key</label><div className={`w-3 h-3 rounded-full ${apiStatus === 'connected' ? 'bg-green-500' : 'bg-rose-500 animate-pulse'}`} /></div>
-                    <div className="relative"><input type={showApiKey ? "text" : "password"} placeholder="License Key..." className="w-full bg-zinc-200/50 dark:bg-black/20 p-4 rounded-xl border-2 border-transparent focus:border-blue-500 outline-none font-bold text-sm" value={manualApiKey} onChange={(e) => setManualApiKey(e.target.value)} /><button onClick={() => setShowApiKey(!showApiKey)} className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-zinc-400">{showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}</button></div>
-                    <button onClick={async () => { await checkApiConnection(manualApiKey); showToast("Link synchronized! ✨", "success"); }} className="w-full flex items-center justify-center gap-3 py-4 rounded-xl font-black text-xs uppercase tracking-widest bg-zinc-900 dark:bg-white text-white dark:text-black active:scale-95 transition-all">Update License</button>
+          <div className="relative w-full max-w-3xl bg-white dark:bg-zinc-950 rounded-[4rem] p-6 md:p-12 shadow-3xl animate-vibe-in max-h-[90vh] flex flex-col overflow-hidden border border-white/5" onClick={e => e.stopPropagation()}>
+            
+            <div className="flex justify-between items-center mb-10 shrink-0">
+              <div className="flex items-center gap-5">
+                <div className="p-4 bg-blue-600 text-white rounded-[1.8rem] shadow-xl shadow-blue-600/20">
+                  <UserIcon size={32} />
+                </div>
+                <div>
+                  <h2 className="text-3xl font-black uppercase italic text-zinc-900 dark:text-white leading-none tracking-tighter">Profile Sync</h2>
+                  <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mt-1">Manage your AI soul connection</p>
+                </div>
+              </div>
+              <button onClick={() => setIsProfileModalOpen(false)} className="p-4 bg-zinc-100 dark:bg-white/5 rounded-3xl active:scale-90 transition-all hover:bg-rose-500/10 hover:text-rose-500 shadow-sm border border-black/5 dark:border-white/5">
+                <X size={28}/>
+              </button>
+            </div>
+
+            <div className="overflow-y-auto custom-scrollbar pr-4 flex-1 space-y-12">
+              
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="space-y-6">
+                  <div className="flex items-center gap-2 px-2">
+                    <UserCheck size={16} className="text-blue-500" />
+                    <label className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 block">IDENTITY LABEL</label>
+                  </div>
+                  <div className="bg-white dark:bg-white/5 p-8 rounded-[3rem] border border-black/5 dark:border-white/5 shadow-xl flex flex-col items-center gap-8">
+                    <div className="relative group">
+                      <div className="w-32 h-32 md:w-40 md:h-40 rounded-[3rem] overflow-hidden border-4 border-white dark:border-zinc-800 shadow-2xl transition-transform group-hover:scale-105 duration-500">
+                        <img src={user?.avatarUrl} className="w-full h-full object-cover" alt="Avatar" />
+                      </div>
+                      <button className="absolute -bottom-3 -right-3 bg-blue-600 text-white p-4 rounded-2xl shadow-xl border-4 border-white dark:border-zinc-900 animate-float hover:scale-110 transition-transform">
+                        <Camera size={20} />
+                      </button>
+                    </div>
+                    <div className="w-full flex gap-3">
+                      <input 
+                        type="text" 
+                        value={editUserName} 
+                        onChange={e => setEditUserName(e.target.value)} 
+                        className="flex-1 bg-zinc-100 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 rounded-2xl py-5 px-6 font-black outline-none text-zinc-900 dark:text-white shadow-inner transition-all text-center uppercase tracking-wider" 
+                        placeholder="Alias..."
+                      />
+                      <button onClick={handleUpdateUser} className="bg-blue-600 text-white px-6 rounded-2xl active:scale-95 shadow-lg shadow-blue-600/20 hover:bg-blue-500 transition-all">
+                        <Check size={24} strokeWidth={4} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="flex items-center gap-2 px-2">
+                    <ShieldCheck size={16} className="text-blue-500" />
+                    <label className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 block">LICENSE AUTH</label>
+                  </div>
+                  <div className="bg-white dark:bg-white/5 p-8 rounded-[3rem] border border-black/5 dark:border-white/5 shadow-xl space-y-6 h-full flex flex-col">
+                    <div className="flex items-center justify-between bg-zinc-100 dark:bg-black/40 p-4 rounded-2xl shadow-inner border border-black/5 dark:border-white/5">
+                      <div className="flex flex-col">
+                        <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Link Status</span>
+                        <span className={`text-xs font-black uppercase flex items-center gap-2 mt-0.5 ${apiStatus === 'connected' ? 'text-green-500' : 'text-rose-500'}`}>
+                          <Activity size={14} className={apiStatus === 'connected' ? '' : 'animate-pulse'} />
+                          {apiStatus === 'connected' ? 'Frequency Live' : 'Link Dead'}
+                        </span>
+                      </div>
+                      <div className={`w-4 h-4 rounded-full shadow-lg ${apiStatus === 'connected' ? 'bg-green-500 shadow-green-500/20' : 'bg-rose-500 shadow-rose-500/20 animate-pulse'}`} />
+                    </div>
+                    <div className="relative flex-1">
+                      <input 
+                        type={showApiKey ? "text" : "password"} 
+                        placeholder="License Auth Key..." 
+                        className="w-full h-full min-h-[80px] bg-zinc-100 dark:bg-black/40 p-6 rounded-2xl border-2 border-transparent focus:border-blue-500 outline-none font-bold text-sm tracking-widest shadow-inner text-zinc-900 dark:text-white" 
+                        value={manualApiKey} 
+                        onChange={(e) => setManualApiKey(e.target.value)} 
+                      />
+                      <button onClick={() => setShowApiKey(!showApiKey)} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 text-zinc-400 hover:text-blue-500 transition-colors">
+                        {showApiKey ? <EyeOff size={20} /> : <Eye size={20} />}
+                      </button>
+                    </div>
+                    <button 
+                      onClick={async () => { await checkApiConnection(manualApiKey); showToast("License link synchronized! ✨", "success"); }} 
+                      className="w-full py-5 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] bg-zinc-900 dark:bg-white text-white dark:text-black active:scale-95 transition-all shadow-xl hover:opacity-90 hover:scale-[0.98]"
+                    >
+                      Update Frequency
+                    </button>
                   </div>
                 </div>
               </div>
-              <div className="space-y-6"><label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 px-1">Switch Personality</label><div className="grid grid-cols-2 gap-3">{(Object.values(PERSONALITIES) as Personality[]).map(p => (<button key={p.id} onClick={() => { setSettings({...settings, personalityId: p.id, voiceName: p.voiceName}); showToast(`${p.name} activated!`, "success"); }} className={`flex items-center gap-3 p-4 rounded-[1.5rem] border-2 transition-all ${settings.personalityId === p.id ? 'bg-blue-600 border-blue-500 text-white' : 'bg-zinc-100 dark:bg-zinc-800 border-transparent text-zinc-900 dark:text-white'}`}><span className="text-xl shrink-0">{p.emoji}</span><p className="font-black text-[10px] uppercase text-left leading-none">{p.name}</p></button>))}</div></div>
-              <div className="pt-6"><button onClick={handleLogOut} className="w-full py-5 text-[10px] text-rose-500 font-black uppercase tracking-[0.3em] hover:bg-rose-500/10 rounded-[2rem] transition-all border-2 border-rose-500/20">End Session</button></div>
+
+              {/* Voice Calibration Section */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 px-2">
+                  <Sliders size={16} className="text-blue-500" />
+                  <label className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 block">VOICE CALIBRATION</label>
+                </div>
+                <div className="bg-zinc-100 dark:bg-white/5 p-8 rounded-[3rem] space-y-8 border border-black/5 dark:border-white/5">
+                  <div className="space-y-4">
+                    <div className="flex justify-between">
+                      <span className="text-[10px] font-black uppercase text-zinc-500 tracking-widest flex items-center gap-2"><FastForward size={12}/> Speaking Rate</span>
+                      <span className="text-xs font-black text-blue-500">{settings.speakingRate.toFixed(1)}x</span>
+                    </div>
+                    <input 
+                      type="range" min="0.5" max="2.0" step="0.1" 
+                      value={settings.speakingRate} 
+                      onChange={(e) => setSettings({...settings, speakingRate: parseFloat(e.target.value)})}
+                      className="w-full h-2 bg-zinc-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-blue-500"
+                    />
+                  </div>
+                  <div className="space-y-4">
+                    <div className="flex justify-between">
+                      <span className="text-[10px] font-black uppercase text-zinc-500 tracking-widest flex items-center gap-2"><Music size={12}/> Vocal Pitch</span>
+                      <span className="text-xs font-black text-blue-500">{settings.speakingPitch.toFixed(1)}x</span>
+                    </div>
+                    <input 
+                      type="range" min="0.5" max="2.0" step="0.1" 
+                      value={settings.speakingPitch} 
+                      onChange={(e) => setSettings({...settings, speakingPitch: parseFloat(e.target.value)})}
+                      className="w-full h-2 bg-zinc-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 px-2">
+                  <Palette size={16} className="text-blue-500" />
+                  <label className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 block">ARCHETYPE FREQUENCY</label>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {(Object.values(PERSONALITIES) as Personality[]).map(p => {
+                    const isSelected = settings.personalityId === p.id;
+                    return (
+                      <button 
+                        key={p.id} 
+                        onClick={() => { setSettings({...settings, personalityId: p.id, voiceName: p.voiceName}); showToast(`${p.name} activated!`, "success"); }} 
+                        className={`group relative p-6 rounded-[2.5rem] border-2 transition-all flex flex-col items-center text-center gap-3 active:scale-95 shadow-lg ${isSelected ? 'bg-blue-600 border-blue-500 text-white shadow-blue-600/20 scale-[1.05] z-10' : 'bg-white dark:bg-white/5 border-zinc-100 dark:border-white/5 text-zinc-900 dark:text-white hover:border-blue-500/50 hover:shadow-xl'}`}
+                      >
+                        <span className={`text-4xl transition-transform group-hover:scale-125 duration-500 ${isSelected ? 'animate-bounce' : ''}`}>{p.emoji}</span>
+                        <div className="space-y-1">
+                          <p className="font-black text-[11px] uppercase tracking-wider leading-none">{p.name}</p>
+                          <p className={`text-[8px] font-bold leading-tight ${isSelected ? 'text-white/70' : 'text-zinc-500'}`}>{p.description}</p>
+                        </div>
+                        {isSelected && (
+                          <div className="absolute top-4 right-4 bg-white text-blue-600 rounded-full p-1 shadow-lg animate-scale-in">
+                            <Check size={10} strokeWidth={5} />
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="flex items-center gap-2 px-2">
+                  <Mic2 size={16} className="text-blue-500" />
+                  <label className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 block">AUDIO ESSENCE</label>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {GEMINI_VOICES.map(voice => {
+                    const isSelected = settings.voiceName === voice.id;
+                    return (
+                      <button 
+                        key={voice.id} 
+                        onClick={() => { setSettings({...settings, voiceName: voice.id}); showToast(`Voice ${voice.name} linked!`, "success"); }} 
+                        className={`group relative p-5 rounded-[2rem] border-2 transition-all flex flex-col items-center gap-3 active:scale-95 shadow-md ${isSelected ? 'bg-zinc-900 dark:bg-white text-white dark:text-black border-zinc-900 dark:border-white scale-[1.02]' : 'bg-zinc-100 dark:bg-white/5 border-transparent text-zinc-900 dark:text-white hover:bg-zinc-200 dark:hover:bg-white/10'}`}
+                      >
+                        <div className={`p-3 rounded-full ${isSelected ? 'bg-white/20 dark:bg-black/10' : 'bg-black/5 dark:bg-white/5'} transition-colors group-hover:scale-110`}>
+                          <Volume2 size={20} />
+                        </div>
+                        <p className="font-black text-[10px] uppercase tracking-widest">{voice.name}</p>
+                        {isSelected && (
+                          <div className={`absolute top-3 right-3 rounded-full p-0.5 ${isSelected ? 'bg-white dark:bg-black text-black dark:text-white' : ''}`}>
+                            <Check size={10} strokeWidth={5} />
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="pt-10 pb-8 space-y-4">
+                 <div className="h-[1px] w-full bg-black/5 dark:bg-white/5" />
+                 <button 
+                  onClick={handleLogOut} 
+                  className="w-full py-6 text-[12px] text-rose-500 font-black uppercase tracking-[0.4em] hover:bg-rose-500/10 rounded-[3rem] transition-all border-4 border-rose-500/20 active:scale-95 shadow-xl flex items-center justify-center gap-4 hover:shadow-rose-500/10"
+                >
+                  <LogOut size={20} /> End Current Session
+                </button>
+                <p className="text-[8px] font-black text-center text-zinc-500 uppercase tracking-widest">Mr. Vibe AI Engine • Soul Link v2.6.0</p>
+              </div>
             </div>
           </div>
         </div>
