@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, FunctionDeclaration, Type } from '@google/genai';
 import { createPcmBlob, decode, decodeAudioData } from '../utils/audioUtils';
-import { Personality, AppSettings, User } from '../types';
+import { Personality, AppSettings, User, CustomCommand } from '../types';
 import { BASE_SYSTEM_PROMPT } from '../constants';
 
 interface UseGeminiLiveProps {
@@ -142,6 +142,8 @@ export const useGeminiLive = ({
         }
       ];
 
+      const customShortcuts = settings.customCommands.map(c => `If I say "${c.trigger}", interpret it as "${c.action}"`).join('\n');
+
       const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}
       - Personality: ${personality.name}
       - Context: ${personality.prompt}
@@ -152,6 +154,9 @@ export const useGeminiLive = ({
       - "Summarize this" or "Give me a report" -> use summarize_board
       - "New session" or "Start fresh" -> use create_new_session
       - "Clear the board" or "Reset everything" -> use clear_current_board
+
+      USER DEFINED SHORTCUTS:
+      ${customShortcuts || "No custom shortcuts defined."}
 
       Rules: Be concise, stay in character, and ALWAYS help with notes.`;
 

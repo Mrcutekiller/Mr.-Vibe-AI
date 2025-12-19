@@ -7,10 +7,10 @@ import {
   User as UserIcon, CheckCircle2, Mail, Lock, Sparkles, 
   ChevronRight, MicOff, MessageSquare, AlertCircle, AlertTriangle, RefreshCw,
   Camera, FileText, Upload, Loader2, Play, Image as ImageIcon, Globe,
-  Leaf, Droplets, Share2, ThumbsUp, ThumbsDown, Edit3, Check, Zap, ExternalLink, Activity, Bell, Music, Film, Heart, GraduationCap, Users, Copy, Share, LogOut, AlertOctagon, Key, Wand2, Info, HelpCircle, Eye, EyeOff, Smile, Rocket, Eraser, Pin, StickyNote, ListFilter, Mic2, UserCheck, ShieldCheck, Palette, FastForward, Sliders, BookOpen, PenTool
+  Leaf, Droplets, Share2, ThumbsUp, ThumbsDown, Edit3, Check, Zap, ExternalLink, Activity, Bell, Music, Film, Heart, GraduationCap, Users, Copy, Share, LogOut, AlertOctagon, Key, Wand2, Info, HelpCircle, Eye, EyeOff, Smile, Rocket, Eraser, Pin, StickyNote, ListFilter, Mic2, UserCheck, ShieldCheck, Palette, FastForward, Sliders, BookOpen, PenTool, Hash
 } from 'lucide-react';
 import { PERSONALITIES, BASE_SYSTEM_PROMPT, AVATARS, GEMINI_VOICES, DISCOVERY_DATA } from './constants';
-import { PersonalityId, Personality, AppSettings, User, ChatSession, Message, ReactionType, GroundingSource, ApiStatus, Gender } from './types';
+import { PersonalityId, Personality, AppSettings, User, ChatSession, Message, ReactionType, GroundingSource, ApiStatus, Gender, CustomCommand } from './types';
 import { useGeminiLive } from './hooks/useGeminiLive';
 import { decode, decodeAudioData } from './utils/audioUtils';
 
@@ -251,7 +251,7 @@ const NoteWritingIndicator = ({ personality }: { personality: Personality }) => 
 );
 
 const AIVibeAvatar = ({ volume, active, isThinking, personality, isAiSpeaking, animationState }: { volume: number, active: boolean, isThinking: boolean, personality: Personality, isAiSpeaking?: boolean, animationState: 'idle' | 'nod' | 'tilt' }) => {
-  const scale = 1 + (active ? (isAiSpeaking ? 0.3 : volume * 4) : isThinking ? 0.2 : 0);
+  const scale = 1 + (active ? (isAiSpeaking ? 0.2 : volume * 4) : isThinking ? 0.2 : 0);
   
   const getVibeColor = () => {
     const id = personality.id;
@@ -265,11 +265,11 @@ const AIVibeAvatar = ({ volume, active, isThinking, personality, isAiSpeaking, a
   const vibeColor = getVibeColor();
 
   return (
-    <div className="relative flex items-center justify-center transition-all duration-500">
+    <div className={`relative flex items-center justify-center transition-all duration-500 ${isAiSpeaking ? 'animate-float' : ''}`}>
       <div className={`absolute inset-0 blur-[60px] md:blur-[120px] rounded-full transition-all duration-700 ${active || isThinking ? 'scale-150 opacity-60' : 'scale-100 opacity-0'}`}
         style={{ backgroundColor: vibeColor }} />
       
-      <div className={`w-32 h-32 md:w-64 md:h-64 rounded-full relative overflow-hidden transition-all duration-150 shadow-2xl flex items-center justify-center border-4 border-white/20 ${animationState === 'nod' ? 'animate-nod' : animationState === 'tilt' ? 'animate-tilt' : ''}`}
+      <div className={`w-40 h-40 md:w-72 md:h-72 rounded-full relative overflow-hidden transition-all duration-150 shadow-2xl flex flex-col items-center justify-center border-4 border-white/20 ${animationState === 'nod' ? 'animate-nod' : animationState === 'tilt' ? 'animate-tilt' : ''}`}
         style={{ 
           transform: `scale(${scale})`, 
           opacity: active || isThinking ? 1 : 0.4, 
@@ -278,24 +278,24 @@ const AIVibeAvatar = ({ volume, active, isThinking, personality, isAiSpeaking, a
         
         {isAiSpeaking ? (
           <div className="absolute inset-0 bg-white/5 animate-pulse flex items-center justify-center pointer-events-none">
-             <div className="w-full h-1 bg-white/20 scale-x-150 rotate-45 animate-pulse" />
-             <div className="w-full h-1 bg-white/20 scale-x-150 -rotate-45 animate-pulse" />
+             <div className="w-full h-1 bg-white/20 scale-x-150 rotate-45 animate-pulse opacity-20" />
+             <div className="w-full h-1 bg-white/20 scale-x-150 -rotate-45 animate-pulse opacity-20" />
           </div>
         ) : active && volume > 0.01 && (
           <div className="absolute inset-0 border-[8px] border-white/20 rounded-full animate-ping" />
         )}
 
-        <div className={`absolute inset-0 bg-gradient-to-tr from-white/20 to-transparent opacity-40 ${isThinking ? 'animate-spin' : isAiSpeaking ? 'animate-[spin_8s_linear_infinite]' : 'animate-spin-slow'}`} />
+        <div className={`absolute inset-0 bg-gradient-to-tr from-white/20 to-transparent opacity-40 ${isThinking ? 'animate-spin' : isAiSpeaking ? 'animate-[spin_10s_linear_infinite]' : 'animate-spin-slow'}`} />
         
-        <div className={`relative transition-all duration-300 select-none ${isAiSpeaking ? 'animate-vibe-in' : active && volume > 0.01 ? 'scale-110 -rotate-3' : 'scale-100'} ${isThinking ? 'animate-pulse' : ''}`}>
-           <div className={`text-4xl md:text-8xl ${isAiSpeaking ? 'animate-eye-blink' : ''}`}>
+        <div className={`relative flex flex-col items-center transition-all duration-300 select-none ${isAiSpeaking ? 'animate-speaking-vibes' : active && volume > 0.01 ? 'scale-110 -rotate-3' : 'scale-100'} ${isThinking ? 'animate-pulse' : ''}`}>
+           <div className={`text-5xl md:text-9xl transition-transform ${isAiSpeaking ? 'animate-eye-blink' : ''}`}>
              {isThinking ? '🤔' : active && !isAiSpeaking && volume > 0.01 ? '👂' : personality.emoji}
            </div>
            
            {/* Speech Visual Cues (Mouth Movement) */}
            {isAiSpeaking && (
-             <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-none">
-               <div className="bg-black/60 dark:bg-white/60 rounded-full animate-lip-sync shadow-[0_0_15px_rgba(255,255,255,0.4)]" />
+             <div className="mt-2 flex items-center justify-center pointer-events-none">
+               <div className="bg-black/60 dark:bg-white/60 rounded-full animate-lip-sync shadow-[0_0_20px_rgba(255,255,255,0.5)] border border-white/20" />
              </div>
            )}
         </div>
@@ -308,19 +308,19 @@ const AIVibeAvatar = ({ volume, active, isThinking, personality, isAiSpeaking, a
       </div>
 
       {isAiSpeaking && (
-        <div className="absolute -top-8 flex gap-2">
-           <Music className="text-white animate-bounce w-5 h-5 opacity-60" style={{ animationDelay: '0s' }} />
-           <Waves className="text-white animate-pulse w-6 h-6 opacity-40" />
-           <Music className="text-white animate-bounce w-5 h-5 opacity-60" style={{ animationDelay: '0.5s' }} />
+        <div className="absolute -top-8 flex gap-3">
+           <Music className="text-white animate-bounce w-5 h-5 opacity-80" style={{ animationDelay: '0s' }} />
+           <Waves className="text-white animate-pulse w-8 h-8 opacity-60" />
+           <Music className="text-white animate-bounce w-5 h-5 opacity-80" style={{ animationDelay: '0.4s' }} />
         </div>
       )}
 
       {active && (
-        <div className="absolute -bottom-8 flex gap-1 h-8 items-end">
-          {[...Array(8)].map((_, i) => (
-            <div key={i} className="w-1 bg-white rounded-full transition-all duration-75" 
+        <div className="absolute -bottom-8 flex gap-1.5 h-10 items-end">
+          {[...Array(12)].map((_, i) => (
+            <div key={i} className="w-1.5 bg-white rounded-full transition-all duration-75 shadow-lg shadow-white/20" 
                  style={{ 
-                   height: `${isAiSpeaking ? (30 + Math.random() * 40) : (active && volume > 0.01 ? (10 + volume * 200 * Math.random()) : 10)}%`,
+                   height: `${isAiSpeaking ? (40 + Math.random() * 50) : (active && volume > 0.01 ? (15 + volume * 250 * Math.random()) : 10)}%`,
                    opacity: isAiSpeaking || (active && volume > 0.01) ? 1 : 0.2
                  }} />
           ))}
@@ -364,7 +364,9 @@ export default function App() {
       return {
         ...parsed,
         speakingRate: parsed.speakingRate || 1.0,
-        speakingPitch: parsed.speakingPitch || 1.0
+        speakingPitch: parsed.speakingPitch || 1.0,
+        wakeWordEnabled: parsed.wakeWordEnabled ?? true,
+        customCommands: parsed.customCommands || []
       };
     }
     return {
@@ -373,7 +375,9 @@ export default function App() {
       personalityId: PersonalityId.NORMAL,
       voiceName: "Zephyr",
       speakingRate: 1.0,
-      speakingPitch: 1.0
+      speakingPitch: 1.0,
+      wakeWordEnabled: true,
+      customCommands: []
     };
   });
   
@@ -394,10 +398,15 @@ export default function App() {
   const [editingText, setEditingText] = useState('');
   const [activeReactionMenu, setActiveReactionMenu] = useState<string | null>(null);
   const [stagedFile, setStagedFile] = useState<{ data: string, mimeType: string, fileName: string } | null>(null);
+
+  // Custom Commands Management
+  const [newTrigger, setNewTrigger] = useState('');
+  const [newAction, setNewAction] = useState('');
   
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const avatarUploadRef = useRef<HTMLInputElement>(null);
+  const wakeWordRecognitionRef = useRef<any>(null);
 
   const activeSession = useMemo(() => sessions.find(s => s.id === activeSessionId), [sessions, activeSessionId]);
   const messages = activeSession?.messages || [];
@@ -606,6 +615,61 @@ export default function App() {
     onError: (m) => showToast(m, "error")
   });
 
+  // --- Wake Word Logic ---
+  useEffect(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition || !settings.wakeWordEnabled || isLive || isConnecting || !user) return;
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.onresult = (event: any) => {
+      const transcript = Array.from(event.results)
+        .map((result: any) => result[0].transcript)
+        .join('')
+        .toLowerCase();
+      
+      if (transcript.includes('mr cute') || transcript.includes('mister cute')) {
+        recognition.stop();
+        showToast("Wake word detected! 🎤", "success");
+        connectLive();
+      }
+    };
+
+    recognition.onerror = () => {
+       // Silently restart on error
+       try { recognition.start(); } catch(e) {}
+    };
+
+    recognition.onend = () => {
+      if (settings.wakeWordEnabled && !isLive && !isConnecting) {
+        try { recognition.start(); } catch(e) {}
+      }
+    };
+
+    try { recognition.start(); } catch(e) {}
+    wakeWordRecognitionRef.current = recognition;
+
+    return () => {
+      try { recognition.stop(); } catch(e) {}
+    };
+  }, [settings.wakeWordEnabled, isLive, isConnecting, user, connectLive]);
+
+  const handleAddCommand = () => {
+    if (!newTrigger.trim() || !newAction.trim()) return;
+    const cmd: CustomCommand = { id: Date.now().toString(), trigger: newTrigger.trim(), action: newAction.trim() };
+    setSettings(prev => ({ ...prev, customCommands: [...prev.customCommands, cmd] }));
+    setNewTrigger('');
+    setNewAction('');
+    showToast("Shortcut mapped! ⚡", "success");
+  };
+
+  const handleRemoveCommand = (id: string) => {
+    setSettings(prev => ({ ...prev, customCommands: prev.customCommands.filter(c => c.id !== id) }));
+  };
+
   const handleUpdateUser = () => { if (!editUserName.trim()) return; setUser(prev => prev ? { ...prev, userName: editUserName } : null); showToast("Identity updated! ✨", "success"); };
 
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -755,7 +819,7 @@ export default function App() {
 
       <div className={`fixed inset-y-0 left-0 z-[450] w-[85%] max-w-xs bg-white dark:bg-zinc-950 border-r border-zinc-200 dark:border-white/5 transition-transform duration-500 ease-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} md:relative shadow-2xl md:shadow-none h-full`}>
         <div className="flex flex-col h-full">
-          <div className="p-6 flex items-center justify-between"><div className="flex items-center gap-3"><Logo className="w-8 h-8" /><h2 className="text-2xl font-black italic tracking-tighter uppercase text-zinc-900 dark:text-white leading-none">Vibe Log</h2></div><button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-zinc-500 p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors"><X size={20}/></button></div>
+          <div className="p-6 flex items-center justify-between"><div className="flex items-center gap-3"><Logo className="w-8 h-8" /><h2 className="text-xl font-black italic tracking-tighter uppercase text-zinc-900 dark:text-white leading-none">Mr. Vibe AI</h2></div><button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-zinc-500 p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors"><X size={20}/></button></div>
           <div className="px-6 pb-4"><button onClick={handleNewChat} className="w-full flex items-center justify-center gap-3 bg-blue-600 text-white py-4 rounded-2xl font-black shadow-xl hover:bg-blue-500 transition-all active:scale-95"><Plus size={18} /> New Board</button></div>
           <div className="flex-1 overflow-y-auto px-4 space-y-2 custom-scrollbar">
             {sessions.map(s => (
@@ -781,23 +845,22 @@ export default function App() {
       <div className="flex-1 flex flex-col relative h-full overflow-hidden w-full">
         <header className="h-[72px] min-h-[72px] px-4 md:px-8 border-b border-zinc-100 dark:border-white/5 flex items-center justify-between bg-white/80 dark:bg-black/80 backdrop-blur-3xl sticky top-0 z-[300] w-full">
           <div className="flex items-center gap-3 md:gap-4">
-            <button onClick={() => setIsSidebarOpen(true)} className="p-2 bg-zinc-100 dark:bg-zinc-800 rounded-xl md:hidden text-zinc-900 dark:text-white shadow-sm active:scale-90 transition-all"><Menu size={20} /></button>
+            <button onClick={() => setIsSidebarOpen(true)} className="p-3 bg-zinc-100/50 dark:bg-zinc-800/80 rounded-2xl md:hidden text-zinc-900 dark:text-white shadow-sm active:scale-90 transition-all border border-black/5 dark:border-white/5"><Menu size={20} /></button>
             <button onClick={() => setIsProfileModalOpen(true)} className="flex items-center gap-2 md:gap-3 cursor-pointer group outline-none active:scale-95 transition-transform">
-              <div className="relative"><img src={user?.avatarUrl} className="w-8 h-8 md:w-11 md:h-11 rounded-[0.8rem] md:rounded-[1.2rem] border-2 border-white dark:border-zinc-800 shadow-lg" alt="Avatar" /><div className={`absolute -bottom-1 -right-1 w-3 h-3 md:w-3.5 md:h-3.5 rounded-full border-2 border-white dark:border-zinc-900 shadow-sm ${apiStatus === 'connected' ? 'bg-green-500' : 'bg-rose-500 animate-pulse'}`} /></div>
+              <div className="relative"><img src={user?.avatarUrl} className="w-10 h-10 md:w-11 md:h-11 rounded-2xl border-2 border-white dark:border-zinc-800 shadow-lg" alt="Avatar" /><div className={`absolute -bottom-1 -right-1 w-3 h-3 md:w-3.5 md:h-3.5 rounded-full border-2 border-white dark:border-zinc-900 shadow-sm ${apiStatus === 'connected' ? 'bg-green-500' : 'bg-rose-500 animate-pulse'}`} /></div>
               <div className="hidden sm:block text-left"><h1 className="text-sm font-black text-zinc-900 dark:text-white tracking-tight">{user?.userName}</h1><p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Master Key</p></div>
             </button>
           </div>
-          <div className="flex items-center gap-1.5 md:gap-3">
-            <button onClick={handleSummarize} disabled={isSummarizing} className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-blue-600/10 text-[9px] md:text-[10px] font-black uppercase tracking-widest text-blue-600 border border-blue-500/20 active:scale-95 transition-all disabled:opacity-50">
-              <ListFilter size={14} className={isSummarizing ? "animate-spin" : ""} /> <span className="hidden sm:inline">{isSummarizing ? "Cooking..." : "Summary Report"}</span>
+          <div className="flex items-center gap-2 md:gap-4">
+            <button onClick={handleSummarize} disabled={isSummarizing} className="w-11 h-11 flex items-center justify-center rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-blue-500 border border-black/5 dark:border-white/5 active:scale-95 transition-all disabled:opacity-50">
+              <ListFilter size={20} className={isSummarizing ? "animate-spin" : ""} />
             </button>
-            <button onClick={connectLive} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-600/20 active:scale-95 transition-all">
-              <Mic size={16} /> <span>Note Taker</span>
+            <button onClick={connectLive} className="h-11 px-6 bg-blue-600 text-white rounded-full text-[11px] font-black uppercase tracking-wider shadow-lg shadow-blue-600/30 active:scale-95 transition-all flex items-center gap-2.5">
+              <Mic size={18} /> <span>NOTETAKER</span>
             </button>
-            <div className="h-8 w-[1px] bg-zinc-100 dark:bg-white/5 mx-1 hidden md:block" />
-            <button onClick={() => setIsNotifOpen(true)} className="p-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-blue-500 transition-all relative hidden md:flex">
+            <button onClick={() => setIsNotifOpen(true)} className="w-11 h-11 flex items-center justify-center rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-blue-500 border border-black/5 dark:border-white/5 relative">
               {notifications.length > 0 && <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full animate-ping" />}
-              <Bell size={22} />
+              <Bell size={20} />
             </button>
           </div>
         </header>
@@ -1051,6 +1114,75 @@ export default function App() {
                     >
                       Update frequency
                     </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Voice Command & Wake Word Section */}
+              <div className="space-y-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between px-1">
+                    <div className="flex items-center gap-2">
+                      <Mic size={14} className="text-blue-500" />
+                      <label className="text-[9px] md:text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 block">VOICE WAKE</label>
+                    </div>
+                    <button 
+                      onClick={() => setSettings(prev => ({ ...prev, wakeWordEnabled: !prev.wakeWordEnabled }))}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${settings.wakeWordEnabled ? 'bg-blue-600' : 'bg-zinc-200 dark:bg-zinc-800'}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.wakeWordEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+                  <p className="text-[8px] md:text-[9px] text-zinc-500 font-bold px-1 tracking-wide">WHEN ENABLED, SAY "MR. CUTE" TO ACTIVATE VOICE CONTROL AUTOMATICALLY.</p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 px-1">
+                    <Zap size={14} className="text-blue-500" />
+                    <label className="text-[9px] md:text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 block">CUSTOM SHORTCUTS</label>
+                  </div>
+                  
+                  <div className="bg-zinc-50 dark:bg-white/5 p-4 md:p-6 rounded-[2rem] border border-black/5 dark:border-white/5 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <span className="text-[8px] font-black text-zinc-400 uppercase tracking-widest ml-1">If I say...</span>
+                        <input 
+                          type="text" placeholder="e.g. 'Go dark'" 
+                          value={newTrigger} onChange={e => setNewTrigger(e.target.value)}
+                          className="w-full bg-zinc-100 dark:bg-black/40 rounded-xl py-3 px-4 text-xs font-bold outline-none border-2 border-transparent focus:border-blue-500 transition-all text-zinc-900 dark:text-white"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <span className="text-[8px] font-black text-zinc-400 uppercase tracking-widest ml-1">Do/Say this...</span>
+                        <div className="flex gap-2">
+                          <input 
+                            type="text" placeholder="e.g. 'Switch theme to dark'" 
+                            value={newAction} onChange={e => setNewAction(e.target.value)}
+                            className="flex-1 bg-zinc-100 dark:bg-black/40 rounded-xl py-3 px-4 text-xs font-bold outline-none border-2 border-transparent focus:border-blue-500 transition-all text-zinc-900 dark:text-white"
+                          />
+                          <button onClick={handleAddCommand} className="bg-blue-600 text-white p-3 rounded-xl active:scale-95"><Plus size={18} /></button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 mt-4">
+                      {settings.customCommands.length === 0 ? (
+                        <p className="text-[9px] text-zinc-400 font-bold italic text-center py-2">No custom shortcuts mapped yet.</p>
+                      ) : (
+                        settings.customCommands.map(cmd => (
+                          <div key={cmd.id} className="flex items-center justify-between bg-zinc-100 dark:bg-black/20 p-3 rounded-2xl border border-black/5 dark:border-white/5 animate-scale-in">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 bg-blue-500/10 rounded-full flex items-center justify-center text-blue-600"><Hash size={14} /></div>
+                              <div>
+                                <p className="text-[10px] font-black text-zinc-900 dark:text-white uppercase leading-none">{cmd.trigger}</p>
+                                <p className="text-[8px] font-bold text-zinc-500 mt-1">→ {cmd.action}</p>
+                              </div>
+                            </div>
+                            <button onClick={() => handleRemoveCommand(cmd.id)} className="p-2 text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all"><Trash2 size={14} /></button>
+                          </div>
+                        ))
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

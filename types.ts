@@ -52,6 +52,12 @@ export interface GroundingSource {
   uri: string;
 }
 
+export interface CustomCommand {
+  id: string;
+  trigger: string;
+  action: string;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'model';
@@ -79,6 +85,8 @@ export interface AppSettings {
   voiceName: string;
   speakingRate: number;
   speakingPitch: number;
+  wakeWordEnabled: boolean;
+  customCommands: CustomCommand[];
 }
 
 export type ApiStatus = 'checking' | 'connected' | 'error';
