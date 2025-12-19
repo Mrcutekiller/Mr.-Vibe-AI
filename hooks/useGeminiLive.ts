@@ -10,7 +10,7 @@ interface UseGeminiLiveProps {
   personality: Personality;
   settings: AppSettings;
   user: User;
-  onTranscript: (text: string, isModel: boolean, isInterim: boolean) => void;
+  onTranscript: (text: string, isInterim: boolean, isModel: boolean) => void;
   onTurnComplete: (userText: string, modelText: string) => void;
   onConnectionStateChange: (isConnected: boolean) => void;
   onCommand: (command: string, args?: any) => void;
@@ -45,7 +45,6 @@ export const useGeminiLive = ({
   const currentInputText = useRef('');
   const currentOutputText = useRef('');
 
-  // Track settings in a ref for use in asynchronous callbacks
   const settingsRef = useRef(settings);
   useEffect(() => {
     settingsRef.current = settings;
@@ -220,16 +219,12 @@ export const useGeminiLive = ({
                   const source = ctx.createBufferSource();
                   source.buffer = audioBuffer;
                   
-                  // Adjust playback speed based on settings (Rate and Pitch combined in one value for source node)
-                  // Gemini Live provides raw PCM, we manipulate playback rate.
-                  // Combining rate and pitch as a single multiplier for playbackRate.
                   const speedMultiplier = settingsRef.current.speakingRate * settingsRef.current.speakingPitch;
                   source.playbackRate.value = speedMultiplier;
 
                   source.connect(ctx.destination);
                   source.start(nextStartTimeRef.current);
                   
-                  // Duration must be adjusted by the playback rate to track the end time correctly
                   nextStartTimeRef.current += (audioBuffer.duration / speedMultiplier);
                   
                   sourcesRef.current.add(source);
@@ -245,7 +240,7 @@ export const useGeminiLive = ({
              if (message.serverContent?.outputTranscription) {
                 const text = message.serverContent.outputTranscription.text;
                 currentOutputText.current += text;
-                onTranscript(text, true, false);
+                onTranscript(text, false, true);
              }
              if (message.serverContent?.turnComplete) {
                 onTurnComplete(currentInputText.current, currentOutputText.current);

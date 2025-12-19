@@ -7,7 +7,7 @@ import {
   User as UserIcon, CheckCircle2, Mail, Lock, Sparkles, 
   ChevronRight, MicOff, MessageSquare, AlertCircle, AlertTriangle, RefreshCw,
   Camera, FileText, Upload, Loader2, Play, Image as ImageIcon, Globe,
-  Leaf, Droplets, Share2, ThumbsUp, ThumbsDown, Edit3, Check, Zap, ExternalLink, Activity, Bell, Music, Film, Heart, GraduationCap, Users, Copy, Share, LogOut, AlertOctagon, Key, Wand2, Info, HelpCircle, Eye, EyeOff, Smile, Rocket, Eraser, Pin, StickyNote, ListFilter, Mic2, UserCheck, ShieldCheck, Palette, FastForward, Sliders
+  Leaf, Droplets, Share2, ThumbsUp, ThumbsDown, Edit3, Check, Zap, ExternalLink, Activity, Bell, Music, Film, Heart, GraduationCap, Users, Copy, Share, LogOut, AlertOctagon, Key, Wand2, Info, HelpCircle, Eye, EyeOff, Smile, Rocket, Eraser, Pin, StickyNote, ListFilter, Mic2, UserCheck, ShieldCheck, Palette, FastForward, Sliders, BookOpen, PenTool
 } from 'lucide-react';
 import { PERSONALITIES, BASE_SYSTEM_PROMPT, AVATARS, GEMINI_VOICES, DISCOVERY_DATA } from './constants';
 import { PersonalityId, Personality, AppSettings, User, ChatSession, Message, ReactionType, GroundingSource, ApiStatus, Gender } from './types';
@@ -224,45 +224,69 @@ const TypingIndicator = ({ personality, label = "Cooking..." }: { personality: a
   </div>
 );
 
-const AIVibeAvatar = ({ volume, active, isThinking, personality }: { volume: number, active: boolean, isThinking: boolean, personality: Personality }) => {
-  const scale = 1 + (active ? volume * 3.5 : isThinking ? 0.2 : 0);
+const NoteWritingIndicator = ({ personality }: { personality: Personality }) => (
+  <div className="flex justify-start w-full animate-vibe-in">
+    <div className="flex flex-col gap-2 max-w-[80%]">
+      <div className="flex items-end gap-3">
+        <div className="w-10 h-10 rounded-2xl bg-amber-500/10 flex items-center justify-center text-2xl shrink-0 overflow-hidden shadow-sm border border-amber-500/20">
+          <span className="animate-bounce">✍️</span>
+        </div>
+        <div className="bg-white dark:bg-zinc-800 rounded-[1.5rem] rounded-bl-none px-5 py-4 shadow-xl border border-black/5 dark:border-white/5 flex items-center gap-4">
+           <div className="relative">
+             <BookOpen size={24} className="text-amber-600 animate-pulse" />
+             <PenTool size={14} className="absolute -top-1 -right-1 text-zinc-900 dark:text-white animate-[bounce_1s_infinite]" />
+           </div>
+           <div className="flex flex-col">
+             <span className="text-[10px] font-black uppercase tracking-widest text-amber-600">Smart Note Taker</span>
+             <span className="text-xs font-bold text-zinc-500">Mr. Cute is writing in your vibe book...</span>
+           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+const AIVibeAvatar = ({ volume, active, isThinking, personality, isAiSpeaking, animationState }: { volume: number, active: boolean, isThinking: boolean, personality: Personality, isAiSpeaking?: boolean, animationState: 'idle' | 'nod' | 'tilt' }) => {
+  const scale = 1 + (active ? (isAiSpeaking ? 0.3 : volume * 4) : isThinking ? 0.2 : 0);
   
-  // Custom colors based on personality
   const getVibeColor = () => {
     const id = personality.id;
-    if (id === PersonalityId.ROAST || id === PersonalityId.CRAZY) return '#f43f5e'; // Rose/Red
-    if (id === PersonalityId.RIZZ_GOD || id === PersonalityId.GIRLFRIEND) return '#d946ef'; // Fuchsia
-    if (id === PersonalityId.WISDOM_GURU) return '#10b981'; // Emerald
-    if (id === PersonalityId.BIG_BRO || id === PersonalityId.ROMAN) return '#2563eb'; // Blue
-    return '#6366f1'; // Default Indigo
+    if (id === PersonalityId.ROAST || id === PersonalityId.CRAZY) return '#f43f5e';
+    if (id === PersonalityId.RIZZ_GOD || id === PersonalityId.GIRLFRIEND) return '#d946ef';
+    if (id === PersonalityId.WISDOM_GURU) return '#10b981';
+    if (id === PersonalityId.BIG_BRO || id === PersonalityId.ROMAN) return '#2563eb';
+    return '#6366f1';
   };
 
   const vibeColor = getVibeColor();
 
   return (
     <div className="relative flex items-center justify-center transition-all duration-500">
-      {/* Background glow layers */}
       <div className={`absolute inset-0 blur-[60px] md:blur-[120px] rounded-full transition-all duration-700 ${active || isThinking ? 'scale-150 opacity-60' : 'scale-100 opacity-0'}`}
         style={{ backgroundColor: vibeColor }} />
       
-      {/* Main Core */}
-      <div className={`w-48 h-48 md:w-64 md:h-64 rounded-full relative overflow-hidden transition-all duration-150 shadow-2xl flex items-center justify-center border-4 border-white/20`}
+      <div className={`w-40 h-40 md:w-64 md:h-64 rounded-full relative overflow-hidden transition-all duration-150 shadow-2xl flex items-center justify-center border-4 border-white/20 ${animationState === 'nod' ? 'animate-nod' : animationState === 'tilt' ? 'animate-tilt' : ''}`}
         style={{ 
           transform: `scale(${scale})`, 
           opacity: active || isThinking ? 1 : 0.4, 
           background: `radial-gradient(circle at 30% 30%, ${vibeColor}, #000000)` 
         }}>
         
-        {/* Animated Rings */}
-        <div className={`absolute inset-0 border-2 border-white/10 rounded-full ${active ? 'animate-ping' : ''}`} />
-        <div className={`absolute inset-0 bg-gradient-to-tr from-white/20 to-transparent opacity-40 ${isThinking ? 'animate-spin' : 'animate-spin-slow'}`} />
+        {isAiSpeaking ? (
+          <div className="absolute inset-0 bg-white/5 animate-pulse flex items-center justify-center">
+             <div className="w-full h-1 bg-white/20 scale-x-150 rotate-45 animate-pulse" />
+             <div className="w-full h-1 bg-white/20 scale-x-150 -rotate-45 animate-pulse" />
+          </div>
+        ) : active && volume > 0.01 && (
+          <div className="absolute inset-0 border-[8px] border-white/20 rounded-full animate-ping" />
+        )}
+
+        <div className={`absolute inset-0 bg-gradient-to-tr from-white/20 to-transparent opacity-40 ${isThinking ? 'animate-spin' : isAiSpeaking ? 'animate-[spin_8s_linear_infinite]' : 'animate-spin-slow'}`} />
         
-        {/* The Soul (Emoji) */}
-        <div className={`text-6xl md:text-8xl transition-all duration-200 select-none ${active ? 'scale-110 rotate-3' : 'scale-100'} ${isThinking ? 'animate-bounce' : ''}`}>
-          {personality.emoji}
+        <div className={`text-5xl md:text-8xl transition-all duration-300 select-none ${isAiSpeaking ? 'animate-[bounce_2s_infinite] rotate-6' : active && volume > 0.01 ? 'scale-110 -rotate-3' : 'scale-100'} ${isThinking ? 'animate-pulse' : ''}`}>
+          {isThinking ? '🤔' : isAiSpeaking ? '🗣️' : active && volume > 0.01 ? '👂' : personality.emoji}
         </div>
 
-        {/* Reaction overlays */}
         {isThinking && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <Sparkles className="text-white animate-pulse w-16 h-16 opacity-30" />
@@ -270,12 +294,22 @@ const AIVibeAvatar = ({ volume, active, isThinking, personality }: { volume: num
         )}
       </div>
 
-      {/* Audio Wave Visualizers when active */}
+      {isAiSpeaking && (
+        <div className="absolute -top-10 flex gap-2">
+           <Music className="text-white animate-bounce w-6 h-6 opacity-60" style={{ animationDelay: '0s' }} />
+           <Waves className="text-white animate-pulse w-8 h-8 opacity-40" />
+           <Music className="text-white animate-bounce w-6 h-6 opacity-60" style={{ animationDelay: '0.5s' }} />
+        </div>
+      )}
+
       {active && (
         <div className="absolute -bottom-8 flex gap-1 h-8 items-end">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="w-1.5 bg-white rounded-full animate-bounce" 
-                 style={{ height: `${20 + volume * 150 * Math.random()}%`, animationDelay: `${i * 0.1}s` }} />
+          {[...Array(8)].map((_, i) => (
+            <div key={i} className="w-1 bg-white rounded-full transition-all duration-75" 
+                 style={{ 
+                   height: `${isAiSpeaking ? (30 + Math.random() * 40) : (active && volume > 0.01 ? (10 + volume * 200 * Math.random()) : 10)}%`,
+                   opacity: isAiSpeaking || (active && volume > 0.01) ? 1 : 0.2
+                 }} />
           ))}
         </div>
       )}
@@ -340,6 +374,8 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState<{text: string, isModel: boolean}[]>([]);
   const [editUserName, setEditUserName] = useState('');
+  const [isAiSpeakingGlobal, setIsAiSpeakingGlobal] = useState(false);
+  const [avatarAnimation, setAvatarAnimation] = useState<'idle' | 'nod' | 'tilt'>('idle');
 
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
@@ -496,9 +532,29 @@ export default function App() {
 
   const { connect: connectLive, disconnect: disconnectLive, isLive, isConnecting, volume } = useGeminiLive({
     apiKey: currentApiKey, personality: currentPersonality, settings, user: user || tempProfile as User,
-    onTranscript: (t, iM) => setLiveTranscript(prev => [...prev, { text: t, isModel: iM }]),
+    onTranscript: (t, iM, isModel) => {
+        setLiveTranscript(prev => [...prev, { text: t, isModel }]);
+        if (isModel) {
+          setIsAiSpeakingGlobal(true);
+        } else {
+          // Reactive Animation Logic for User Speech
+          const lower = t.toLowerCase();
+          if (t.includes('?')) {
+            setAvatarAnimation('tilt');
+            setTimeout(() => setAvatarAnimation('idle'), 1200);
+          } else if (t.includes('!') || /(wow|amazing|cool|hype|great|awesome|yeah|no cap|cap)/.test(lower)) {
+            setAvatarAnimation('nod');
+            setTimeout(() => setAvatarAnimation('idle'), 1000);
+          } else if (/^(what|how|why|who|where|when)/.test(lower)) {
+            setAvatarAnimation('tilt');
+            setTimeout(() => setAvatarAnimation('idle'), 1500);
+          }
+        }
+    },
     onTurnComplete: (u, m) => { 
       setLiveTranscript([]); 
+      setIsAiSpeakingGlobal(false);
+      setAvatarAnimation('idle');
       const sId = activeSessionId || handleNewChat(); 
       const isQuestion = u.trim().endsWith('?') || u.toLowerCase().startsWith('what') || u.toLowerCase().startsWith('how') || u.toLowerCase().startsWith('why');
       setSessions(prev => prev.map(s => s.id === sId ? { ...s, messages: [...s.messages, { id: `u-${Date.now()}`, role: 'user', text: u, timestamp: Date.now(), isQuestion }, { id: `m-${Date.now() + 1}`, role: 'model', text: m, timestamp: Date.now() + 1, isNote: isQuestion }] } : s)); 
@@ -610,29 +666,36 @@ export default function App() {
       {toast && <NotificationToast {...toast} onClose={() => setToast(null)} />}
       
       {(isLive || isConnecting || isSummarizing) && (
-        <div className="fixed inset-0 z-[5000] bg-white dark:bg-black/95 backdrop-blur-3xl flex flex-col items-center justify-between p-6 animate-fade-in">
+        <div className="fixed inset-0 z-[5000] bg-white dark:bg-black/95 backdrop-blur-3xl flex flex-col items-center justify-between p-6 animate-fade-in overflow-hidden">
           <div className="w-full flex justify-end"><button onClick={() => { disconnectLive(); setIsSummarizing(false); }} className="p-4 bg-zinc-900/10 dark:bg-white/10 hover:bg-rose-500 text-zinc-900 dark:text-white hover:text-white rounded-full transition-all"><X size={24}/></button></div>
-          <div className="flex-1 flex flex-col items-center justify-center gap-8 text-center w-full">
-            <AIVibeAvatar volume={volume} active={isLive} isThinking={isSummarizing || isConnecting} personality={currentPersonality} />
+          <div className="flex-1 flex flex-col items-center justify-center gap-6 md:gap-8 text-center w-full px-4 overflow-hidden">
+            <AIVibeAvatar 
+               volume={volume} 
+               active={isLive} 
+               isThinking={isSummarizing || isConnecting} 
+               personality={currentPersonality} 
+               isAiSpeaking={isAiSpeakingGlobal}
+               animationState={avatarAnimation}
+            />
             <div className="space-y-2">
-              <h2 className="text-3xl md:text-5xl font-black text-zinc-900 dark:text-white italic tracking-tighter uppercase leading-none">
-                {isConnecting ? "Tuning..." : isSummarizing ? "Summarizing..." : "Voice Control Active"}
+              <h2 className="text-2xl md:text-5xl font-black text-zinc-900 dark:text-white italic tracking-tighter uppercase leading-none">
+                {isConnecting ? "Tuning..." : isSummarizing ? "Summarizing..." : isAiSpeakingGlobal ? "Mr. Cute is Talking" : "Listening to Vibe..."}
               </h2>
               <p className="text-blue-600 dark:text-blue-400 font-bold uppercase tracking-widest text-[10px] animate-pulse">
                 {isLive ? "Link Active (Noise Canceling On)" : "Establishing Link..."}
               </p>
             </div>
-            <div className="max-w-2xl px-4 w-full h-[15vh] overflow-hidden">
+            <div className="max-w-2xl px-4 w-full h-[12vh] md:h-[15vh] overflow-hidden">
                <div className="space-y-4 animate-slide-up">
-                {liveTranscript.slice(-4).map((t, i) => (
-                  <p key={i} className={`text-lg md:text-xl font-black italic leading-tight transition-all duration-300 ${t.isModel ? 'text-zinc-900 dark:text-white' : 'text-zinc-400 opacity-60'}`}>
+                {liveTranscript.slice(-3).map((t, i) => (
+                  <p key={i} className={`text-base md:text-xl font-black italic leading-tight transition-all duration-300 ${t.isModel ? 'text-zinc-900 dark:text-white' : 'text-zinc-400 opacity-60'}`}>
                     {t.text}
                   </p>
                 ))}
               </div>
             </div>
           </div>
-          <button onClick={() => { disconnectLive(); setIsSummarizing(false); }} className="w-full md:w-auto px-10 py-5 bg-rose-600 text-white rounded-[2rem] font-black shadow-3xl flex items-center justify-center gap-3"><MicOff size={24} /> Close Session</button>
+          <button onClick={() => { disconnectLive(); setIsSummarizing(false); }} className="w-full md:w-auto px-10 py-5 bg-rose-600 text-white rounded-[2rem] font-black shadow-3xl flex items-center justify-center gap-3 active:scale-95 transition-all"><MicOff size={24} /> Close Session</button>
         </div>
       )}
 
@@ -665,31 +728,27 @@ export default function App() {
 
       <div className="flex-1 flex flex-col relative h-full overflow-hidden w-full">
         <header className="h-[72px] min-h-[72px] px-4 md:px-8 border-b border-zinc-100 dark:border-white/5 flex items-center justify-between bg-white/80 dark:bg-black/80 backdrop-blur-3xl sticky top-0 z-[300] w-full">
-          <div className="flex items-center gap-4">
-            <button onClick={() => setIsSidebarOpen(true)} className="p-2.5 bg-zinc-100 dark:bg-zinc-800 rounded-2xl md:hidden text-zinc-900 dark:text-white shadow-sm active:scale-90 transition-all"><Menu size={22} /></button>
-            <button onClick={() => setIsProfileModalOpen(true)} className="flex items-center gap-3 cursor-pointer group outline-none active:scale-95 transition-transform">
-              <div className="relative"><img src={user?.avatarUrl} className="w-10 h-10 md:w-11 md:h-11 rounded-[1.2rem] border-2 border-white dark:border-zinc-800 shadow-lg" alt="Avatar" /><div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-zinc-900 shadow-sm ${apiStatus === 'connected' ? 'bg-green-500' : 'bg-rose-500 animate-pulse'}`} /></div>
+          <div className="flex items-center gap-3 md:gap-4">
+            <button onClick={() => setIsSidebarOpen(true)} className="p-2 bg-zinc-100 dark:bg-zinc-800 rounded-xl md:hidden text-zinc-900 dark:text-white shadow-sm active:scale-90 transition-all"><Menu size={20} /></button>
+            <button onClick={() => setIsProfileModalOpen(true)} className="flex items-center gap-2 md:gap-3 cursor-pointer group outline-none active:scale-95 transition-transform">
+              <div className="relative"><img src={user?.avatarUrl} className="w-8 h-8 md:w-11 md:h-11 rounded-[0.8rem] md:rounded-[1.2rem] border-2 border-white dark:border-zinc-800 shadow-lg" alt="Avatar" /><div className={`absolute -bottom-1 -right-1 w-3 h-3 md:w-3.5 md:h-3.5 rounded-full border-2 border-white dark:border-zinc-900 shadow-sm ${apiStatus === 'connected' ? 'bg-green-500' : 'bg-rose-500 animate-pulse'}`} /></div>
               <div className="hidden sm:block text-left"><h1 className="text-sm font-black text-zinc-900 dark:text-white tracking-tight">{user?.userName}</h1><p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Master Key</p></div>
             </button>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={handleSummarize} className="flex items-center gap-2 px-3 py-2 rounded-full bg-blue-600/10 text-[10px] font-black uppercase tracking-widest text-blue-600 border border-blue-500/20 active:scale-95 transition-all">
+          <div className="flex items-center gap-1.5 md:gap-2">
+            <button onClick={handleSummarize} className="flex items-center gap-1.5 px-2.5 py-1.5 md:px-3 md:py-2 rounded-full bg-blue-600/10 text-[9px] md:text-[10px] font-black uppercase tracking-widest text-blue-600 border border-blue-500/20 active:scale-95 transition-all">
               <ListFilter size={14} /> <span className="hidden sm:inline">Summarize</span>
             </button>
-            <button onClick={handleClearChat} className="flex items-center gap-2 px-3 py-2 rounded-full bg-rose-500/10 text-[10px] font-black uppercase tracking-widest text-rose-500 border border-rose-500/20 active:scale-95 transition-all">
+            <button onClick={handleClearChat} className="flex items-center gap-1.5 px-2.5 py-1.5 md:px-3 md:py-2 rounded-full bg-rose-500/10 text-[9px] md:text-[10px] font-black uppercase tracking-widest text-rose-500 border border-rose-500/20 active:scale-95 transition-all">
               <Eraser size={14} /> <span className="hidden sm:inline">Reset</span>
             </button>
-            <div className="h-8 w-[1px] bg-zinc-100 dark:bg-white/5 mx-1" />
-            <button onClick={() => setIsNotifOpen(true)} className="p-2.5 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-blue-500 transition-all relative">
+            <div className="h-8 w-[1px] bg-zinc-100 dark:bg-white/5 mx-1 hidden md:block" />
+            <button onClick={() => setIsNotifOpen(true)} className="p-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-blue-500 transition-all relative hidden md:flex">
               {notifications.length > 0 && <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full animate-ping" />}
               <Bell size={22} />
             </button>
-            <button onClick={connectLive} className="flex items-center gap-2 px-3 py-2.5 bg-zinc-900 dark:bg-white text-white dark:text-black rounded-2xl shadow-xl active:scale-90 transition-all font-black text-[10px] uppercase tracking-widest">
-              <FileText size={18} />
-              <span className="hidden lg:inline">Voice Note</span>
-            </button>
-            <button onClick={connectLive} className="p-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl shadow-xl active:scale-90 transition-all">
-              <Mic size={22} />
+            <button onClick={connectLive} className="p-2 md:p-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl md:rounded-2xl shadow-xl active:scale-90 transition-all">
+              <Mic size={20} className="md:w-[22px] md:h-[22px]" />
             </button>
           </div>
         </header>
@@ -801,7 +860,7 @@ export default function App() {
                 ))}
               </>
             )}
-            {isLoading && <TypingIndicator personality={currentPersonality} />}
+            {isLoading && <NoteWritingIndicator personality={currentPersonality} />}
             {isSummarizing && <TypingIndicator personality={currentPersonality} label="Distilling..." />}
             <div ref={bottomRef} className="h-24" />
           </div>
@@ -837,88 +896,87 @@ export default function App() {
       </div>
 
       {isProfileModalOpen && (
-        <div className="fixed inset-0 z-[6000] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[6000] flex items-center justify-center p-2 sm:p-4">
           <div className="absolute inset-0 bg-black/85 backdrop-blur-2xl animate-fade-in" onClick={() => setIsProfileModalOpen(false)} />
-          <div className="relative w-full max-w-3xl bg-white dark:bg-zinc-950 rounded-[4rem] p-6 md:p-12 shadow-3xl animate-vibe-in max-h-[90vh] flex flex-col overflow-hidden border border-white/5" onClick={e => e.stopPropagation()}>
+          <div className="relative w-full max-w-3xl bg-white dark:bg-zinc-950 rounded-[2.5rem] md:rounded-[4rem] p-5 md:p-12 shadow-3xl animate-vibe-in max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden border border-white/5 mx-auto" onClick={e => e.stopPropagation()}>
             
-            <div className="flex justify-between items-center mb-10 shrink-0">
-              <div className="flex items-center gap-5">
-                <div className="p-4 bg-blue-600 text-white rounded-[1.8rem] shadow-xl shadow-blue-600/20">
-                  <UserIcon size={32} />
+            <div className="flex justify-between items-center mb-6 md:mb-10 shrink-0">
+              <div className="flex items-center gap-3 md:gap-5">
+                <div className="p-3 md:p-4 bg-blue-600 text-white rounded-[1.2rem] md:rounded-[1.8rem] shadow-xl shadow-blue-600/20">
+                  <UserIcon size={24} className="md:w-[32px] md:h-[32px]" />
                 </div>
                 <div>
-                  <h2 className="text-3xl font-black uppercase italic text-zinc-900 dark:text-white leading-none tracking-tighter">Profile Sync</h2>
-                  <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mt-1">Manage your AI soul connection</p>
+                  <h2 className="text-xl md:text-3xl font-black uppercase italic text-zinc-900 dark:text-white leading-none tracking-tighter">Profile Sync</h2>
+                  <p className="text-[8px] md:text-[10px] font-black text-zinc-500 uppercase tracking-widest mt-1">Manage AI soul connection</p>
                 </div>
               </div>
-              <button onClick={() => setIsProfileModalOpen(false)} className="p-4 bg-zinc-100 dark:bg-white/5 rounded-3xl active:scale-90 transition-all hover:bg-rose-500/10 hover:text-rose-500 shadow-sm border border-black/5 dark:border-white/5">
-                <X size={28}/>
+              <button onClick={() => setIsProfileModalOpen(false)} className="p-3 md:p-4 bg-zinc-100 dark:bg-white/5 rounded-2xl md:rounded-3xl active:scale-90 transition-all hover:bg-rose-500/10 hover:text-rose-500 shadow-sm">
+                <X size={24} className="md:w-[28px] md:h-[28px]"/>
               </button>
             </div>
 
-            <div className="overflow-y-auto custom-scrollbar pr-4 flex-1 space-y-12">
+            <div className="overflow-y-auto custom-scrollbar pr-1 md:pr-4 flex-1 space-y-8 md:space-y-12 overflow-x-hidden">
               
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="space-y-6">
-                  <div className="flex items-center gap-2 px-2">
-                    <UserCheck size={16} className="text-blue-500" />
-                    <label className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 block">IDENTITY LABEL</label>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
+                <div className="space-y-4 md:space-y-6">
+                  <div className="flex items-center gap-2 px-1 md:px-2">
+                    <UserCheck size={14} className="text-blue-500" />
+                    <label className="text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 block">IDENTITY LABEL</label>
                   </div>
-                  <div className="bg-white dark:bg-white/5 p-8 rounded-[3rem] border border-black/5 dark:border-white/5 shadow-xl flex flex-col items-center gap-8">
+                  <div className="bg-zinc-50 dark:bg-white/5 p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] border border-black/5 dark:border-white/5 shadow-xl flex flex-col items-center gap-6 md:gap-8">
                     <div className="relative group">
-                      <div className="w-32 h-32 md:w-40 md:h-40 rounded-[3rem] overflow-hidden border-4 border-white dark:border-zinc-800 shadow-2xl transition-transform group-hover:scale-105 duration-500">
+                      <div className="w-24 h-24 md:w-40 md:h-40 rounded-[2rem] md:rounded-[3rem] overflow-hidden border-4 border-white dark:border-zinc-800 shadow-2xl transition-transform group-hover:scale-105 duration-500">
                         <img src={user?.avatarUrl} className="w-full h-full object-cover" alt="Avatar" />
                       </div>
-                      <button className="absolute -bottom-3 -right-3 bg-blue-600 text-white p-4 rounded-2xl shadow-xl border-4 border-white dark:border-zinc-900 animate-float hover:scale-110 transition-transform">
-                        <Camera size={20} />
+                      <button className="absolute -bottom-2 -right-2 bg-blue-600 text-white p-3 md:p-4 rounded-xl md:rounded-2xl shadow-xl border-4 border-white dark:border-zinc-900 hover:scale-110 transition-transform">
+                        <Camera size={18} />
                       </button>
                     </div>
-                    <div className="w-full flex gap-3">
+                    <div className="w-full flex gap-2 md:gap-3">
                       <input 
                         type="text" 
                         value={editUserName} 
                         onChange={e => setEditUserName(e.target.value)} 
-                        className="flex-1 bg-zinc-100 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 rounded-2xl py-5 px-6 font-black outline-none text-zinc-900 dark:text-white shadow-inner transition-all text-center uppercase tracking-wider" 
+                        className="flex-1 bg-zinc-100 dark:bg-black/40 border-2 border-transparent focus:border-blue-500 rounded-xl md:rounded-2xl py-3 md:py-5 px-4 md:px-6 font-black outline-none text-zinc-900 dark:text-white shadow-inner transition-all text-center uppercase tracking-wider text-sm md:text-base min-w-0" 
                         placeholder="Alias..."
                       />
-                      <button onClick={handleUpdateUser} className="bg-blue-600 text-white px-6 rounded-2xl active:scale-95 shadow-lg shadow-blue-600/20 hover:bg-blue-500 transition-all">
-                        <Check size={24} strokeWidth={4} />
+                      <button onClick={handleUpdateUser} className="bg-blue-600 text-white px-4 md:px-6 rounded-xl md:rounded-2xl active:scale-95 shadow-lg hover:bg-blue-500 transition-all flex-shrink-0">
+                        <Check size={20} className="md:w-[24px] md:h-[24px]" strokeWidth={4} />
                       </button>
                     </div>
                   </div>
                 </div>
 
-                <div className="space-y-6">
-                  <div className="flex items-center gap-2 px-2">
-                    <ShieldCheck size={16} className="text-blue-500" />
-                    <label className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 block">LICENSE AUTH</label>
+                <div className="space-y-4 md:space-y-6">
+                  <div className="flex items-center gap-2 px-1 md:px-2">
+                    <ShieldCheck size={14} className="text-blue-500" />
+                    <label className="text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 block">LICENSE AUTH</label>
                   </div>
-                  <div className="bg-white dark:bg-white/5 p-8 rounded-[3rem] border border-black/5 dark:border-white/5 shadow-xl space-y-6 h-full flex flex-col">
-                    <div className="flex items-center justify-between bg-zinc-100 dark:bg-black/40 p-4 rounded-2xl shadow-inner border border-black/5 dark:border-white/5">
+                  <div className="bg-zinc-50 dark:bg-white/5 p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] border border-black/5 dark:border-white/5 shadow-xl space-y-4 md:space-y-6 h-full flex flex-col">
+                    <div className="flex items-center justify-between bg-zinc-100 dark:bg-black/40 p-3 md:p-4 rounded-xl md:rounded-2xl shadow-inner">
                       <div className="flex flex-col">
-                        <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Link Status</span>
-                        <span className={`text-xs font-black uppercase flex items-center gap-2 mt-0.5 ${apiStatus === 'connected' ? 'text-green-500' : 'text-rose-500'}`}>
-                          <Activity size={14} className={apiStatus === 'connected' ? '' : 'animate-pulse'} />
-                          {apiStatus === 'connected' ? 'Frequency Live' : 'Link Dead'}
+                        <span className="text-[8px] md:text-[9px] font-black text-zinc-500 uppercase tracking-widest">Link Status</span>
+                        <span className={`text-[10px] md:text-xs font-black uppercase flex items-center gap-1.5 mt-0.5 ${apiStatus === 'connected' ? 'text-green-500' : 'text-rose-500'}`}>
+                          <Activity size={12} className={apiStatus === 'connected' ? '' : 'animate-pulse'} />
+                          {apiStatus === 'connected' ? 'Live' : 'No Link'}
                         </span>
                       </div>
-                      <div className={`w-4 h-4 rounded-full shadow-lg ${apiStatus === 'connected' ? 'bg-green-500 shadow-green-500/20' : 'bg-rose-500 shadow-rose-500/20 animate-pulse'}`} />
+                      <div className={`w-3 h-3 md:w-4 md:h-4 rounded-full shadow-lg ${apiStatus === 'connected' ? 'bg-green-500' : 'bg-rose-500 animate-pulse'}`} />
                     </div>
                     <div className="relative flex-1">
-                      <input 
-                        type={showApiKey ? "text" : "password"} 
+                      <textarea 
                         placeholder="License Auth Key..." 
-                        className="w-full h-full min-h-[80px] bg-zinc-100 dark:bg-black/40 p-6 rounded-2xl border-2 border-transparent focus:border-blue-500 outline-none font-bold text-sm tracking-widest shadow-inner text-zinc-900 dark:text-white" 
+                        className="w-full h-full min-h-[60px] md:min-h-[80px] bg-zinc-100 dark:bg-black/40 p-4 md:p-6 rounded-xl md:rounded-2xl border-2 border-transparent focus:border-blue-500 outline-none font-bold text-xs md:text-sm tracking-widest shadow-inner text-zinc-900 dark:text-white resize-none" 
                         value={manualApiKey} 
                         onChange={(e) => setManualApiKey(e.target.value)} 
                       />
-                      <button onClick={() => setShowApiKey(!showApiKey)} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 text-zinc-400 hover:text-blue-500 transition-colors">
-                        {showApiKey ? <EyeOff size={20} /> : <Eye size={20} />}
+                      <button onClick={() => setShowApiKey(!showApiKey)} className="absolute right-3 top-3 p-2 text-zinc-400 hover:text-blue-500 transition-colors">
+                        {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
                       </button>
                     </div>
                     <button 
                       onClick={async () => { await checkApiConnection(manualApiKey); showToast("License link synchronized! ✨", "success"); }} 
-                      className="w-full py-5 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] bg-zinc-900 dark:bg-white text-white dark:text-black active:scale-95 transition-all shadow-xl hover:opacity-90 hover:scale-[0.98]"
+                      className="w-full py-3 md:py-5 rounded-xl md:rounded-2xl font-black text-[9px] md:text-[11px] uppercase tracking-[0.2em] bg-zinc-900 dark:bg-white text-white dark:text-black active:scale-95 transition-all shadow-xl"
                     >
                       Update Frequency
                     </button>
@@ -926,62 +984,61 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Voice Calibration Section */}
-              <div className="space-y-6">
-                <div className="flex items-center gap-2 px-2">
-                  <Sliders size={16} className="text-blue-500" />
-                  <label className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 block">VOICE CALIBRATION</label>
+              <div className="space-y-4 md:space-y-6">
+                <div className="flex items-center gap-2 px-1 md:px-2">
+                  <Sliders size={14} className="text-blue-500" />
+                  <label className="text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 block">VOICE CALIBRATION</label>
                 </div>
-                <div className="bg-zinc-100 dark:bg-white/5 p-8 rounded-[3rem] space-y-8 border border-black/5 dark:border-white/5">
-                  <div className="space-y-4">
+                <div className="bg-zinc-50 dark:bg-white/5 p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] space-y-6 md:space-y-8 border border-black/5 dark:border-white/5 shadow-xl">
+                  <div className="space-y-3 md:space-y-4">
                     <div className="flex justify-between">
-                      <span className="text-[10px] font-black uppercase text-zinc-500 tracking-widest flex items-center gap-2"><FastForward size={12}/> Speaking Rate</span>
+                      <span className="text-[9px] md:text-[10px] font-black uppercase text-zinc-500 tracking-widest flex items-center gap-2"><FastForward size={12}/> Speaking Rate</span>
                       <span className="text-xs font-black text-blue-500">{settings.speakingRate.toFixed(1)}x</span>
                     </div>
                     <input 
                       type="range" min="0.5" max="2.0" step="0.1" 
                       value={settings.speakingRate} 
                       onChange={(e) => setSettings({...settings, speakingRate: parseFloat(e.target.value)})}
-                      className="w-full h-2 bg-zinc-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-blue-500"
+                      className="w-full h-1.5 md:h-2 bg-zinc-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-blue-500"
                     />
                   </div>
-                  <div className="space-y-4">
+                  <div className="space-y-3 md:space-y-4">
                     <div className="flex justify-between">
-                      <span className="text-[10px] font-black uppercase text-zinc-500 tracking-widest flex items-center gap-2"><Music size={12}/> Vocal Pitch</span>
+                      <span className="text-[9px] md:text-[10px] font-black uppercase text-zinc-500 tracking-widest flex items-center gap-2"><Music size={12}/> Vocal Pitch</span>
                       <span className="text-xs font-black text-blue-500">{settings.speakingPitch.toFixed(1)}x</span>
                     </div>
                     <input 
                       type="range" min="0.5" max="2.0" step="0.1" 
                       value={settings.speakingPitch} 
                       onChange={(e) => setSettings({...settings, speakingPitch: parseFloat(e.target.value)})}
-                      className="w-full h-2 bg-zinc-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-blue-500"
+                      className="w-full h-1.5 md:h-2 bg-zinc-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-blue-500"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-6">
-                <div className="flex items-center gap-2 px-2">
-                  <Palette size={16} className="text-blue-500" />
-                  <label className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 block">ARCHETYPE FREQUENCY</label>
+              <div className="space-y-4 md:space-y-6">
+                <div className="flex items-center gap-2 px-1 md:px-2">
+                  <Palette size={14} className="text-blue-500" />
+                  <label className="text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 block">ARCHETYPE FREQUENCY</label>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 pb-2">
                   {(Object.values(PERSONALITIES) as Personality[]).map(p => {
                     const isSelected = settings.personalityId === p.id;
                     return (
                       <button 
                         key={p.id} 
                         onClick={() => { setSettings({...settings, personalityId: p.id, voiceName: p.voiceName}); showToast(`${p.name} activated!`, "success"); }} 
-                        className={`group relative p-6 rounded-[2.5rem] border-2 transition-all flex flex-col items-center text-center gap-3 active:scale-95 shadow-lg ${isSelected ? 'bg-blue-600 border-blue-500 text-white shadow-blue-600/20 scale-[1.05] z-10' : 'bg-white dark:bg-white/5 border-zinc-100 dark:border-white/5 text-zinc-900 dark:text-white hover:border-blue-500/50 hover:shadow-xl'}`}
+                        className={`group relative p-4 md:p-6 rounded-[1.5rem] md:rounded-[2.5rem] border-2 transition-all flex flex-col items-center text-center gap-2 md:gap-3 active:scale-95 shadow-md ${isSelected ? 'bg-blue-600 border-blue-500 text-white shadow-blue-600/20 scale-[1.02] md:scale-[1.05] z-10' : 'bg-white dark:bg-white/5 border-zinc-100 dark:border-white/5 text-zinc-900 dark:text-white hover:border-blue-500/50'}`}
                       >
-                        <span className={`text-4xl transition-transform group-hover:scale-125 duration-500 ${isSelected ? 'animate-bounce' : ''}`}>{p.emoji}</span>
-                        <div className="space-y-1">
-                          <p className="font-black text-[11px] uppercase tracking-wider leading-none">{p.name}</p>
-                          <p className={`text-[8px] font-bold leading-tight ${isSelected ? 'text-white/70' : 'text-zinc-500'}`}>{p.description}</p>
+                        <span className={`text-3xl md:text-4xl transition-transform duration-500 ${isSelected ? 'animate-bounce' : 'group-hover:scale-110'}`}>{p.emoji}</span>
+                        <div className="space-y-0.5">
+                          <p className="font-black text-[9px] md:text-[11px] uppercase tracking-wider leading-none">{p.name}</p>
+                          <p className={`text-[7px] md:text-[8px] font-bold leading-tight ${isSelected ? 'text-white/70' : 'text-zinc-500'}`}>{p.description}</p>
                         </div>
                         {isSelected && (
-                          <div className="absolute top-4 right-4 bg-white text-blue-600 rounded-full p-1 shadow-lg animate-scale-in">
-                            <Check size={10} strokeWidth={5} />
+                          <div className="absolute top-2 right-2 md:top-4 md:right-4 bg-white text-blue-600 rounded-full p-0.5 md:p-1 shadow-lg">
+                            <Check size={8} strokeWidth={5} className="md:w-[10px] md:h-[10px]" />
                           </div>
                         )}
                       </button>
@@ -990,27 +1047,27 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="space-y-6">
-                <div className="flex items-center gap-2 px-2">
-                  <Mic2 size={16} className="text-blue-500" />
-                  <label className="text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 block">AUDIO ESSENCE</label>
+              <div className="space-y-4 md:space-y-6">
+                <div className="flex items-center gap-2 px-1 md:px-2">
+                  <Mic2 size={14} className="text-blue-500" />
+                  <label className="text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 block">AUDIO ESSENCE</label>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 pb-4">
                   {GEMINI_VOICES.map(voice => {
                     const isSelected = settings.voiceName === voice.id;
                     return (
                       <button 
                         key={voice.id} 
                         onClick={() => { setSettings({...settings, voiceName: voice.id}); showToast(`Voice ${voice.name} linked!`, "success"); }} 
-                        className={`group relative p-5 rounded-[2rem] border-2 transition-all flex flex-col items-center gap-3 active:scale-95 shadow-md ${isSelected ? 'bg-zinc-900 dark:bg-white text-white dark:text-black border-zinc-900 dark:border-white scale-[1.02]' : 'bg-zinc-100 dark:bg-white/5 border-transparent text-zinc-900 dark:text-white hover:bg-zinc-200 dark:hover:bg-white/10'}`}
+                        className={`group relative p-4 md:p-5 rounded-[1.2rem] md:rounded-[2rem] border-2 transition-all flex flex-col items-center gap-2 md:gap-3 active:scale-95 shadow-sm ${isSelected ? 'bg-zinc-900 dark:bg-white text-white dark:text-black border-zinc-900 dark:border-white' : 'bg-zinc-100 dark:bg-white/5 border-transparent text-zinc-900 dark:text-white hover:bg-zinc-200'}`}
                       >
-                        <div className={`p-3 rounded-full ${isSelected ? 'bg-white/20 dark:bg-black/10' : 'bg-black/5 dark:bg-white/5'} transition-colors group-hover:scale-110`}>
-                          <Volume2 size={20} />
+                        <div className={`p-2 md:p-3 rounded-full ${isSelected ? 'bg-white/20 dark:bg-black/10' : 'bg-black/5 dark:bg-white/5'} transition-colors group-hover:scale-110`}>
+                          <Volume2 size={18} className="md:w-[20px] md:h-[20px]" />
                         </div>
-                        <p className="font-black text-[10px] uppercase tracking-widest">{voice.name}</p>
+                        <p className="font-black text-[8px] md:text-[10px] uppercase tracking-widest">{voice.name}</p>
                         {isSelected && (
-                          <div className={`absolute top-3 right-3 rounded-full p-0.5 ${isSelected ? 'bg-white dark:bg-black text-black dark:text-white' : ''}`}>
-                            <Check size={10} strokeWidth={5} />
+                          <div className={`absolute top-2 right-2 rounded-full p-0.5 ${isSelected ? 'bg-white dark:bg-black text-black dark:text-white' : ''}`}>
+                            <Check size={8} strokeWidth={5} className="md:w-[10px] md:h-[10px]" />
                           </div>
                         )}
                       </button>
@@ -1019,15 +1076,15 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="pt-10 pb-8 space-y-4">
+              <div className="pt-6 md:pt-10 pb-6 md:pb-8 space-y-4">
                  <div className="h-[1px] w-full bg-black/5 dark:bg-white/5" />
                  <button 
                   onClick={handleLogOut} 
-                  className="w-full py-6 text-[12px] text-rose-500 font-black uppercase tracking-[0.4em] hover:bg-rose-500/10 rounded-[3rem] transition-all border-4 border-rose-500/20 active:scale-95 shadow-xl flex items-center justify-center gap-4 hover:shadow-rose-500/10"
+                  className="w-full py-4 md:py-6 text-[10px] md:text-[12px] text-rose-500 font-black uppercase tracking-[0.2em] md:tracking-[0.4em] hover:bg-rose-500/10 rounded-[1.5rem] md:rounded-[3rem] transition-all border-2 md:border-4 border-rose-500/20 active:scale-95 flex items-center justify-center gap-3 md:gap-4 shadow-xl"
                 >
-                  <LogOut size={20} /> End Current Session
+                  <LogOut size={18} className="md:w-[20px] md:h-[20px]" /> End Connection
                 </button>
-                <p className="text-[8px] font-black text-center text-zinc-500 uppercase tracking-widest">Mr. Vibe AI Engine • Soul Link v2.6.0</p>
+                <p className="text-[7px] md:text-[8px] font-black text-center text-zinc-500 uppercase tracking-widest">Mr. Vibe AI Engine • Soul Link v2.6.0</p>
               </div>
             </div>
           </div>
