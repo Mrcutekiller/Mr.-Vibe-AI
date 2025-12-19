@@ -37,29 +37,167 @@ const Logo = ({ className = "w-12 h-12", animated = false }: { className?: strin
   </div>
 );
 
-const MarkdownText = ({ text }: { text: string }) => {
-  const parts = text.split(/(```[\s\S]*?```|`.*?`)/g);
+const CodeBlock = ({ content }: { content: string }) => {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
   return (
-    <div className="space-y-2">
-      {parts.map((part, i) => {
-        if (part.startsWith('```')) {
-          const content = part.slice(3, -3).trim();
+    <div className="my-4 bg-zinc-950 dark:bg-black rounded-2xl overflow-hidden border border-zinc-200 dark:border-white/5 shadow-xl animate-vibe-in">
+      <div className="bg-zinc-100 dark:bg-white/5 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-zinc-500 flex justify-between items-center border-b border-zinc-200 dark:border-white/5">
+        <div className="flex items-center gap-2">
+          <Zap size={12} className="text-blue-500" />
+          <span>Script Block</span>
+        </div>
+        <button 
+          onClick={handleCopy} 
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all text-[10px] font-black uppercase ${copied ? 'text-green-500 bg-green-500/10' : 'text-zinc-400 hover:text-blue-500 hover:bg-zinc-200 dark:hover:bg-white/10 active:scale-95'}`}
+        >
+          {copied ? <Check size={12} strokeWidth={3} /> : <Copy size={12} />}
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+      <pre className="p-4 text-[13px] font-mono overflow-x-auto custom-scrollbar leading-relaxed text-zinc-300">
+        <code>{content}</code>
+      </pre>
+    </div>
+  );
+};
+
+const MarkdownText = ({ text }: { text: string }) => {
+  const lines = text.split('\n');
+  const renderedBlocks: any[] = [];
+  let currentList: { listType: 'ul' | 'ol', items: string[] } | null = null;
+  let inCodeBlock = false;
+  let codeBuffer = '';
+
+  lines.forEach((line) => {
+    // Code block toggle
+    if (line.trim().startsWith('```')) {
+      if (inCodeBlock) {
+        renderedBlocks.push({ type: 'code', content: codeBuffer.trim() });
+        codeBuffer = '';
+        inCodeBlock = false;
+      } else {
+        if (currentList) {
+          renderedBlocks.push({ type: 'list', ...currentList });
+          currentList = null;
+        }
+        inCodeBlock = true;
+      }
+      return;
+    }
+
+    if (inCodeBlock) {
+      codeBuffer += line + '\n';
+      return;
+    }
+
+    // List item detection
+    const ulMatch = line.match(/^[\s]*[-*•][\s]+(.*)/);
+    const olMatch = line.match(/^[\s]*\d+\.[\s]+(.*)/);
+
+    if (ulMatch || olMatch) {
+      const listType = ulMatch ? 'ul' : 'ol';
+      const content = ulMatch ? ulMatch[1] : olMatch![1];
+      
+      if (currentList && currentList.listType === listType) {
+        currentList.items.push(content);
+      } else {
+        if (currentList) renderedBlocks.push({ type: 'list', ...currentList });
+        currentList = { listType, items: [content] };
+      }
+      return;
+    }
+
+    // End of list detection
+    if (currentList) {
+      renderedBlocks.push({ type: 'list', ...currentList });
+      currentList = null;
+    }
+
+    // Standard paragraph
+    if (line.trim()) {
+      renderedBlocks.push({ type: 'paragraph', content: line });
+    }
+  });
+
+  if (currentList) renderedBlocks.push({ type: 'list', ...currentList });
+  if (inCodeBlock) renderedBlocks.push({ type: 'code', content: codeBuffer.trim() });
+
+  const renderInline = (input: string) => {
+    // Basic regex for markdown links, raw URLs, bolding, and inline code
+    const regex = /(\[.*?\]\(.*?\)|https?:\/\/[^\s]+|\*\*.*?\*\*|`.*?`)/g;
+    const parts = input.split(regex);
+    
+    return parts.map((part, idx) => {
+      if (!part) return null;
+      
+      // Markdown link: [text](url)
+      if (part.startsWith('[') && part.includes('](')) {
+        const match = part.match(/\[(.*?)\]\((.*?)\)/);
+        if (match) {
           return (
-            <div key={i} className="my-2 bg-black/10 dark:bg-black/40 rounded-xl overflow-hidden border border-black/5 dark:border-white/5">
-              <div className="bg-black/20 dark:bg-white/5 px-4 py-1.5 text-[10px] font-black uppercase tracking-widest text-zinc-500 flex justify-between items-center">
-                <span>Code Block</span>
-                <button onClick={() => navigator.clipboard.writeText(content)} className="hover:text-blue-500 transition-colors"><Copy size={12} /></button>
-              </div>
-              <pre className="p-4 text-[13px] font-mono overflow-x-auto custom-scrollbar leading-relaxed">
-                <code>{content}</code>
-              </pre>
-            </div>
+            <a key={idx} href={match[2]} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-blue-500 hover:text-blue-600 dark:hover:text-blue-400 font-black decoration-2 underline-offset-2 underline decoration-blue-500/20 hover:decoration-blue-500/50 transition-all">
+              <Globe size={14} className="shrink-0" />
+              <span>{match[1]}</span>
+              <ExternalLink size={10} className="shrink-0 opacity-40" />
+            </a>
           );
         }
-        if (part.startsWith('`')) {
-          return <code key={i} className="bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300 px-1.5 py-0.5 rounded-md font-mono text-[13px]">{part.slice(1, -1)}</code>;
+      }
+      
+      // Raw URL
+      if (part.startsWith('http')) {
+        return (
+          <a key={idx} href={part} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-blue-500 hover:text-blue-600 dark:hover:text-blue-400 font-black decoration-2 underline-offset-2 underline decoration-blue-500/20 hover:decoration-blue-500/50 transition-all break-all">
+            <Globe size={14} className="shrink-0" />
+            <span>{part.length > 25 ? part.substring(0, 25) + '...' : part}</span>
+            <ExternalLink size={10} className="shrink-0 opacity-40" />
+          </a>
+        );
+      }
+      
+      // Bold Text
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={idx} className="font-black text-zinc-900 dark:text-white">{part.slice(2, -2)}</strong>;
+      }
+      
+      // Inline Code Snippet
+      if (part.startsWith('`') && part.endsWith('`')) {
+        return <code key={idx} className="bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300 px-1.5 py-0.5 rounded-md font-mono text-[0.85em] font-bold border border-blue-500/10">{part.slice(1, -1)}</code>;
+      }
+      
+      return part;
+    });
+  };
+
+  return (
+    <div className="space-y-3">
+      {renderedBlocks.map((block, i) => {
+        // Use React.Fragment with key to avoid passing key directly to CodeBlock which might cause type errors in strict TS environments
+        if (block.type === 'code') return <React.Fragment key={i}><CodeBlock content={block.content} /></React.Fragment>;
+        
+        if (block.type === 'list') {
+          const ListTag = block.listType === 'ul' ? 'ul' : 'ol';
+          return (
+            <ListTag key={i} className={`space-y-2.5 ml-6 ${block.listType === 'ul' ? 'list-disc' : 'list-decimal'} marker:text-blue-500 marker:font-black`}>
+              {block.items.map((item: string, idx: number) => (
+                <li key={idx} className="pl-2 text-zinc-700 dark:text-zinc-300 leading-snug">
+                  {renderInline(item)}
+                </li>
+              ))}
+            </ListTag>
+          );
         }
-        return <span key={i} className="whitespace-pre-wrap">{part}</span>;
+
+        return (
+          <p key={i} className="text-zinc-700 dark:text-zinc-300 leading-relaxed">
+            {renderInline(block.content)}
+          </p>
+        );
       })}
     </div>
   );
