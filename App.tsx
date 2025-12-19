@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { GoogleGenAI, Modality } from '@google/genai';
 import { 
@@ -13,7 +14,7 @@ import { PersonalityId, Personality, AppSettings, User, ChatSession, Message, Re
 import { useGeminiLive } from './hooks/useGeminiLive';
 import { decode, decodeAudioData } from './utils/audioUtils';
 
-// --- Utility Components ---
+// --- Components ---
 
 const validateEmail = (email: string) => {
   const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -35,6 +36,47 @@ const Logo = ({ className = "w-12 h-12", animated = false }: { className?: strin
     </svg>
   </div>
 );
+
+const MarkdownText = ({ text }: { text: string }) => {
+  const parts = text.split(/(```[\s\S]*?```|`.*?`)/g);
+  return (
+    <div className="space-y-2">
+      {parts.map((part, i) => {
+        if (part.startsWith('```')) {
+          const content = part.slice(3, -3).trim();
+          return (
+            <div key={i} className="my-2 bg-black/10 dark:bg-black/40 rounded-xl overflow-hidden border border-black/5 dark:border-white/5">
+              <div className="bg-black/20 dark:bg-white/5 px-4 py-1.5 text-[10px] font-black uppercase tracking-widest text-zinc-500 flex justify-between items-center">
+                <span>Code Block</span>
+                <button onClick={() => navigator.clipboard.writeText(content)} className="hover:text-blue-500 transition-colors"><Copy size={12} /></button>
+              </div>
+              <pre className="p-4 text-[13px] font-mono overflow-x-auto custom-scrollbar leading-relaxed">
+                <code>{content}</code>
+              </pre>
+            </div>
+          );
+        }
+        if (part.startsWith('`')) {
+          return <code key={i} className="bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300 px-1.5 py-0.5 rounded-md font-mono text-[13px]">{part.slice(1, -1)}</code>;
+        }
+        return <span key={i} className="whitespace-pre-wrap">{part}</span>;
+      })}
+    </div>
+  );
+};
+
+const ReactionPicker = ({ onSelect, onClose }: { onSelect: (r: ReactionType) => void, onClose: () => void }) => {
+  const reactions: ReactionType[] = ['❤️', '👍', '😂', '😮', '🔥', '💀'];
+  return (
+    <div className="absolute bottom-full mb-2 left-0 z-50 animate-scale-in bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-2xl shadow-2xl p-1.5 flex gap-1 items-center">
+      {reactions.map(r => (
+        <button key={r} onClick={() => { onSelect(r); onClose(); }} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-xl transition-all active:scale-125 text-lg">
+          {r}
+        </button>
+      ))}
+    </div>
+  );
+};
 
 const NotificationToast = ({ message, type, onClose }: { message: string, type: 'info' | 'success' | 'error', onClose: () => void }) => (
   <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[2000] w-[90%] max-w-sm animate-vibe-in">
@@ -123,6 +165,9 @@ export default function App() {
 
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
+  const [activeReactionMenu, setActiveReactionMenu] = useState<string | null>(null);
+  
+  const [stagedFile, setStagedFile] = useState<{ data: string, mimeType: string, fileName: string } | null>(null);
   
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -133,8 +178,23 @@ export default function App() {
 
   const currentApiKey = useMemo(() => manualApiKey.trim() || (process.env.API_KEY || ''), [manualApiKey]);
 
+  // Request notifications and microphone permissions on mount
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
+
   const addNotification = (text: string, type: string = 'info') => {
     setNotifications(prev => [{id: Date.now().toString(), text, type, time: Date.now()}, ...prev.slice(0, 19)]);
+    
+    // Also trigger native notification if allowed
+    if ("Notification" in window && Notification.permission === "granted") {
+      new Notification("Mr. Vibe AI", {
+        body: text,
+        icon: user?.avatarUrl || "/favicon.ico",
+      });
+    }
   };
 
   const showToast = (message: string, type: 'info' | 'success' | 'error' = 'info') => {
@@ -211,7 +271,6 @@ export default function App() {
   };
 
   const handleCopy = (text: string) => { navigator.clipboard.writeText(text); showToast("Vibe copied! ✨", "success"); };
-  const handleShare = async (text: string) => { if (navigator.share) { try { await navigator.share({ title: 'Mr. Vibe AI', text: text }); } catch (err) {} } else { handleCopy(text); showToast("Link shared to clipboard! 📋", "success"); } };
 
   async function handleGenerateVibeArt() {
     if (!user || isGeneratingVibe) return;
@@ -238,22 +297,25 @@ export default function App() {
     setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: s.messages.map(m => m.id === messageId ? { ...m, reaction: m.reaction === reaction ? null : reaction } : m) } : s));
   };
 
-  async function handleSendToAI(text: string, fileData?: { data: string, mimeType: string, fileName: string }, regenerateFromId?: string) {
-    if ((!text.trim() && !fileData) || isLoading) return;
+  async function handleSendToAI(text: string, fileToUse?: { data: string, mimeType: string, fileName: string }, regenerateFromId?: string) {
+    const finalFile = fileToUse || stagedFile;
+    if ((!text.trim() && !finalFile) || isLoading) return;
     if (apiStatus !== 'connected') { const isOk = await checkApiConnection(); if (!isOk) { showToast("License Link Failed.", "error"); return; } }
+    
     let sessionId = activeSessionId || handleNewChat();
     if (regenerateFromId) {
         setSessions(prev => prev.map(s => { if (s.id !== sessionId) return s; const idx = s.messages.findIndex(m => m.id === regenerateFromId); return { ...s, messages: [...s.messages.slice(0, idx + 1)], lastTimestamp: Date.now() }; }));
     } else {
-        const userMessage: Message = { id: `u-${Date.now()}`, role: 'user', text: text || 'Check this out!', timestamp: Date.now(), image: fileData ? `data:${fileData.mimeType};base64,${fileData.data}` : undefined };
+        const userMessage: Message = { id: `u-${Date.now()}`, role: 'user', text: text || 'Check this out!', timestamp: Date.now(), image: finalFile ? `data:${finalFile.mimeType};base64,${finalFile.data}` : undefined };
         setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, userMessage], lastTimestamp: Date.now() } : s));
     }
-    setIsLoading(true); setInputText('');
+    
+    setIsLoading(true); setInputText(''); setStagedFile(null);
     try {
       const ai = new GoogleGenAI({ apiKey: currentApiKey });
-      const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}\n\n${PERSONALITIES[settings.personalityId].prompt}\n\nUSER PROFILE: ${user?.userName}, Age ${user?.age}, Mood ${user?.mood}, Hobbies: ${user?.hobbies?.join(', ')}.`;
-      const parts: any[] = [{ text: text || "Yo!" }];
-      if (fileData) parts.push({ inlineData: { mimeType: fileData.mimeType, data: fileData.data } });
+      const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}\n\n${PERSONALITIES[settings.personalityId].prompt}\n\nUSER PROFILE: Name: ${user?.userName}, Age: ${user?.age}, Mood: ${user?.mood}, Hobbies: ${user?.hobbies?.join(', ')}, Fav Music: ${user?.musicGenre}, Fav Movies: ${user?.movieGenre}.`;
+      const parts: any[] = [{ text: text || "Check this image out!" }];
+      if (finalFile) parts.push({ inlineData: { mimeType: finalFile.mimeType, data: finalFile.data } });
       const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: { parts }, config: { systemInstruction: fullSystemPrompt, thinkingConfig: { thinkingBudget: 0 } } });
       const aiMessage: Message = { id: `ai-${Date.now()}`, role: 'model', text: response.text || '...vibe lost...', timestamp: Date.now() };
       setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, aiMessage] } : s));
@@ -418,7 +480,7 @@ export default function App() {
         )}
 
         <main className="flex-1 overflow-y-auto px-4 md:px-12 py-6 custom-scrollbar bg-zinc-50 dark:bg-[#050505] w-full">
-          <div className="max-w-3xl mx-auto flex flex-col gap-6 md:gap-10 pb-32">
+          <div className="max-w-3xl mx-auto flex flex-col gap-4 md:gap-6 pb-36">
             {messages.length === 0 && !isLoading ? (
               <div className="min-h-[60vh] flex flex-col items-center justify-center text-center space-y-8 animate-vibe-in px-4">
                 <Logo className="w-20 h-20" animated />
@@ -430,33 +492,69 @@ export default function App() {
               </div>
             ) : messages.map((msg, idx) => (
               <div key={msg.id} className={`flex w-full group ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-vibe-in`} style={{ animationDelay: `${idx * 0.05}s` }}>
-                <div className={`flex items-end gap-2 max-w-[95%] sm:max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                  {msg.role === 'model' && (<div className="w-8 h-8 rounded-[0.8rem] bg-blue-500/10 flex items-center justify-center text-lg shrink-0 overflow-hidden shadow-sm border border-zinc-100 dark:border-white/5"><span>{currentPersonality.emoji}</span></div>)}
-                  <div className={`flex flex-col gap-1.5 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                    <div className={`px-4 py-3 rounded-[1.5rem] md:rounded-[2rem] shadow-xl text-[15px] leading-relaxed font-bold relative transition-all ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white border border-zinc-100 dark:border-white/5 rounded-bl-none shadow-zinc-200/50 dark:shadow-black/30'}`}>
-                      {msg.image && (<div className="mb-3 rounded-xl overflow-hidden shadow-lg border border-white/10"><img src={msg.image} alt="Vibe" className="w-full h-auto max-h-[400px] object-cover" /></div>)}
+                <div className={`flex items-end gap-2 max-w-[92%] sm:max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                  {msg.role === 'model' && (<div className="w-7 h-7 rounded-[0.7rem] bg-blue-500/10 flex items-center justify-center text-base shrink-0 overflow-hidden shadow-sm border border-zinc-100 dark:border-white/5"><span>{currentPersonality.emoji}</span></div>)}
+                  <div className={`flex flex-col gap-1 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                    <div className={`px-4 py-2.5 rounded-[1.2rem] md:rounded-[1.5rem] shadow-lg text-[14px] md:text-[15px] leading-snug font-bold relative transition-all ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white border border-zinc-100 dark:border-white/5 rounded-bl-none shadow-zinc-200/50 dark:shadow-black/30'}`}>
+                      {msg.image && (<div className="mb-2 rounded-xl overflow-hidden shadow-md border border-white/10"><img src={msg.image} alt="Vibe" className="w-full h-auto max-h-[350px] object-cover" /></div>)}
                       {editingMessageId === msg.id ? (
-                        <div className="flex flex-col gap-2 min-w-[200px]"><textarea autoFocus className="w-full bg-white/10 p-2 rounded-lg border-2 border-white/20 outline-none text-white font-bold" value={editingText} onChange={(e) => setEditingText(e.target.value)} /><div className="flex justify-end gap-2"><button onClick={() => setEditingMessageId(null)} className="px-3 py-1 bg-black/20 rounded-lg text-[10px] uppercase font-black">Cancel</button><button onClick={() => saveEditMessage(msg.id)} className="px-3 py-1 bg-white text-blue-600 rounded-lg text-[10px] uppercase font-black">Update</button></div></div>
-                      ) : (<p className="whitespace-pre-wrap">{msg.text}</p>)}
+                        <div className="flex flex-col gap-2 min-w-[180px]"><textarea autoFocus className="w-full bg-white/10 p-2 rounded-lg border-2 border-white/20 outline-none text-white font-bold text-sm" value={editingText} onChange={(e) => setEditingText(e.target.value)} /><div className="flex justify-end gap-2"><button onClick={() => setEditingMessageId(null)} className="px-3 py-1 bg-black/20 rounded-lg text-[10px] uppercase font-black">Cancel</button><button onClick={() => saveEditMessage(msg.id)} className="px-3 py-1 bg-white text-blue-600 rounded-lg text-[10px] uppercase font-black">Update</button></div></div>
+                      ) : (<MarkdownText text={msg.text} />)}
+                      {msg.reaction && (
+                        <div className="absolute -bottom-2 -right-1 bg-white dark:bg-zinc-800 rounded-full px-1.5 py-0.5 shadow-md border border-black/5 dark:border-white/10 flex items-center gap-1">
+                          <span className="text-xs">{msg.reaction}</span>
+                        </div>
+                      )}
                     </div>
-                    <div className={`flex items-center gap-3 px-1 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}><span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span><div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all">{msg.role === 'user' && editingMessageId !== msg.id && (<button onClick={() => handleEditMessage(msg.id, msg.text)} className="p-1 text-zinc-400 hover:text-blue-500"><Edit3 size={12} /></button>)}<button onClick={() => handleReaction(msg.id, 'like')} className={`p-1 transition-all ${msg.reaction === 'like' ? 'text-blue-500' : 'text-zinc-400'}`}><ThumbsUp size={12} /></button><button onClick={() => handleCopy(msg.text)} className="p-1 text-zinc-400 hover:text-blue-500"><Copy size={12} /></button></div></div>
+                    <div className={`flex items-center gap-2 px-1 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                      <span className="text-[8px] font-black text-zinc-400 uppercase tracking-widest">{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                      <div className="flex items-center gap-1.5 md:opacity-0 md:group-hover:opacity-100 transition-all relative">
+                        {msg.role === 'user' && editingMessageId !== msg.id && (<button onClick={() => handleEditMessage(msg.id, msg.text)} className="p-1 text-zinc-400 hover:text-blue-500"><Edit3 size={12} /></button>)}
+                        <div className="relative">
+                          <button onClick={() => setActiveReactionMenu(activeReactionMenu === msg.id ? null : msg.id)} className={`p-1 transition-all ${msg.reaction ? 'text-blue-500' : 'text-zinc-400'} hover:text-blue-500`}>
+                            <Smile size={12} />
+                          </button>
+                          {activeReactionMenu === msg.id && <ReactionPicker onSelect={(r) => handleReaction(msg.id, r)} onClose={() => setActiveReactionMenu(null)} />}
+                        </div>
+                        <button onClick={() => handleCopy(msg.text)} className="p-1 text-zinc-400 hover:text-blue-500"><Copy size={12} /></button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             ))}
             {isLoading && <TypingIndicator personality={currentPersonality} />}
             {isGeneratingVibe && <TypingIndicator personality={currentPersonality} label="Manifesting..." />}
-            <div ref={bottomRef} className="h-20" />
+            <div ref={bottomRef} className="h-24" />
           </div>
         </main>
 
-        <footer className="px-4 py-6 pointer-events-none absolute bottom-0 left-0 right-0 z-[200] pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
-          <div className="max-w-2xl mx-auto flex items-center gap-3 pointer-events-auto w-full">
-            <div className="flex-1 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-3xl flex items-center rounded-[2rem] px-4 py-1 border-2 border-zinc-200 dark:border-white/10 focus-within:border-blue-500 transition-all shadow-2xl">
-              <button onClick={() => fileInputRef.current?.click()} className="text-zinc-400 hover:text-blue-500 p-2"><ImageIcon size={20} /></button>
-              <input type="file" ref={fileInputRef} className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) { const r = new FileReader(); r.onload = () => handleSendToAI("", { data: (r.result as string).split(',')[1], mimeType: file.type, fileName: file.name }); r.readAsDataURL(file); } }} />
-              <input type="text" placeholder="Speak your truth.." value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} className="w-full bg-transparent py-4 px-2 font-bold outline-none text-zinc-900 dark:text-white text-[16px] placeholder:text-zinc-400" />
-              <button onClick={() => handleSendToAI(inputText)} disabled={!inputText.trim() || isLoading} className="text-blue-600 disabled:opacity-30 active:scale-90 transition-transform p-2"><Send size={24} strokeWidth={2.5}/></button>
+        <footer className="px-3 md:px-4 py-4 absolute bottom-0 left-0 right-0 z-[200] pb-[calc(1rem+env(safe-area-inset-bottom))] pointer-events-none">
+          <div className="max-w-2xl mx-auto flex flex-col gap-2 w-full">
+            {stagedFile && (
+              <div className="flex items-center gap-2 animate-slide-up bg-white/90 dark:bg-zinc-900/90 backdrop-blur-xl p-2 rounded-2xl border border-zinc-200 dark:border-white/10 w-fit ml-4 shadow-xl pointer-events-auto">
+                <div className="relative w-16 h-16 rounded-xl overflow-hidden border-2 border-blue-500">
+                  <img src={`data:${stagedFile.mimeType};base64,${stagedFile.data}`} className="w-full h-full object-cover" alt="Preview" />
+                  <button onClick={() => setStagedFile(null)} className="absolute top-0 right-0 p-1 bg-black/60 text-white hover:bg-rose-500 transition-colors rounded-bl-xl"><X size={12} /></button>
+                </div>
+                <div className="pr-2"><p className="text-[10px] font-black uppercase text-blue-500 tracking-widest">Staged</p><p className="text-[9px] font-bold text-zinc-400 truncate max-w-[80px]">{stagedFile.fileName}</p></div>
+              </div>
+            )}
+            <div className="bg-white/95 dark:bg-zinc-900/95 backdrop-blur-3xl flex items-center rounded-[1.8rem] md:rounded-[2rem] px-3 md:px-4 py-1 border-2 border-zinc-200 dark:border-white/10 focus-within:border-blue-500 transition-all shadow-2xl pointer-events-auto relative">
+              <button onClick={() => fileInputRef.current?.click()} className="text-zinc-400 hover:text-blue-500 p-2 shrink-0"><ImageIcon size={20} /></button>
+              <input type="file" ref={fileInputRef} className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) { const r = new FileReader(); r.onload = () => setStagedFile({ data: (r.result as string).split(',')[1], mimeType: file.type, fileName: file.name }); r.readAsDataURL(file); } }} />
+              <input type="text" placeholder="Speak your truth.." value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} className="w-full bg-transparent py-4 px-2 font-bold outline-none text-zinc-900 dark:text-white text-[16px] placeholder:text-zinc-400 min-w-0" maxLength={2000} />
+              
+              <div className="flex items-center gap-1 shrink-0">
+                {inputText.length > 0 && (
+                  <>
+                    <button onClick={() => setInputText('')} className="p-2 text-zinc-400 hover:text-rose-500 transition-colors shrink-0"><X size={18}/></button>
+                    <div className="h-6 w-[1px] bg-zinc-200 dark:bg-zinc-800 mx-1 hidden sm:block" />
+                    <span className="hidden sm:block text-[10px] font-black text-zinc-400 w-10 text-right">{inputText.length}/2k</span>
+                  </>
+                )}
+                <button onClick={() => handleSendToAI(inputText)} disabled={(!inputText.trim() && !stagedFile) || isLoading} className="text-blue-600 disabled:opacity-30 active:scale-90 transition-transform p-2 shrink-0"><Send size={24} strokeWidth={2.5}/></button>
+              </div>
             </div>
           </div>
         </footer>
@@ -465,9 +563,9 @@ export default function App() {
       {isProfileModalOpen && (
         <div className="fixed inset-0 z-[6000] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/85 backdrop-blur-2xl animate-fade-in" onClick={() => setIsProfileModalOpen(false)} />
-          <div className="relative w-full max-w-xl bg-white dark:bg-zinc-900 rounded-[2.5rem] p-8 md:p-12 shadow-3xl animate-vibe-in max-h-[90vh] overflow-y-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-8 md:mb-12"><div className="flex items-center gap-4"><Logo className="w-10 h-10" /><h2 className="text-2xl font-black uppercase italic text-zinc-900 dark:text-white leading-none">Identity</h2></div><button onClick={() => setIsProfileModalOpen(false)} className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-2xl active:scale-90"><X size={24}/></button></div>
-            <div className="space-y-10">
+          <div className="relative w-full max-w-xl bg-white dark:bg-zinc-900 rounded-[2.5rem] p-6 md:p-12 shadow-3xl animate-vibe-in max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-8 shrink-0"><div className="flex items-center gap-4"><Logo className="w-10 h-10" /><h2 className="text-2xl font-black uppercase italic text-zinc-900 dark:text-white leading-none">Identity</h2></div><button onClick={() => setIsProfileModalOpen(false)} className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-2xl active:scale-90"><X size={24}/></button></div>
+            <div className="overflow-y-auto custom-scrollbar pr-2 flex-1 space-y-10">
               <div className="flex flex-col items-center gap-6 text-center">
                 <div className="relative group"><img src={user?.avatarUrl} className="w-24 h-24 md:w-32 md:h-32 rounded-[2rem] shadow-2xl border-4 border-white dark:border-zinc-800" alt="Avatar" /><div className="absolute -bottom-2 -right-2 bg-blue-600 text-white p-2.5 rounded-xl shadow-lg border-2 border-white dark:border-zinc-900"><Camera size={16} /></div></div>
                 <div className="w-full space-y-4 text-left">
@@ -479,7 +577,7 @@ export default function App() {
                   </div>
                 </div>
               </div>
-              <div className="space-y-6"><label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 px-1">Switch Personality</label><div className="grid grid-cols-2 gap-3 max-h-[30vh] overflow-y-auto custom-scrollbar">{(Object.values(PERSONALITIES) as Personality[]).map(p => (<button key={p.id} onClick={() => { setSettings({...settings, personalityId: p.id, voiceName: p.voiceName}); showToast(`${p.name} activated!`, "success"); }} className={`flex items-center gap-3 p-4 rounded-[1.5rem] border-2 transition-all ${settings.personalityId === p.id ? 'bg-blue-600 border-blue-500 text-white' : 'bg-zinc-100 dark:bg-zinc-800 border-transparent text-zinc-900 dark:text-white'}`}><span className="text-xl">{p.emoji}</span><p className="font-black text-[10px] uppercase text-left leading-none">{p.name}</p></button>))}</div></div>
+              <div className="space-y-6"><label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 px-1">Switch Personality</label><div className="grid grid-cols-2 gap-3">{(Object.values(PERSONALITIES) as Personality[]).map(p => (<button key={p.id} onClick={() => { setSettings({...settings, personalityId: p.id, voiceName: p.voiceName}); showToast(`${p.name} activated!`, "success"); }} className={`flex items-center gap-3 p-4 rounded-[1.5rem] border-2 transition-all ${settings.personalityId === p.id ? 'bg-blue-600 border-blue-500 text-white' : 'bg-zinc-100 dark:bg-zinc-800 border-transparent text-zinc-900 dark:text-white'}`}><span className="text-xl shrink-0">{p.emoji}</span><p className="font-black text-[10px] uppercase text-left leading-none">{p.name}</p></button>))}</div></div>
               <div className="pt-6"><button onClick={handleLogOut} className="w-full py-5 text-[10px] text-rose-500 font-black uppercase tracking-[0.3em] hover:bg-rose-500/10 rounded-[2rem] transition-all border-2 border-rose-500/20">End Session</button></div>
             </div>
           </div>

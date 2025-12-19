@@ -44,7 +44,7 @@ export interface Personality {
   voiceName: string;
 }
 
-export type ReactionType = 'like' | 'dislike' | 'eco' | 'pee' | null;
+export type ReactionType = '❤️' | '👍' | '😂' | '😮' | '🔥' | '💀' | null;
 
 export interface GroundingSource {
   title: string;
