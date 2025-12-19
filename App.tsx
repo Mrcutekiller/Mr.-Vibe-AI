@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { GoogleGenAI, Modality } from '@google/genai';
 import { 
@@ -26,7 +25,8 @@ const Logo = ({ className = "w-12 h-12", animated = false }: { className?: strin
     <div className="absolute inset-0 bg-blue-500/20 blur-xl rounded-full opacity-50" />
     <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full relative z-10 drop-shadow-lg">
       <defs>
-        <linearGradient id="logoGrad" x1="0%" x2="100%" y2="100%">
+        {/* Fixed duplicate attribute x2 and added y1 for standard compliance */}
+        <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="#3b82f6" />
           <stop offset="100%" stopColor="#6366f1" />
         </linearGradient>
@@ -197,15 +197,19 @@ const ReactionPicker = ({ onSelect, onClose, align = 'left' }: { onSelect: (r: R
 };
 
 const NotificationToast = ({ message, type, onClose }: { message: string, type: 'info' | 'success' | 'error', onClose: () => void }) => (
-  <div className="fixed top-6 md:top-20 left-1/2 -translate-x-1/2 z-[10000] w-[92%] max-w-sm animate-vibe-in">
-    <div className={`px-5 py-4 rounded-[2rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] backdrop-blur-3xl border flex items-center gap-4 font-bold text-sm uppercase tracking-wider ${
-      type === 'success' ? 'bg-green-500/20 border-green-500/30 text-green-800 dark:text-green-300' :
-      type === 'error' ? 'bg-rose-500/20 border-rose-500/30 text-rose-800 dark:text-rose-300' :
-      'bg-blue-500/20 border-blue-500/30 text-blue-800 dark:text-blue-300'
+  <div className="fixed top-4 md:top-6 left-1/2 -translate-x-1/2 z-[10000] w-[90%] max-w-[340px] animate-vibe-in pointer-events-none">
+    <div className={`px-4 py-3 rounded-full shadow-[0_15px_40px_-10px_rgba(0,0,0,0.4)] backdrop-blur-3xl border flex items-center gap-3 font-bold text-xs uppercase tracking-wider pointer-events-auto ${
+      type === 'success' ? 'bg-zinc-900/95 dark:bg-green-500/95 border-green-500/50 text-green-400 dark:text-green-950' :
+      type === 'error' ? 'bg-zinc-900/95 dark:bg-rose-500/95 border-rose-500/50 text-rose-400 dark:text-rose-950' :
+      'bg-zinc-900/95 dark:bg-blue-600/95 border-blue-500/50 text-blue-400 dark:text-white'
     }`}>
-      {type === 'success' ? <CheckCircle2 size={18} className="shrink-0" /> : type === 'error' ? <AlertCircle size={18} className="shrink-0" /> : <Bell size={18} className="shrink-0" />}
-      <span className="flex-1 leading-tight">{message}</span>
-      <button onClick={onClose} className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors shrink-0"><X size={16}/></button>
+      <div className="shrink-0">
+        {type === 'success' ? <CheckCircle2 size={16} /> : type === 'error' ? <AlertCircle size={16} /> : <Bell size={16} />}
+      </div>
+      <span className="flex-1 leading-tight text-center truncate">{message}</span>
+      <button onClick={onClose} className="p-1.5 hover:bg-white/10 dark:hover:bg-black/10 rounded-full transition-all shrink-0 active:scale-90">
+        <X size={14}/>
+      </button>
     </div>
   </div>
 );
@@ -250,8 +254,8 @@ const NoteWritingIndicator = ({ personality }: { personality: Personality }) => 
   </div>
 );
 
-const AIVibeAvatar = ({ volume, active, isThinking, personality, isAiSpeaking, animationState }: { volume: number, active: boolean, isThinking: boolean, personality: Personality, isAiSpeaking?: boolean, animationState: 'idle' | 'nod' | 'tilt' }) => {
-  const scale = 1 + (active ? (isAiSpeaking ? 0.2 : volume * 4) : isThinking ? 0.2 : 0);
+const AIVibeAvatar = ({ volume, active, isThinking, personality, isAiSpeaking, animationState }: { volume: number, active: boolean, isThinking: boolean, personality: Personality, isAiSpeaking?: boolean, animationState: 'idle' | 'nod' | 'tilt' | 'wake' }) => {
+  const scale = 1 + (active ? (isAiSpeaking ? 0.25 : volume * 4) : isThinking ? 0.2 : 0);
   
   const getVibeColor = () => {
     const id = personality.id;
@@ -266,13 +270,18 @@ const AIVibeAvatar = ({ volume, active, isThinking, personality, isAiSpeaking, a
 
   return (
     <div className={`relative flex items-center justify-center transition-all duration-500 ${isAiSpeaking ? 'animate-float' : ''}`}>
-      <div className={`absolute inset-0 blur-[60px] md:blur-[120px] rounded-full transition-all duration-700 ${active || isThinking ? 'scale-150 opacity-60' : 'scale-100 opacity-0'}`}
+      {/* Background Pulse during Speaking */}
+      {isAiSpeaking && (
+        <div className="absolute w-full h-full rounded-full border-4 border-white/40 animate-speaking-pulse opacity-50" />
+      )}
+
+      <div className={`absolute inset-0 blur-[60px] md:blur-[120px] rounded-full transition-all duration-700 ${active || isThinking || animationState === 'wake' ? 'scale-150 opacity-60' : 'scale-100 opacity-0'}`}
         style={{ backgroundColor: vibeColor }} />
       
-      <div className={`w-40 h-40 md:w-72 md:h-72 rounded-full relative overflow-hidden transition-all duration-150 shadow-2xl flex flex-col items-center justify-center border-4 border-white/20 ${animationState === 'nod' ? 'animate-nod' : animationState === 'tilt' ? 'animate-tilt' : ''}`}
+      <div className={`w-40 h-40 md:w-72 md:h-72 rounded-full relative overflow-hidden transition-all duration-150 shadow-2xl flex flex-col items-center justify-center border-4 border-white/20 ${animationState === 'nod' ? 'animate-nod' : animationState === 'tilt' ? 'animate-tilt' : animationState === 'wake' ? 'animate-wake' : isAiSpeaking ? 'animate-speaking-vibes' : ''}`}
         style={{ 
           transform: `scale(${scale})`, 
-          opacity: active || isThinking ? 1 : 0.4, 
+          opacity: active || isThinking || animationState === 'wake' ? 1 : 0.4, 
           background: `radial-gradient(circle at 30% 30%, ${vibeColor}, #000000)` 
         }}>
         
@@ -287,15 +296,15 @@ const AIVibeAvatar = ({ volume, active, isThinking, personality, isAiSpeaking, a
 
         <div className={`absolute inset-0 bg-gradient-to-tr from-white/20 to-transparent opacity-40 ${isThinking ? 'animate-spin' : isAiSpeaking ? 'animate-[spin_10s_linear_infinite]' : 'animate-spin-slow'}`} />
         
-        <div className={`relative flex flex-col items-center transition-all duration-300 select-none ${isAiSpeaking ? 'animate-speaking-vibes' : active && volume > 0.01 ? 'scale-110 -rotate-3' : 'scale-100'} ${isThinking ? 'animate-pulse' : ''}`}>
-           <div className={`text-5xl md:text-9xl transition-transform ${isAiSpeaking ? 'animate-eye-blink' : ''}`}>
+        <div className={`relative flex flex-col items-center transition-all duration-300 select-none ${isAiSpeaking ? 'scale-110' : active && volume > 0.01 ? 'scale-110 -rotate-3' : 'scale-100'} ${isThinking ? 'animate-pulse' : ''}`}>
+           <div className={`text-5xl md:text-9xl transition-transform ${isAiSpeaking ? 'animate-speaking-vibes' : animationState === 'wake' ? 'animate-pulse' : ''}`}>
              {isThinking ? '🤔' : active && !isAiSpeaking && volume > 0.01 ? '👂' : personality.emoji}
            </div>
            
            {/* Speech Visual Cues (Mouth Movement) */}
            {isAiSpeaking && (
-             <div className="mt-2 flex items-center justify-center pointer-events-none">
-               <div className="bg-black/60 dark:bg-white/60 rounded-full animate-lip-sync shadow-[0_0_20px_rgba(255,255,255,0.5)] border border-white/20" />
+             <div className="mt-4 flex items-center justify-center pointer-events-none">
+               <div className="bg-white/80 dark:bg-white/90 rounded-full animate-lip-sync shadow-[0_0_20px_rgba(255,255,255,0.8)] border-2 border-white/40" />
              </div>
            )}
         </div>
@@ -392,7 +401,7 @@ export default function App() {
   const [liveTranscript, setLiveTranscript] = useState<{text: string, isModel: boolean}[]>([]);
   const [editUserName, setEditUserName] = useState('');
   const [isAiSpeakingGlobal, setIsAiSpeakingGlobal] = useState(false);
-  const [avatarAnimation, setAvatarAnimation] = useState<'idle' | 'nod' | 'tilt'>('idle');
+  const [avatarAnimation, setAvatarAnimation] = useState<'idle' | 'nod' | 'tilt' | 'wake'>('idle');
 
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
@@ -640,6 +649,10 @@ export default function App() {
       
       if (transcript.includes('mr cute') || transcript.includes('mister cute')) {
         recognition.stop();
+        // Trigger Wake Animation
+        setAvatarAnimation('wake');
+        setTimeout(() => setAvatarAnimation('idle'), 1000);
+        
         showToast("Wake word detected! 🎤", "success");
         connectLive();
       }

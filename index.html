@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -25,9 +26,11 @@
               'vibe-in': 'vibeIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
               'nod': 'nod 0.6s ease-in-out',
               'tilt': 'tilt 0.8s ease-in-out',
+              'wake': 'wakeUp 0.8s cubic-bezier(0.19, 1, 0.22, 1)',
               'lip-sync': 'lipSync 0.15s ease-in-out infinite',
               'eye-blink': 'eyeBlink 4s ease-in-out infinite',
-              'speaking-vibes': 'speaking-vibration 0.1s ease-in-out infinite',
+              'speaking-vibes': 'speaking-vibration 0.15s ease-in-out infinite',
+              'speaking-pulse': 'speakingPulse 2s infinite',
             },
             keyframes: {
               float: {
@@ -66,19 +69,27 @@
                 '0%, 100%': { transform: 'rotate(0)' },
                 '50%': { transform: 'rotate(15deg)' },
               },
+              wakeUp: {
+                '0%': { transform: 'scale(1)', filter: 'brightness(1)' },
+                '40%': { transform: 'scale(1.25)', filter: 'brightness(1.5)' },
+                '100%': { transform: 'scale(1)', filter: 'brightness(1)' },
+              },
               lipSync: {
                 '0%, 100%': { height: '6px', width: '28px', opacity: '0.7', borderRadius: '50%' },
-                '50%': { height: '18px', width: '32px', opacity: '1', borderRadius: '40%' },
+                '50%': { height: '22px', width: '34px', opacity: '1', borderRadius: '40%' },
               },
               eyeBlink: {
                 '0%, 90%, 100%': { transform: 'scaleY(1)' },
                 '95%': { transform: 'scaleY(0.1)' },
               },
               'speaking-vibration': {
-                '0%, 100%': { transform: 'translate(0, 0) rotate(0deg)' },
-                '25%': { transform: 'translate(1px, -1px) rotate(1deg)' },
-                '50%': { transform: 'translate(-1px, 1px) rotate(-1deg)' },
-                '75%': { transform: 'translate(1px, 1px) rotate(0.5deg)' },
+                '0%, 100%': { transform: 'translate(0, 0) scale(1)' },
+                '50%': { transform: 'translate(0, -4px) scale(1.02)' },
+              },
+              speakingPulse: {
+                '0%': { transform: 'scale(1)', opacity: '0.5' },
+                '50%': { transform: 'scale(1.1)', opacity: '0.2' },
+                '100%': { transform: 'scale(1.2)', opacity: '0' },
               }
             }
           },
