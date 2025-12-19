@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { GoogleGenAI, Modality } from '@google/genai';
 import { 
@@ -6,7 +7,7 @@ import {
   User as UserIcon, CheckCircle2, Mail, Lock, Sparkles, 
   ChevronRight, MicOff, MessageSquare, AlertCircle, AlertTriangle, RefreshCw,
   Camera, FileText, Upload, Loader2, Play, Image as ImageIcon, Globe,
-  Leaf, Droplets, Share2, ThumbsUp, ThumbsDown, Edit3, Check, Zap, ExternalLink, Activity, Bell, Music, Film, Heart, GraduationCap, Users, Copy, Share, LogOut, AlertOctagon, Key, Wand2, Info, HelpCircle, Eye, EyeOff, Smile, Rocket, Eraser, Pin, StickyNote, ListFilter, Mic2, UserCheck, ShieldCheck, Palette, FastForward, Sliders, BookOpen, PenTool, Hash
+  Leaf, Droplets, Share2, ThumbsUp, ThumbsDown, Edit3, Check, Zap, ExternalLink, Activity, Bell, Music, Film, Heart, GraduationCap, Users, Copy, Share, LogOut, AlertOctagon, Key, Wand2, Info, HelpCircle, Eye, EyeOff, Smile, Rocket, Eraser, Pin, StickyNote, ListFilter, Mic2, UserCheck, ShieldCheck, Palette, FastForward, Sliders, BookOpen, PenTool, Hash, Info as InfoIcon, Lightbulb
 } from 'lucide-react';
 import { PERSONALITIES, BASE_SYSTEM_PROMPT, AVATARS, GEMINI_VOICES, DISCOVERY_DATA } from './constants';
 import { PersonalityId, Personality, AppSettings, User, ChatSession, Message, ReactionType, GroundingSource, ApiStatus, Gender, CustomCommand } from './types';
@@ -283,7 +284,7 @@ const AIVibeAvatar = ({ volume, outputVolume, active, isThinking, personality, i
       {/* Background Pulse during Speaking - synced with volume */}
       {isAiSpeaking && (
         <div className="absolute w-full h-full rounded-full border-4 border-white/40 animate-speaking-pulse opacity-50" 
-             style={{ transform: `scale(${1 + outputVolume * 0.8})` }} />
+             style={{ transform: `scale(${1 + outputVolume * 1.2})` }} />
       )}
 
       <div className={`absolute inset-0 blur-[60px] md:blur-[120px] rounded-full transition-all duration-700 ${active || isThinking || animationState === 'wake' ? 'scale-150 opacity-60' : 'scale-100 opacity-0'}`}
@@ -309,19 +310,28 @@ const AIVibeAvatar = ({ volume, outputVolume, active, isThinking, personality, i
         
         <div className={`relative flex flex-col items-center transition-all duration-300 select-none ${isAiSpeaking ? 'scale-110' : active && volume > 0.01 ? 'scale-110 -rotate-3' : 'scale-100'} ${isThinking ? 'animate-pulse' : ''}`}
              style={isAiSpeaking ? { transform: `scale(${1 + outputVolume * 0.3}) translateY(${outputVolume * -10}px)` } : {}}>
+           
+           {/* Eyes Layer - blinks and reacts to speaking */}
+           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-20">
+              <div className="flex gap-10 md:gap-20 mb-10 md:mb-20">
+                <div className="w-2 h-2 md:w-4 md:h-4 bg-white rounded-full shadow-[0_0_15px_white] animate-eye-blink" />
+                <div className="w-2 h-2 md:w-4 md:h-4 bg-white rounded-full shadow-[0_0_15px_white] animate-eye-blink" />
+              </div>
+           </div>
+
            <div className={`text-5xl md:text-9xl transition-transform ${isAiSpeaking ? 'animate-speaking-vibes' : animationState === 'wake' ? 'animate-pulse' : ''}`}>
              {isThinking ? '🤔' : active && !isAiSpeaking && volume > 0.01 ? '👂' : personality.emoji}
            </div>
            
            {/* Dynamic Mouth - synchronized with output audio volume */}
            {isAiSpeaking && (
-             <div className="mt-4 flex items-center justify-center pointer-events-none">
+             <div className="mt-4 md:mt-10 flex items-center justify-center pointer-events-none z-20">
                <div 
-                 className="bg-white/90 dark:bg-white/90 rounded-full shadow-[0_0_20px_rgba(255,255,255,0.8)] border-2 border-white/40 transition-all duration-75" 
+                 className="bg-white/95 shadow-[0_0_25px_white] border-2 border-white/50 transition-all duration-75" 
                  style={{ 
-                   height: `${8 + outputVolume * 45}px`, 
-                   width: `${24 + outputVolume * 15}px`,
-                   borderRadius: outputVolume > 0.1 ? '40%' : '50%'
+                   height: `${6 + outputVolume * 65}px`, 
+                   width: `${28 + outputVolume * 25}px`,
+                   borderRadius: outputVolume > 0.12 ? '40%' : '50%'
                  }}
                />
              </div>
@@ -336,20 +346,20 @@ const AIVibeAvatar = ({ volume, outputVolume, active, isThinking, personality, i
       </div>
 
       {isAiSpeaking && (
-        <div className="absolute -top-8 flex gap-3">
-           <Music className="text-white animate-bounce w-5 h-5 opacity-80" style={{ animationDelay: '0s' }} />
-           <Waves className="text-white animate-pulse w-8 h-8 opacity-60" />
-           <Music className="text-white animate-bounce w-5 h-5 opacity-80" style={{ animationDelay: '0.4s' }} />
+        <div className="absolute -top-12 flex gap-4">
+           <Music className="text-white animate-bounce w-6 h-6 opacity-90 shadow-lg" style={{ animationDelay: '0s' }} />
+           <Waves className="text-white animate-pulse w-10 h-10 opacity-70" />
+           <Music className="text-white animate-bounce w-6 h-6 opacity-90 shadow-lg" style={{ animationDelay: '0.4s' }} />
         </div>
       )}
 
       {active && (
-        <div className="absolute -bottom-8 flex gap-1.5 h-10 items-end">
-          {[...Array(12)].map((_, i) => (
-            <div key={i} className="w-1.5 bg-white rounded-full transition-all duration-75 shadow-lg shadow-white/20" 
+        <div className="absolute -bottom-12 flex gap-2 h-12 items-end">
+          {[...Array(15)].map((_, i) => (
+            <div key={i} className="w-2 bg-white rounded-full transition-all duration-75 shadow-xl shadow-white/30" 
                  style={{ 
-                   height: `${isAiSpeaking ? (40 + outputVolume * 200 * Math.random()) : (active && volume > 0.01 ? (15 + volume * 250 * Math.random()) : 10)}%`,
-                   opacity: isAiSpeaking || (active && volume > 0.01) ? 1 : 0.2
+                   height: `${isAiSpeaking ? (45 + outputVolume * 250 * Math.random()) : (active && volume > 0.01 ? (20 + volume * 300 * Math.random()) : 12)}%`,
+                   opacity: isAiSpeaking || (active && volume > 0.01) ? 1 : 0.25
                  }} />
           ))}
         </div>
@@ -953,76 +963,88 @@ export default function App() {
               </div>
             )}
             
-            {messages.map((msg, idx) => (
-              <div key={msg.id} className={`flex w-full group ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-vibe-in`} style={{ animationDelay: `${idx * 0.05}s` }}>
-                <div className={`flex items-end gap-2 max-w-[92%] sm:max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                  {msg.role === 'model' && (
-                    <div className="w-7 h-7 rounded-[0.7rem] bg-blue-500/10 flex items-center justify-center text-base shrink-0 overflow-hidden shadow-sm border border-zinc-100 dark:border-white/5">
-                      <span>{PERSONALITIES[activeSession?.personalityId || settings.personalityId]?.emoji || currentPersonality.emoji}</span>
-                    </div>
-                  )}
-                  <div className={`flex flex-col gap-1 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                    <div className={`px-4 py-2.5 rounded-[1.2rem] md:rounded-[1.5rem] shadow-lg text-[14px] md:text-[15px] font-bold relative transition-all ${
-                      msg.role === 'user' 
-                      ? 'bg-blue-600 text-white rounded-br-none' 
-                      : 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white border border-zinc-100 dark:border-white/5 rounded-bl-none shadow-zinc-200/50 dark:shadow-black/30'
-                    } ${msg.isQuestion || msg.isNote ? 'ring-2 ring-blue-500/50' : ''}`}>
-                      {msg.isQuestion && (
-                        <div className="flex items-center gap-1.5 mb-1.5 px-2 py-0.5 bg-white/10 dark:bg-black/20 rounded-full w-fit">
-                          <Pin size={10} />
-                          <span className="text-[9px] font-black uppercase tracking-widest">Question Detected</span>
+            {messages.map((msg, idx) => {
+              const isFlagged = msg.isQuestion || msg.isNote;
+              return (
+                <div key={msg.id} className={`flex w-full group ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-vibe-in`} style={{ animationDelay: `${idx * 0.05}s` }}>
+                  <div className={`flex items-end gap-2 max-w-[92%] sm:max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                    {msg.role === 'model' && (
+                      <div className="w-7 h-7 rounded-[0.7rem] bg-blue-500/10 flex items-center justify-center text-base shrink-0 overflow-hidden shadow-sm border border-zinc-100 dark:border-white/5">
+                        <span>{PERSONALITIES[activeSession?.personalityId || settings.personalityId]?.emoji || currentPersonality.emoji}</span>
+                      </div>
+                    )}
+                    <div className={`flex flex-col gap-1 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                      {/* Flag Indicator Badge */}
+                      {isFlagged && (
+                        <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider mb-1 animate-slide-up shadow-sm border ${
+                          msg.role === 'user' 
+                          ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 border-amber-500/30' 
+                          : 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                        }`}>
+                          {msg.isQuestion ? (
+                            <>
+                              <InfoIcon size={10} strokeWidth={3} />
+                              <span>Important Question</span>
+                            </>
+                          ) : (
+                            <>
+                              <Lightbulb size={10} strokeWidth={3} />
+                              <span>Key Insight</span>
+                            </>
+                          )}
                         </div>
                       )}
-                      {msg.isNote && !msg.isQuestion && (
-                        <div className="flex items-center gap-1.5 mb-1.5 px-2 py-0.5 bg-blue-500/20 rounded-full w-fit">
-                          <StickyNote size={10} className="text-blue-500" />
-                          <span className="text-[9px] font-black uppercase tracking-widest text-blue-500">Smart Answer</span>
-                        </div>
-                      )}
-                      {msg.image && (<div className="mb-2 rounded-xl overflow-hidden shadow-md border border-white/10"><img src={msg.image} alt="Vibe" className="w-full h-auto max-h-[350px] object-cover" /></div>)}
-                      {editingMessageId === msg.id ? (
-                        <div className="flex flex-col gap-2 min-w-[180px]"><textarea autoFocus className="w-full bg-white/10 p-2 rounded-lg border-2 border-white/20 outline-none text-white font-bold text-sm" value={editingText} onChange={(e) => setEditingText(e.target.value)} /><div className="flex justify-end gap-2"><button onClick={() => setEditingMessageId(null)} className="px-3 py-1 bg-black/20 rounded-lg text-[10px] uppercase font-black">Cancel</button><button onClick={() => saveEditMessage(msg.id)} className="px-3 py-1 bg-white text-blue-600 rounded-lg text-[10px] uppercase font-black">Update</button></div></div>
-                      ) : (<MarkdownText text={msg.text} />)}
-                      {msg.reaction && (
-                        <div className="absolute -bottom-2 -right-1 bg-white dark:bg-zinc-800 rounded-full px-1.5 py-0.5 shadow-md border border-black/5 dark:border-white/10 flex items-center gap-1">
-                          <span className="text-xs">{msg.reaction}</span>
-                        </div>
-                      )}
-                      
-                      {/* Quick Reaction Button for Model Messages */}
-                      {msg.role === 'model' && (
-                        <div className="absolute top-1/2 -right-10 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <div className="relative">
-                            <button 
-                              onClick={(e) => { e.stopPropagation(); setActiveReactionMenu(activeReactionMenu === msg.id ? null : msg.id); }} 
-                              className={`p-2 bg-zinc-100 dark:bg-zinc-800 rounded-full shadow-sm hover:scale-110 active:scale-95 transition-all text-zinc-400 hover:text-blue-500 ${activeReactionMenu === msg.id ? 'text-blue-500' : ''}`}
-                            >
-                              <Smile size={18} />
-                            </button>
-                            {activeReactionMenu === msg.id && (
-                              <ReactionPicker align="left" onSelect={(r) => handleReaction(msg.id, r)} onClose={() => setActiveReactionMenu(null)} />
-                            )}
+
+                      <div className={`px-4 py-2.5 rounded-[1.2rem] md:rounded-[1.5rem] shadow-lg text-[14px] md:text-[15px] font-bold relative transition-all ${
+                        msg.role === 'user' 
+                        ? (msg.isQuestion ? 'bg-amber-500 text-white rounded-br-none ring-2 ring-amber-500/30' : 'bg-blue-600 text-white rounded-br-none') 
+                        : (msg.isNote ? 'bg-emerald-50 dark:bg-emerald-900/10 text-emerald-900 dark:text-emerald-100 border border-emerald-500/40 rounded-bl-none shadow-emerald-500/10' : 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white border border-zinc-100 dark:border-white/5 rounded-bl-none shadow-zinc-200/50 dark:shadow-black/30')
+                      }`}>
+                        {msg.image && (<div className="mb-2 rounded-xl overflow-hidden shadow-md border border-white/10"><img src={msg.image} alt="Vibe" className="w-full h-auto max-h-[350px] object-cover" /></div>)}
+                        {editingMessageId === msg.id ? (
+                          <div className="flex flex-col gap-2 min-w-[180px]"><textarea autoFocus className="w-full bg-white/10 p-2 rounded-lg border-2 border-white/20 outline-none text-white font-bold text-sm" value={editingText} onChange={(e) => setEditingText(e.target.value)} /><div className="flex justify-end gap-2"><button onClick={() => setEditingMessageId(null)} className="px-3 py-1 bg-black/20 rounded-lg text-[10px] uppercase font-black">Cancel</button><button onClick={() => saveEditMessage(msg.id)} className="px-3 py-1 bg-white text-blue-600 rounded-lg text-[10px] uppercase font-black">Update</button></div></div>
+                        ) : (<MarkdownText text={msg.text} />)}
+                        {msg.reaction && (
+                          <div className="absolute -bottom-2 -right-1 bg-white dark:bg-zinc-800 rounded-full px-1.5 py-0.5 shadow-md border border-black/5 dark:border-white/10 flex items-center gap-1">
+                            <span className="text-xs">{msg.reaction}</span>
                           </div>
+                        )}
+                        
+                        {/* Quick Reaction Button for Model Messages */}
+                        {msg.role === 'model' && (
+                          <div className="absolute top-1/2 -right-10 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="relative">
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); setActiveReactionMenu(activeReactionMenu === msg.id ? null : msg.id); }} 
+                                className={`p-2 bg-zinc-100 dark:bg-zinc-800 rounded-full shadow-sm hover:scale-110 active:scale-95 transition-all text-zinc-400 hover:text-blue-500 ${activeReactionMenu === msg.id ? 'text-blue-500' : ''}`}
+                              >
+                                <Smile size={18} />
+                              </button>
+                              {activeReactionMenu === msg.id && (
+                                <ReactionPicker align="left" onSelect={(r) => handleReaction(msg.id, r)} onClose={() => setActiveReactionMenu(null)} />
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div className={`flex items-center gap-2 px-1 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                        <span className="text-[8px] font-black text-zinc-400 uppercase tracking-widest">{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                        <div className="flex items-center gap-1.5 md:opacity-0 md:group-hover:opacity-100 transition-all relative">
+                          {msg.role === 'user' && editingMessageId !== msg.id && (<button onClick={() => handleEditMessage(msg.id, msg.text)} className="p-1 text-zinc-400 hover:text-blue-500"><Edit3 size={12} /></button>)}
+                          <div className="relative">
+                            <button onClick={() => setActiveReactionMenu(activeReactionMenu === msg.id ? null : msg.id)} className={`p-1 transition-all ${msg.reaction ? 'text-blue-500' : 'text-zinc-400'} hover:text-blue-500`}>
+                              <Smile size={12} />
+                            </button>
+                            {activeReactionMenu === msg.id && <ReactionPicker align={msg.role === 'user' ? 'right' : 'left'} onSelect={(r) => handleReaction(msg.id, r)} onClose={() => setActiveReactionMenu(null)} />}
+                          </div>
+                          <button onClick={() => handleCopy(msg.text)} className="p-1 text-zinc-400 hover:text-blue-500"><Copy size={12} /></button>
                         </div>
-                      )}
-                    </div>
-                    <div className={`flex items-center gap-2 px-1 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                      <span className="text-[8px] font-black text-zinc-400 uppercase tracking-widest">{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                      <div className="flex items-center gap-1.5 md:opacity-0 md:group-hover:opacity-100 transition-all relative">
-                        {msg.role === 'user' && editingMessageId !== msg.id && (<button onClick={() => handleEditMessage(msg.id, msg.text)} className="p-1 text-zinc-400 hover:text-blue-500"><Edit3 size={12} /></button>)}
-                        <div className="relative">
-                          <button onClick={() => setActiveReactionMenu(activeReactionMenu === msg.id ? null : msg.id)} className={`p-1 transition-all ${msg.reaction ? 'text-blue-500' : 'text-zinc-400'} hover:text-blue-500`}>
-                            <Smile size={12} />
-                          </button>
-                          {activeReactionMenu === msg.id && <ReactionPicker align={msg.role === 'user' ? 'right' : 'left'} onSelect={(r) => handleReaction(msg.id, r)} onClose={() => setActiveReactionMenu(null)} />}
-                        </div>
-                        <button onClick={() => handleCopy(msg.text)} className="p-1 text-zinc-400 hover:text-blue-500"><Copy size={12} /></button>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             {isLoading && <NoteWritingIndicator personality={currentPersonality} />}
             {isSummarizing && <TypingIndicator personality={currentPersonality} label="Distilling..." />}
             <div ref={bottomRef} className="h-24" />
