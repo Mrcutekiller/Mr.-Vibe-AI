@@ -25,7 +25,6 @@ const Logo = ({ className = "w-12 h-12", animated = false }: { className?: strin
     <div className="absolute inset-0 bg-blue-500/20 blur-xl rounded-full opacity-50" />
     <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full relative z-10 drop-shadow-lg">
       <defs>
-        {/* Fixed duplicate attribute x2 and added y1 for standard compliance */}
         <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="#3b82f6" />
           <stop offset="100%" stopColor="#6366f1" />
@@ -197,18 +196,29 @@ const ReactionPicker = ({ onSelect, onClose, align = 'left' }: { onSelect: (r: R
 };
 
 const NotificationToast = ({ message, type, onClose }: { message: string, type: 'info' | 'success' | 'error', onClose: () => void }) => (
-  <div className="fixed top-4 md:top-6 left-1/2 -translate-x-1/2 z-[10000] w-[90%] max-w-[340px] animate-vibe-in pointer-events-none">
-    <div className={`px-4 py-3 rounded-full shadow-[0_15px_40px_-10px_rgba(0,0,0,0.4)] backdrop-blur-3xl border flex items-center gap-3 font-bold text-xs uppercase tracking-wider pointer-events-auto ${
-      type === 'success' ? 'bg-zinc-900/95 dark:bg-green-500/95 border-green-500/50 text-green-400 dark:text-green-950' :
-      type === 'error' ? 'bg-zinc-900/95 dark:bg-rose-500/95 border-rose-500/50 text-rose-400 dark:text-rose-950' :
-      'bg-zinc-900/95 dark:bg-blue-600/95 border-blue-500/50 text-blue-400 dark:text-white'
+  <div className="fixed top-4 md:top-8 inset-x-0 z-[10000] flex justify-center px-4 pointer-events-none">
+    <div className={`w-full max-w-[400px] animate-vibe-in rounded-[2rem] shadow-[0_20px_50px_-10px_rgba(0,0,0,0.4)] backdrop-blur-3xl border flex items-center gap-3 p-4 pointer-events-auto transition-all ${
+      type === 'success' ? 'bg-white/95 dark:bg-zinc-900/95 border-green-500/30 text-green-600 dark:text-green-400' :
+      type === 'error' ? 'bg-rose-50/95 dark:bg-rose-950/95 border-rose-500/30 text-rose-600 dark:text-rose-400' :
+      'bg-white/95 dark:bg-zinc-900/95 border-blue-500/30 text-blue-600 dark:text-blue-400'
     }`}>
-      <div className="shrink-0">
-        {type === 'success' ? <CheckCircle2 size={16} /> : type === 'error' ? <AlertCircle size={16} /> : <Bell size={16} />}
+      <div className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
+        type === 'success' ? 'bg-green-100 dark:bg-green-500/20' :
+        type === 'error' ? 'bg-rose-100 dark:bg-rose-500/20' :
+        'bg-blue-100 dark:bg-blue-500/20'
+      }`}>
+        {type === 'success' ? <CheckCircle2 size={20} /> : type === 'error' ? <AlertCircle size={20} /> : <Bell size={20} />}
       </div>
-      <span className="flex-1 leading-tight text-center truncate">{message}</span>
-      <button onClick={onClose} className="p-1.5 hover:bg-white/10 dark:hover:bg-black/10 rounded-full transition-all shrink-0 active:scale-90">
-        <X size={14}/>
+      <div className="flex-1">
+        <p className="text-[10px] font-black uppercase tracking-[0.1em] opacity-60 mb-0.5">
+          {type === 'error' ? 'System Alert' : type === 'success' ? 'Success' : 'Notification'}
+        </p>
+        <p className="font-bold text-sm leading-snug text-zinc-900 dark:text-zinc-100">
+          {message}
+        </p>
+      </div>
+      <button onClick={onClose} className="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-all shrink-0 active:scale-90">
+        <X size={18} className="text-zinc-400" />
       </button>
     </div>
   </div>
@@ -254,8 +264,8 @@ const NoteWritingIndicator = ({ personality }: { personality: Personality }) => 
   </div>
 );
 
-const AIVibeAvatar = ({ volume, active, isThinking, personality, isAiSpeaking, animationState }: { volume: number, active: boolean, isThinking: boolean, personality: Personality, isAiSpeaking?: boolean, animationState: 'idle' | 'nod' | 'tilt' | 'wake' }) => {
-  const scale = 1 + (active ? (isAiSpeaking ? 0.25 : volume * 4) : isThinking ? 0.2 : 0);
+const AIVibeAvatar = ({ volume, outputVolume, active, isThinking, personality, isAiSpeaking, animationState }: { volume: number, outputVolume: number, active: boolean, isThinking: boolean, personality: Personality, isAiSpeaking?: boolean, animationState: 'idle' | 'nod' | 'tilt' | 'wake' }) => {
+  const scale = 1 + (active ? (isAiSpeaking ? (0.2 + outputVolume * 0.5) : volume * 4) : isThinking ? 0.2 : 0);
   
   const getVibeColor = () => {
     const id = personality.id;
@@ -270,9 +280,10 @@ const AIVibeAvatar = ({ volume, active, isThinking, personality, isAiSpeaking, a
 
   return (
     <div className={`relative flex items-center justify-center transition-all duration-500 ${isAiSpeaking ? 'animate-float' : ''}`}>
-      {/* Background Pulse during Speaking */}
+      {/* Background Pulse during Speaking - synced with volume */}
       {isAiSpeaking && (
-        <div className="absolute w-full h-full rounded-full border-4 border-white/40 animate-speaking-pulse opacity-50" />
+        <div className="absolute w-full h-full rounded-full border-4 border-white/40 animate-speaking-pulse opacity-50" 
+             style={{ transform: `scale(${1 + outputVolume * 0.8})` }} />
       )}
 
       <div className={`absolute inset-0 blur-[60px] md:blur-[120px] rounded-full transition-all duration-700 ${active || isThinking || animationState === 'wake' ? 'scale-150 opacity-60' : 'scale-100 opacity-0'}`}
@@ -296,15 +307,23 @@ const AIVibeAvatar = ({ volume, active, isThinking, personality, isAiSpeaking, a
 
         <div className={`absolute inset-0 bg-gradient-to-tr from-white/20 to-transparent opacity-40 ${isThinking ? 'animate-spin' : isAiSpeaking ? 'animate-[spin_10s_linear_infinite]' : 'animate-spin-slow'}`} />
         
-        <div className={`relative flex flex-col items-center transition-all duration-300 select-none ${isAiSpeaking ? 'scale-110' : active && volume > 0.01 ? 'scale-110 -rotate-3' : 'scale-100'} ${isThinking ? 'animate-pulse' : ''}`}>
+        <div className={`relative flex flex-col items-center transition-all duration-300 select-none ${isAiSpeaking ? 'scale-110' : active && volume > 0.01 ? 'scale-110 -rotate-3' : 'scale-100'} ${isThinking ? 'animate-pulse' : ''}`}
+             style={isAiSpeaking ? { transform: `scale(${1 + outputVolume * 0.3}) translateY(${outputVolume * -10}px)` } : {}}>
            <div className={`text-5xl md:text-9xl transition-transform ${isAiSpeaking ? 'animate-speaking-vibes' : animationState === 'wake' ? 'animate-pulse' : ''}`}>
              {isThinking ? '🤔' : active && !isAiSpeaking && volume > 0.01 ? '👂' : personality.emoji}
            </div>
            
-           {/* Speech Visual Cues (Mouth Movement) */}
+           {/* Dynamic Mouth - synchronized with output audio volume */}
            {isAiSpeaking && (
              <div className="mt-4 flex items-center justify-center pointer-events-none">
-               <div className="bg-white/80 dark:bg-white/90 rounded-full animate-lip-sync shadow-[0_0_20px_rgba(255,255,255,0.8)] border-2 border-white/40" />
+               <div 
+                 className="bg-white/90 dark:bg-white/90 rounded-full shadow-[0_0_20px_rgba(255,255,255,0.8)] border-2 border-white/40 transition-all duration-75" 
+                 style={{ 
+                   height: `${8 + outputVolume * 45}px`, 
+                   width: `${24 + outputVolume * 15}px`,
+                   borderRadius: outputVolume > 0.1 ? '40%' : '50%'
+                 }}
+               />
              </div>
            )}
         </div>
@@ -329,7 +348,7 @@ const AIVibeAvatar = ({ volume, active, isThinking, personality, isAiSpeaking, a
           {[...Array(12)].map((_, i) => (
             <div key={i} className="w-1.5 bg-white rounded-full transition-all duration-75 shadow-lg shadow-white/20" 
                  style={{ 
-                   height: `${isAiSpeaking ? (40 + Math.random() * 50) : (active && volume > 0.01 ? (15 + volume * 250 * Math.random()) : 10)}%`,
+                   height: `${isAiSpeaking ? (40 + outputVolume * 200 * Math.random()) : (active && volume > 0.01 ? (15 + volume * 250 * Math.random()) : 10)}%`,
                    opacity: isAiSpeaking || (active && volume > 0.01) ? 1 : 0.2
                  }} />
           ))}
@@ -592,7 +611,7 @@ export default function App() {
   const handleEditMessage = (id: string, text: string) => { setEditingMessageId(id); setEditingText(text); };
   const saveEditMessage = (id: string) => { if (!editingText.trim()) return; setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: s.messages.map(m => m.id === id ? { ...m, text: editingText } : m) } : s)); setEditingMessageId(null); handleSendToAI(editingText, undefined, id); };
 
-  const { connect: connectLive, disconnect: disconnectLive, isLive, isConnecting, volume } = useGeminiLive({
+  const { connect: connectLive, disconnect: disconnectLive, isLive, isConnecting, volume, outputVolume } = useGeminiLive({
     apiKey: currentApiKey, personality: currentPersonality, settings, user: user || tempProfile as User,
     onTranscript: (t, iM, isModel) => {
         setLiveTranscript(prev => [...prev, { text: t, isModel }]);
@@ -630,6 +649,17 @@ export default function App() {
     },
     onError: (m) => showToast(m, "error")
   });
+
+  // Accurate speaker state based on output volume
+  useEffect(() => {
+    if (outputVolume > 0.005) {
+      setIsAiSpeakingGlobal(true);
+    } else if (isAiSpeakingGlobal && outputVolume < 0.001) {
+      // Small delay to prevent flickering on gaps
+      const timer = setTimeout(() => setIsAiSpeakingGlobal(false), 200);
+      return () => clearTimeout(timer);
+    }
+  }, [outputVolume]);
 
   // --- Wake Word Logic ---
   useEffect(() => {
@@ -805,6 +835,7 @@ export default function App() {
           <div className="flex-1 flex flex-col items-center justify-center gap-6 md:gap-8 text-center w-full px-4 overflow-hidden">
             <AIVibeAvatar 
                volume={volume} 
+               outputVolume={outputVolume}
                active={isLive} 
                isThinking={isConnecting} 
                personality={currentPersonality} 
@@ -1230,11 +1261,31 @@ export default function App() {
                   <Sliders size={14} className="text-blue-500" />
                   <label className="text-[9px] md:text-[11px] font-black uppercase tracking-[0.2em] text-zinc-400 block">VOICE CALIBRATION</label>
                 </div>
-                <div className="bg-zinc-50 dark:bg-white/5 p-5 md:p-7 rounded-[2rem] space-y-6 border border-black/5 dark:border-white/5 shadow-inner">
-                  <div className="space-y-3">
+                <div className="bg-zinc-50 dark:bg-white/5 p-5 md:p-7 rounded-[2rem] space-y-6 border border-black/5 dark:border-white/5 shadow-inner relative overflow-hidden">
+                  {/* Dynamic Visual Waveform Feedback */}
+                  <div className="flex items-center justify-center gap-1.5 h-12 mb-2 relative z-10">
+                    {[...Array(9)].map((_, i) => (
+                      <div 
+                        key={i}
+                        className="w-1.5 bg-blue-500/80 rounded-full transition-all duration-300"
+                        style={{
+                          height: `${Math.max(15, (i % 2 === 0 ? 80 : 50) * settings.speakingPitch)}%`,
+                          animation: `pulse ${0.8 / settings.speakingRate}s ease-in-out infinite`,
+                          animationDelay: `${i * 0.08}s`
+                        }}
+                      />
+                    ))}
+                  </div>
+
+                  <div className="space-y-3 relative z-10">
                     <div className="flex justify-between items-center">
                       <span className="text-[8px] md:text-[9px] font-black uppercase text-zinc-500 tracking-widest flex items-center gap-1.5"><FastForward size={10}/> Speaking Rate</span>
-                      <span className="text-[10px] font-black text-blue-500">{settings.speakingRate.toFixed(1)}x</span>
+                      <span 
+                        className="text-[10px] font-black text-blue-500 transition-transform duration-200 block origin-right"
+                        style={{ transform: `scale(${0.8 + settings.speakingRate * 0.2})` }}
+                      >
+                        {settings.speakingRate.toFixed(1)}x
+                      </span>
                     </div>
                     <input 
                       type="range" min="0.5" max="2.0" step="0.1" 
@@ -1243,10 +1294,19 @@ export default function App() {
                       className="w-full h-1.5 bg-zinc-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-blue-500"
                     />
                   </div>
-                  <div className="space-y-3">
+                  
+                  <div className="space-y-3 relative z-10">
                     <div className="flex justify-between items-center">
                       <span className="text-[8px] md:text-[9px] font-black uppercase text-zinc-500 tracking-widest flex items-center gap-1.5"><Music size={10}/> Vocal Pitch</span>
-                      <span className="text-[10px] font-black text-blue-500">{settings.speakingPitch.toFixed(1)}x</span>
+                      <span 
+                        className="text-[10px] font-black text-blue-500 transition-transform duration-200 block origin-right"
+                        style={{ 
+                          transform: `scale(${0.7 + settings.speakingPitch * 0.3})`,
+                          fontWeight: settings.speakingPitch > 1.2 ? 900 : 700
+                        }}
+                      >
+                        {settings.speakingPitch.toFixed(1)}x
+                      </span>
                     </div>
                     <input 
                       type="range" min="0.5" max="2.0" step="0.1" 

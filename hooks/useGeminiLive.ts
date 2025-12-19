@@ -30,6 +30,7 @@ export const useGeminiLive = ({
 }: UseGeminiLiveProps) => {
   const [isLive, setIsLive] = useState(false);
   const [volume, setVolume] = useState(0); 
+  const [outputVolume, setOutputVolume] = useState(0);
   const [isConnecting, setIsConnecting] = useState(false);
   
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -38,6 +39,7 @@ export const useGeminiLive = ({
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const sessionPromiseRef = useRef<Promise<any> | null>(null);
+  const outputAnalyserRef = useRef<AnalyserNode | null>(null);
   
   const nextStartTimeRef = useRef<number>(0);
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
@@ -60,11 +62,40 @@ export const useGeminiLive = ({
       }
       if (audioContextRef.current.state === 'suspended') await audioContextRef.current.resume();
       if (inputAudioContextRef.current.state === 'suspended') await inputAudioContextRef.current.resume();
+
+      if (!outputAnalyserRef.current && audioContextRef.current) {
+        outputAnalyserRef.current = audioContextRef.current.createAnalyser();
+        outputAnalyserRef.current.fftSize = 256;
+        outputAnalyserRef.current.connect(audioContextRef.current.destination);
+      }
     } catch (e) {
       console.error("Audio Init Failed", e);
       throw new Error("Microphone access denied.");
     }
   }, []);
+
+  // Monitor output volume
+  useEffect(() => {
+    let animationFrame: number;
+    const updateOutputVolume = () => {
+      if (outputAnalyserRef.current && isLive) {
+        const dataArray = new Uint8Array(outputAnalyserRef.current.frequencyBinCount);
+        outputAnalyserRef.current.getByteTimeDomainData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          const v = (dataArray[i] - 128) / 128;
+          sum += v * v;
+        }
+        const rms = Math.sqrt(sum / dataArray.length);
+        setOutputVolume(rms);
+      } else {
+        setOutputVolume(0);
+      }
+      animationFrame = requestAnimationFrame(updateOutputVolume);
+    };
+    updateOutputVolume();
+    return () => cancelAnimationFrame(animationFrame);
+  }, [isLive]);
 
   const disconnect = useCallback(() => {
     if (streamRef.current) { 
@@ -94,13 +125,8 @@ export const useGeminiLive = ({
     setIsConnecting(false);
     onConnectionStateChange(false);
     setVolume(0);
+    setOutputVolume(0);
   }, [onConnectionStateChange]);
-
-  const sendMessage = useCallback((text: string) => {
-    sessionPromiseRef.current?.then(session => {
-      session.sendRealtimeInput({ text });
-    });
-  }, []);
 
   const connect = useCallback(async () => {
     if (isLive || isConnecting || !apiKey) {
@@ -227,7 +253,13 @@ export const useGeminiLive = ({
                   const speedMultiplier = settingsRef.current.speakingRate * settingsRef.current.speakingPitch;
                   source.playbackRate.value = speedMultiplier;
 
-                  source.connect(ctx.destination);
+                  // Connect through analyser for visual sync
+                  if (outputAnalyserRef.current) {
+                    source.connect(outputAnalyserRef.current);
+                  } else {
+                    source.connect(ctx.destination);
+                  }
+
                   source.start(nextStartTimeRef.current);
                   
                   nextStartTimeRef.current += (audioBuffer.duration / speedMultiplier);
@@ -272,5 +304,5 @@ export const useGeminiLive = ({
     }
   }, [apiKey, personality, settings, user, isLive, isConnecting, onConnectionStateChange, onTranscript, onTurnComplete, onCommand, initAudio, disconnect, onError]);
 
-  return { connect, disconnect, sendMessage, isLive, isConnecting, volume };
+  return { connect, disconnect, isLive, isConnecting, volume, outputVolume };
 };
