@@ -743,7 +743,7 @@ export default function App() {
             <div className="space-y-8 animate-slide-in-right">
               <button onClick={() => setOnboardingStep(1.5)} className="flex items-center gap-2 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-blue-500 transition-colors"><ArrowLeft size={16} /> Back</button>
               <h2 className="text-3xl md:text-4xl font-black italic text-zinc-900 dark:text-white tracking-tighter text-center">Avatar Sync</h2>
-              <div className="grid grid-cols-4 gap-3 max-h-[35vh] overflow-y-auto px-1 custom-scrollbar p-2">{AVATARS.map((url) => (<button key={url} onClick={() => setTempProfile({...tempProfile, avatarUrl: url})} className={`w-full aspect-square rounded-[2rem] overflow-hidden transition-all shadow-xl border-4 active:scale-95 ${tempProfile.avatarUrl === url ? 'border-blue-500 scale-110 z-10' : 'border-transparent opacity-40 hover:opacity-100 hover:scale-105'}`}><img src={url} className="w-full h-full" alt="Avatar" /></button>))}</div>
+              <div className="grid grid-cols-4 gap-3 max-h-[35vh] overflow-y-auto px-1 custom-scrollbar p-2">{AVATARS.map((url) => (<button key={url} onClick={() => setTempProfile({...tempProfile, avatarUrl: url})} className={`w-full aspect-square rounded-[2rem] overflow-hidden transition-all shadow-xl border-4 active:scale-95 ${tempProfile.avatarUrl === url ? 'border-blue-500 scale-110 z-10' : 'border-transparent opacity-40 hover:opacity-100 hover:scale-105'}`}><img src={url} className="w-full h-full object-cover" alt="Avatar" /></button>))}</div>
               <input type="text" placeholder="Identity Label..." value={tempProfile.userName} onChange={e => setTempProfile({...tempProfile, userName: e.target.value})} className="w-full bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl py-5 px-10 font-black outline-none border-2 border-transparent focus:border-blue-500 text-zinc-900 dark:text-white text-center text-xl shadow-inner uppercase tracking-wider" />
               <button onClick={() => { if (!tempProfile.userName?.trim()) { showToast("Name required! ✨", "error"); return; } setOnboardingStep(2.5); }} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-5 rounded-3xl font-black text-lg shadow-2xl transition-all active:scale-95">Proceed</button>
             </div>
@@ -855,8 +855,8 @@ export default function App() {
             <button onClick={handleSummarize} disabled={isSummarizing} className="w-11 h-11 flex items-center justify-center rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-blue-500 border border-black/5 dark:border-white/5 active:scale-95 transition-all disabled:opacity-50">
               <ListFilter size={20} className={isSummarizing ? "animate-spin" : ""} />
             </button>
-            <button onClick={connectLive} className="h-11 px-6 bg-blue-600 text-white rounded-full text-[11px] font-black uppercase tracking-wider shadow-lg shadow-blue-600/30 active:scale-95 transition-all flex items-center gap-2.5">
-              <Mic size={18} /> <span>NOTETAKER</span>
+            <button onClick={connectLive} className="h-11 w-11 bg-blue-600 text-white rounded-full active:scale-95 transition-all flex items-center justify-center shadow-lg shadow-blue-600/30">
+              <Mic size={20} strokeWidth={2.5} />
             </button>
             <button onClick={() => setIsNotifOpen(true)} className="w-11 h-11 flex items-center justify-center rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-blue-500 border border-black/5 dark:border-white/5 relative">
               {notifications.length > 0 && <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full animate-ping" />}
