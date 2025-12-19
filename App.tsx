@@ -7,9 +7,9 @@ import {
   User as UserIcon, CheckCircle2, Mail, Lock, Sparkles, 
   ChevronRight, MicOff, MessageSquare, AlertCircle, AlertTriangle, RefreshCw,
   Camera, FileText, Upload, Loader2, Play, Image as ImageIcon, Globe,
-  Leaf, Droplets, Share2, ThumbsUp, ThumbsDown, Edit3, Check, Zap, ExternalLink, Activity, Bell, Music, Film, Heart, GraduationCap, Users, Copy, Share, LogOut, AlertOctagon, Key, Wand2, Info, HelpCircle, Eye, EyeOff, Smile, Rocket, Eraser
+  Leaf, Droplets, Share2, ThumbsUp, ThumbsDown, Edit3, Check, Zap, ExternalLink, Activity, Bell, Music, Film, Heart, GraduationCap, Users, Copy, Share, LogOut, AlertOctagon, Key, Wand2, Info, HelpCircle, Eye, EyeOff, Smile, Rocket, Eraser, Pin, StickyNote, ListFilter
 } from 'lucide-react';
-import { PERSONALITIES, BASE_SYSTEM_PROMPT, AVATARS, GEMINI_VOICES, DISCOVERY_DATA, VIBE_VISION_PROMPT } from './constants';
+import { PERSONALITIES, BASE_SYSTEM_PROMPT, AVATARS, GEMINI_VOICES, DISCOVERY_DATA } from './constants';
 import { PersonalityId, Personality, AppSettings, User, ChatSession, Message, ReactionType, GroundingSource, ApiStatus, Gender } from './types';
 import { useGeminiLive } from './hooks/useGeminiLive';
 import { decode, decodeAudioData } from './utils/audioUtils';
@@ -74,7 +74,6 @@ const MarkdownText = ({ text }: { text: string }) => {
   let codeBuffer = '';
 
   lines.forEach((line) => {
-    // Code block toggle
     if (line.trim().startsWith('```')) {
       if (inCodeBlock) {
         renderedBlocks.push({ type: 'code', content: codeBuffer.trim() });
@@ -89,20 +88,15 @@ const MarkdownText = ({ text }: { text: string }) => {
       }
       return;
     }
-
     if (inCodeBlock) {
       codeBuffer += line + '\n';
       return;
     }
-
-    // List item detection
     const ulMatch = line.match(/^[\s]*[-*•][\s]+(.*)/);
     const olMatch = line.match(/^[\s]*\d+\.[\s]+(.*)/);
-
     if (ulMatch || olMatch) {
       const listType = ulMatch ? 'ul' : 'ol';
       const content = ulMatch ? ulMatch[1] : olMatch![1];
-      
       if (currentList && currentList.listType === listType) {
         currentList.items.push(content);
       } else {
@@ -111,14 +105,10 @@ const MarkdownText = ({ text }: { text: string }) => {
       }
       return;
     }
-
-    // End of list detection
     if (currentList) {
       renderedBlocks.push({ type: 'list', ...currentList });
       currentList = null;
     }
-
-    // Standard paragraph
     if (line.trim()) {
       renderedBlocks.push({ type: 'paragraph', content: line });
     }
@@ -128,14 +118,10 @@ const MarkdownText = ({ text }: { text: string }) => {
   if (inCodeBlock) renderedBlocks.push({ type: 'code', content: codeBuffer.trim() });
 
   const renderInline = (input: string) => {
-    // Basic regex for markdown links, raw URLs, bolding, and inline code
     const regex = /(\[.*?\]\(.*?\)|https?:\/\/[^\s]+|\*\*.*?\*\*|`.*?`)/g;
     const parts = input.split(regex);
-    
     return parts.map((part, idx) => {
       if (!part) return null;
-      
-      // Markdown link: [text](url)
       if (part.startsWith('[') && part.includes('](')) {
         const match = part.match(/\[(.*?)\]\((.*?)\)/);
         if (match) {
@@ -148,8 +134,6 @@ const MarkdownText = ({ text }: { text: string }) => {
           );
         }
       }
-      
-      // Raw URL
       if (part.startsWith('http')) {
         return (
           <a key={idx} href={part} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-blue-500 hover:text-blue-600 dark:hover:text-blue-400 font-black decoration-2 underline-offset-2 underline decoration-blue-500/20 hover:decoration-blue-500/50 transition-all break-all">
@@ -159,17 +143,12 @@ const MarkdownText = ({ text }: { text: string }) => {
           </a>
         );
       }
-      
-      // Bold Text
       if (part.startsWith('**') && part.endsWith('**')) {
         return <strong key={idx} className="font-black text-zinc-900 dark:text-white">{part.slice(2, -2)}</strong>;
       }
-      
-      // Inline Code Snippet
       if (part.startsWith('`') && part.endsWith('`')) {
         return <code key={idx} className="bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300 px-1.5 py-0.5 rounded-md font-mono text-[0.85em] font-bold border border-blue-500/10">{part.slice(1, -1)}</code>;
       }
-      
       return part;
     });
   };
@@ -177,9 +156,7 @@ const MarkdownText = ({ text }: { text: string }) => {
   return (
     <div className="space-y-3">
       {renderedBlocks.map((block, i) => {
-        // Use React.Fragment with key to avoid passing key directly to CodeBlock which might cause type errors in strict TS environments
         if (block.type === 'code') return <React.Fragment key={i}><CodeBlock content={block.content} /></React.Fragment>;
-        
         if (block.type === 'list') {
           const ListTag = block.listType === 'ul' ? 'ul' : 'ol';
           return (
@@ -192,7 +169,6 @@ const MarkdownText = ({ text }: { text: string }) => {
             </ListTag>
           );
         }
-
         return (
           <p key={i} className="text-zinc-700 dark:text-zinc-300 leading-relaxed">
             {renderInline(block.content)}
@@ -295,7 +271,7 @@ export default function App() {
 
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isGeneratingVibe, setIsGeneratingVibe] = useState(false);
+  const [isSummarizing, setIsSummarizing] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState<{text: string, isModel: boolean}[]>([]);
@@ -304,7 +280,6 @@ export default function App() {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
   const [activeReactionMenu, setActiveReactionMenu] = useState<string | null>(null);
-  
   const [stagedFile, setStagedFile] = useState<{ data: string, mimeType: string, fileName: string } | null>(null);
   
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -312,11 +287,10 @@ export default function App() {
 
   const activeSession = useMemo(() => sessions.find(s => s.id === activeSessionId), [sessions, activeSessionId]);
   const messages = activeSession?.messages || [];
+  const notes = useMemo(() => messages.filter(m => m.isNote || m.isQuestion), [messages]);
   const currentPersonality = PERSONALITIES[settings.personalityId];
-
   const currentApiKey = useMemo(() => manualApiKey.trim() || (process.env.API_KEY || ''), [manualApiKey]);
 
-  // Request notifications and microphone permissions on mount
   useEffect(() => {
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
@@ -325,13 +299,8 @@ export default function App() {
 
   const addNotification = (text: string, type: string = 'info') => {
     setNotifications(prev => [{id: Date.now().toString(), text, type, time: Date.now()}, ...prev.slice(0, 19)]);
-    
-    // Also trigger native notification if allowed
     if ("Notification" in window && Notification.permission === "granted") {
-      new Notification("Mr. Vibe AI", {
-        body: text,
-        icon: user?.avatarUrl || "/favicon.ico",
-      });
+      new Notification("Mr. Vibe AI", { body: text, icon: user?.avatarUrl || "/favicon.ico" });
     }
   };
 
@@ -366,16 +335,16 @@ export default function App() {
     setIsLoading(true);
     try {
       const ai = new GoogleGenAI({ apiKey: currentApiKey });
-      const prompt = `GREETING CHALLENGE: Greet ${user?.userName} warmly based on their profile. BE MR. CUTE!`;
+      const prompt = `GREETING CHALLENGE: Greet ${user?.userName} warmly. Mention you're ready to take smart notes for them. BE MR. CUTE!`;
       const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt, config: { systemInstruction: BASE_SYSTEM_PROMPT, thinkingConfig: { thinkingBudget: 0 } } });
-      const aiMessage: Message = { id: `ai-greet-${Date.now()}`, role: 'model', text: response.text || 'Yo! Ready to cook? ✨', timestamp: Date.now() };
+      const aiMessage: Message = { id: `ai-greet-${Date.now()}`, role: 'model', text: response.text || 'Yo! Ready to cook some notes? ✨', timestamp: Date.now() };
       setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, aiMessage], lastTimestamp: Date.now() } : s));
     } catch (e) { console.error(e); } finally { setIsLoading(false); }
   }
 
   const handleNewChat = () => {
     const newId = Date.now().toString();
-    const newSession: ChatSession = { id: newId, title: 'Vibe ' + (sessions.length + 1), messages: [], lastTimestamp: Date.now(), personalityId: settings.personalityId };
+    const newSession: ChatSession = { id: newId, title: 'Session ' + (sessions.length + 1), messages: [], lastTimestamp: Date.now(), personalityId: settings.personalityId };
     setSessions(prev => [newSession, ...prev]);
     setActiveSessionId(newId);
     setIsSidebarOpen(false);
@@ -385,11 +354,9 @@ export default function App() {
 
   const handleClearChat = () => {
     if (!activeSessionId) return;
-    if (confirm("Reset the vibe? All messages in this session will be cleared.")) {
-      setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: [], lastTimestamp: Date.now() } : s));
-      showToast("Vibe reset! ✨", "success");
-      handleAISpeakFirst(activeSessionId);
-    }
+    setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: [], lastTimestamp: Date.now() } : s));
+    showToast("Board cleared! ✨", "success");
+    handleAISpeakFirst(activeSessionId);
   };
 
   const handleDeleteSession = (id: string) => {
@@ -410,26 +377,6 @@ export default function App() {
 
   const handleCopy = (text: string) => { navigator.clipboard.writeText(text); showToast("Vibe copied! ✨", "success"); };
 
-  async function handleGenerateVibeArt() {
-    if (!user || isGeneratingVibe) return;
-    if (!currentApiKey) { showToast("License link missing.", "error"); return; }
-    let sessionId = activeSessionId || handleNewChat();
-    setIsGeneratingVibe(true);
-    showToast("Cooking your visual essence...", "info");
-    try {
-      const ai = new GoogleGenAI({ apiKey: currentApiKey });
-      const prompt = VIBE_VISION_PROMPT(user, currentPersonality);
-      const response = await ai.models.generateContent({ model: 'gemini-2.5-flash-image', contents: { parts: [{ text: prompt }] }, config: { imageConfig: { aspectRatio: "1:1" } } });
-      let base64Data = '';
-      for (const part of response.candidates[0].content.parts) { if (part.inlineData) { base64Data = part.inlineData.data; break; } }
-      if (base64Data) {
-        const aiMessage: Message = { id: `vibe-art-${Date.now()}`, role: 'model', text: `Aura render complete! 🤌✨`, timestamp: Date.now(), image: `data:image/png;base64,${base64Data}`, isVibeArt: true };
-        setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, aiMessage] } : s));
-        showToast("Visual vibe complete! 🎨", "success");
-      }
-    } catch (e: any) { showToast("Synthesis glitch.", "error"); } finally { setIsGeneratingVibe(false); }
-  }
-
   const handleReaction = (messageId: string, reaction: ReactionType) => {
     if (!activeSessionId) return;
     setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: s.messages.map(m => m.id === messageId ? { ...m, reaction: m.reaction === reaction ? null : reaction } : m) } : s));
@@ -441,23 +388,43 @@ export default function App() {
     if (apiStatus !== 'connected') { const isOk = await checkApiConnection(); if (!isOk) { showToast("License Link Failed.", "error"); return; } }
     
     let sessionId = activeSessionId || handleNewChat();
+    const isQuestion = text.trim().endsWith('?') || text.toLowerCase().startsWith('what') || text.toLowerCase().startsWith('how') || text.toLowerCase().startsWith('why') || text.toLowerCase().startsWith('who');
+    
     if (regenerateFromId) {
         setSessions(prev => prev.map(s => { if (s.id !== sessionId) return s; const idx = s.messages.findIndex(m => m.id === regenerateFromId); return { ...s, messages: [...s.messages.slice(0, idx + 1)], lastTimestamp: Date.now() }; }));
     } else {
-        const userMessage: Message = { id: `u-${Date.now()}`, role: 'user', text: text || 'Check this out!', timestamp: Date.now(), image: finalFile ? `data:${finalFile.mimeType};base64,${finalFile.data}` : undefined };
+        const userMessage: Message = { id: `u-${Date.now()}`, role: 'user', text: text || 'Check this out!', timestamp: Date.now(), image: finalFile ? `data:${finalFile.mimeType};base64,${finalFile.data}` : undefined, isQuestion };
         setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, userMessage], lastTimestamp: Date.now() } : s));
     }
     
     setIsLoading(true); setInputText(''); setStagedFile(null);
     try {
       const ai = new GoogleGenAI({ apiKey: currentApiKey });
-      const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}\n\n${PERSONALITIES[settings.personalityId].prompt}\n\nUSER PROFILE: Name: ${user?.userName}, Age: ${user?.age}, Mood: ${user?.mood}, Hobbies: ${user?.hobbies?.join(', ')}, Fav Music: ${user?.musicGenre}, Fav Movies: ${user?.movieGenre}.`;
+      const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}\n\n${PERSONALITIES[settings.personalityId].prompt}`;
       const parts: any[] = [{ text: text || "Check this image out!" }];
       if (finalFile) parts.push({ inlineData: { mimeType: finalFile.mimeType, data: finalFile.data } });
       const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: { parts }, config: { systemInstruction: fullSystemPrompt, thinkingConfig: { thinkingBudget: 0 } } });
-      const aiMessage: Message = { id: `ai-${Date.now()}`, role: 'model', text: response.text || '...vibe lost...', timestamp: Date.now() };
+      const aiMessage: Message = { id: `ai-${Date.now()}`, role: 'model', text: response.text || '...vibe lost...', timestamp: Date.now(), isNote: isQuestion };
       setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, aiMessage] } : s));
     } catch (e: any) { showToast("Soul link lost. Try again! 💫", "error"); } finally { setIsLoading(false); }
+  }
+
+  async function handleSummarize() {
+    if (!activeSession || messages.length < 2) { showToast("Not enough heat to summarize yet. 🔥", "error"); return; }
+    setIsSummarizing(true);
+    showToast("Distilling the essence...", "info");
+    try {
+      const ai = new GoogleGenAI({ apiKey: currentApiKey });
+      const transcript = messages.map(m => `${m.role.toUpperCase()}: ${m.text}`).join('\n');
+      const response = await ai.models.generateContent({ 
+        model: 'gemini-3-pro-preview', 
+        contents: `Summarize the following conversation highlights into a "Vibe Report". Focus on key questions and main takeaways. Keep it snappy and use emojis.\n\n${transcript}`, 
+        config: { systemInstruction: "You are an expert summarizer. Be brief, use bullet points, and maintain the Mr. Cute vibe.", thinkingConfig: { thinkingBudget: 0 } } 
+      });
+      const summaryMessage: Message = { id: `summary-${Date.now()}`, role: 'model', text: response.text || 'Synthesis failed.', timestamp: Date.now(), isNote: true };
+      setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: [...s.messages, summaryMessage] } : s));
+      showToast("Vibe synthesized! 📝", "success");
+    } catch (e) { showToast("Synthesis glitch.", "error"); } finally { setIsSummarizing(false); }
   }
 
   const handleEditMessage = (id: string, text: string) => { setEditingMessageId(id); setEditingText(text); };
@@ -466,8 +433,19 @@ export default function App() {
   const { connect: connectLive, disconnect: disconnectLive, isLive, isConnecting, volume } = useGeminiLive({
     apiKey: currentApiKey, personality: currentPersonality, settings, user: user || tempProfile as User,
     onTranscript: (t, iM) => setLiveTranscript(prev => [...prev, { text: t, isModel: iM }]),
-    onTurnComplete: (u, m) => { setLiveTranscript([]); const sId = activeSessionId || handleNewChat(); setSessions(prev => prev.map(s => s.id === sId ? { ...s, messages: [...s.messages, { id: `u-${Date.now()}`, role: 'user', text: u, timestamp: Date.now() }, { id: `m-${Date.now() + 1}`, role: 'model', text: m, timestamp: Date.now() + 1 }] } : s)); },
+    onTurnComplete: (u, m) => { 
+      setLiveTranscript([]); 
+      const sId = activeSessionId || handleNewChat(); 
+      const isQuestion = u.trim().endsWith('?') || u.toLowerCase().startsWith('what') || u.toLowerCase().startsWith('how') || u.toLowerCase().startsWith('why');
+      setSessions(prev => prev.map(s => s.id === sId ? { ...s, messages: [...s.messages, { id: `u-${Date.now()}`, role: 'user', text: u, timestamp: Date.now(), isQuestion }, { id: `m-${Date.now() + 1}`, role: 'model', text: m, timestamp: Date.now() + 1, isNote: isQuestion }] } : s)); 
+    },
     onConnectionStateChange: (c) => { if(c) addNotification("Voice link established", "success"); else addNotification("Voice link closed", "info"); !c && setLiveTranscript([]); },
+    onCommand: (cmd, args) => {
+      if (cmd === 'summarize_board') handleSummarize();
+      else if (cmd === 'create_new_session') handleNewChat();
+      else if (cmd === 'clear_current_board') handleClearChat();
+      showToast(`Command: ${cmd.replace(/_/g, ' ')}`, "info");
+    },
     onError: (m) => showToast(m, "error")
   });
 
@@ -562,15 +540,30 @@ export default function App() {
     <div className="flex h-[100dvh] w-full font-sans overflow-hidden bg-zinc-50 dark:bg-[#050505] transition-colors duration-500 relative select-none">
       {toast && <NotificationToast {...toast} onClose={() => setToast(null)} />}
       
-      {(isLive || isConnecting || isGeneratingVibe) && (
+      {(isLive || isConnecting || isSummarizing) && (
         <div className="fixed inset-0 z-[5000] bg-white dark:bg-black/95 backdrop-blur-3xl flex flex-col items-center justify-between p-6 animate-fade-in">
-          <div className="w-full flex justify-end"><button onClick={() => { disconnectLive(); setIsGeneratingVibe(false); }} className="p-4 bg-zinc-900/10 dark:bg-white/10 hover:bg-rose-500 text-zinc-900 dark:text-white hover:text-white rounded-full transition-all"><X size={24}/></button></div>
+          <div className="w-full flex justify-end"><button onClick={() => { disconnectLive(); setIsSummarizing(false); }} className="p-4 bg-zinc-900/10 dark:bg-white/10 hover:bg-rose-500 text-zinc-900 dark:text-white hover:text-white rounded-full transition-all"><X size={24}/></button></div>
           <div className="flex-1 flex flex-col items-center justify-center gap-8 text-center w-full">
-            <FluidOrb volume={volume} active={isLive} isThinking={isGeneratingVibe} />
-            <div className="space-y-2"><h2 className="text-3xl md:text-5xl font-black text-zinc-900 dark:text-white italic tracking-tighter uppercase leading-none">{isConnecting ? "Tuning..." : isGeneratingVibe ? "Synthesizing..." : currentPersonality.name}</h2><p className="text-blue-600 dark:text-blue-400 font-bold uppercase tracking-widest text-[10px] animate-pulse">{isLive ? "Connection Live" : "Establishing Link..."}</p></div>
-            <div className="max-w-2xl px-4 w-full">{!isGeneratingVibe ? liveTranscript.slice(-1).map((t, i) => (<p key={i} className={`text-xl font-black italic leading-tight ${t.isModel ? 'text-zinc-900 dark:text-white' : 'text-zinc-400'}`}>{t.text}</p>)) : <p className="text-zinc-500 font-black italic text-xl animate-pulse">Cooking...</p>}</div>
+            <FluidOrb volume={volume} active={isLive} isThinking={isSummarizing} />
+            <div className="space-y-2">
+              <h2 className="text-3xl md:text-5xl font-black text-zinc-900 dark:text-white italic tracking-tighter uppercase leading-none">
+                {isConnecting ? "Tuning..." : isSummarizing ? "Summarizing..." : "Voice Control Active"}
+              </h2>
+              <p className="text-blue-600 dark:text-blue-400 font-bold uppercase tracking-widest text-[10px] animate-pulse">
+                {isLive ? "Link Active (Noise Canceling On)" : "Establishing Link..."}
+              </p>
+            </div>
+            <div className="max-w-2xl px-4 w-full h-[15vh] overflow-hidden">
+               <div className="space-y-4 animate-slide-up">
+                {liveTranscript.slice(-4).map((t, i) => (
+                  <p key={i} className={`text-lg md:text-xl font-black italic leading-tight transition-all duration-300 ${t.isModel ? 'text-zinc-900 dark:text-white' : 'text-zinc-400 opacity-60'}`}>
+                    {t.text}
+                  </p>
+                ))}
+              </div>
+            </div>
           </div>
-          <button onClick={() => { disconnectLive(); setIsGeneratingVibe(false); }} className="w-full md:w-auto px-10 py-5 bg-rose-600 text-white rounded-[2rem] font-black shadow-3xl flex items-center justify-center gap-3"><MicOff size={24} /> Close Session</button>
+          <button onClick={() => { disconnectLive(); setIsSummarizing(false); }} className="w-full md:w-auto px-10 py-5 bg-rose-600 text-white rounded-[2rem] font-black shadow-3xl flex items-center justify-center gap-3"><MicOff size={24} /> Close Session</button>
         </div>
       )}
 
@@ -578,12 +571,26 @@ export default function App() {
 
       <div className={`fixed inset-y-0 left-0 z-[450] w-[85%] max-w-xs bg-white dark:bg-zinc-950 border-r border-zinc-200 dark:border-white/5 transition-transform duration-500 ease-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} md:relative shadow-2xl md:shadow-none h-full`}>
         <div className="flex flex-col h-full">
-          <div className="p-6 flex items-center justify-between"><div className="flex items-center gap-3"><Logo className="w-8 h-8" /><h2 className="text-2xl font-black italic tracking-tighter uppercase text-zinc-900 dark:text-white leading-none">History</h2></div><button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-zinc-500 p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors"><X size={20}/></button></div>
-          <div className="px-6 pb-4"><button onClick={handleNewChat} className="w-full flex items-center justify-center gap-3 bg-blue-600 text-white py-4 rounded-2xl font-black shadow-xl hover:bg-blue-500 transition-all active:scale-95"><Plus size={18} /> New Vibe</button></div>
+          <div className="p-6 flex items-center justify-between"><div className="flex items-center gap-3"><Logo className="w-8 h-8" /><h2 className="text-2xl font-black italic tracking-tighter uppercase text-zinc-900 dark:text-white leading-none">Vibe Log</h2></div><button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-zinc-500 p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors"><X size={20}/></button></div>
+          <div className="px-6 pb-4"><button onClick={handleNewChat} className="w-full flex items-center justify-center gap-3 bg-blue-600 text-white py-4 rounded-2xl font-black shadow-xl hover:bg-blue-500 transition-all active:scale-95"><Plus size={18} /> New Board</button></div>
           <div className="flex-1 overflow-y-auto px-4 space-y-2 custom-scrollbar">
-            {sessions.map(s => (<div key={s.id} className="group relative"><div onClick={() => { setActiveSessionId(s.id); setIsSidebarOpen(false); }} className={`p-4 pr-10 rounded-[1.5rem] cursor-pointer transition-all border ${activeSessionId === s.id ? 'bg-blue-600/10 border-blue-500/30' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800 border-transparent'}`}><div className="flex items-center gap-3 text-zinc-600 dark:text-zinc-400"><MessageSquare size={16} /><p className="font-bold text-xs truncate">{s.title}</p></div></div><button onClick={(e) => { e.stopPropagation(); handleDeleteSession(s.id); }} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all"><Trash2 size={16} /></button></div>))}
+            {sessions.map(s => (
+              <div key={s.id} className="group relative">
+                <div onClick={() => { setActiveSessionId(s.id); setIsSidebarOpen(false); }} className={`p-4 pr-10 rounded-[1.5rem] cursor-pointer transition-all border ${activeSessionId === s.id ? 'bg-blue-600/10 border-blue-500/30' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800 border-transparent'}`}>
+                  <div className="flex items-center gap-3 text-zinc-600 dark:text-zinc-400">
+                    <StickyNote size={16} />
+                    <p className="font-bold text-xs truncate">{s.title}</p>
+                  </div>
+                </div>
+                <button onClick={(e) => { e.stopPropagation(); handleDeleteSession(s.id); }} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all"><Trash2 size={16} /></button>
+              </div>
+            ))}
           </div>
-          <div className="p-6 border-t border-zinc-100 dark:border-white/5 space-y-4"><button onClick={() => setSettings(s => ({...s, theme: s.theme === 'dark' ? 'light' : 'dark'}))} className="w-full flex items-center justify-between p-4 bg-zinc-100 dark:bg-zinc-800 rounded-2xl font-black text-[10px] uppercase tracking-widest text-zinc-900 dark:text-white hover:bg-zinc-200 transition-all">{settings.theme === 'dark' ? <><Moon size={16} /> Night Mode</> : <><Sun size={16} /> Day Mode</>}</button></div>
+          <div className="p-6 border-t border-zinc-100 dark:border-white/5 space-y-4">
+            <button onClick={() => setSettings(s => ({...s, theme: s.theme === 'dark' ? 'light' : 'dark'}))} className="w-full flex items-center justify-between p-4 bg-zinc-100 dark:bg-zinc-800 rounded-2xl font-black text-[10px] uppercase tracking-widest text-zinc-900 dark:text-white hover:bg-zinc-200 transition-all">
+              {settings.theme === 'dark' ? <><Moon size={16} /> Night Mode</> : <><Sun size={16} /> Day Mode</>}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -593,25 +600,38 @@ export default function App() {
             <button onClick={() => setIsSidebarOpen(true)} className="p-2.5 bg-zinc-100 dark:bg-zinc-800 rounded-2xl md:hidden text-zinc-900 dark:text-white shadow-sm active:scale-90 transition-all"><Menu size={22} /></button>
             <button onClick={() => setIsProfileModalOpen(true)} className="flex items-center gap-3 cursor-pointer group outline-none active:scale-95 transition-transform">
               <div className="relative"><img src={user?.avatarUrl} className="w-10 h-10 md:w-11 md:h-11 rounded-[1.2rem] border-2 border-white dark:border-zinc-800 shadow-lg" alt="Avatar" /><div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-zinc-900 shadow-sm ${apiStatus === 'connected' ? 'bg-green-500' : 'bg-rose-500 animate-pulse'}`} /></div>
-              <div className="hidden sm:block text-left"><h1 className="text-sm font-black text-zinc-900 dark:text-white tracking-tight">{user?.userName}</h1><p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Main Character</p></div>
+              <div className="hidden sm:block text-left"><h1 className="text-sm font-black text-zinc-900 dark:text-white tracking-tight">{user?.userName}</h1><p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Master Key</p></div>
             </button>
           </div>
           <div className="flex items-center gap-2">
-             {messages.length > 0 && (
-               <button onClick={handleClearChat} className="flex items-center gap-2 px-3 py-2 rounded-full bg-rose-500/10 text-[10px] font-black uppercase tracking-widest text-rose-500 border border-rose-500/20 active:scale-95 transition-all">
-                 <Eraser size={14} /> <span className="hidden sm:inline">Clear</span>
-               </button>
-             )}
-            <button onClick={() => setIsNotifOpen(true)} className="p-2.5 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-blue-500 transition-all relative">{notifications.length > 0 && <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full animate-ping" /><Bell size={22} /></button>
-            <button onClick={connectLive} className="p-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl shadow-xl active:scale-90 transition-all"><Mic size={22} /></button>
+            <button onClick={handleSummarize} className="flex items-center gap-2 px-3 py-2 rounded-full bg-blue-600/10 text-[10px] font-black uppercase tracking-widest text-blue-600 border border-blue-500/20 active:scale-95 transition-all">
+              <ListFilter size={14} /> <span className="hidden sm:inline">Summarize</span>
+            </button>
+            <button onClick={handleClearChat} className="flex items-center gap-2 px-3 py-2 rounded-full bg-rose-500/10 text-[10px] font-black uppercase tracking-widest text-rose-500 border border-rose-500/20 active:scale-95 transition-all">
+              <Eraser size={14} /> <span className="hidden sm:inline">Reset</span>
+            </button>
+            <button onClick={() => setIsNotifOpen(true)} className="p-2.5 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-blue-500 transition-all relative">
+              {notifications.length > 0 && <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full animate-ping" />}
+              <Bell size={22} />
+            </button>
+            <button onClick={connectLive} className="p-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl shadow-xl active:scale-90 transition-all">
+              <Mic size={22} />
+            </button>
           </div>
         </header>
 
         {isNotifOpen && (
           <div className="fixed inset-0 z-[2000] bg-black/80 backdrop-blur-xl animate-fade-in flex flex-col justify-end sm:justify-center p-0 sm:p-6" onClick={() => setIsNotifOpen(false)}>
             <div className="w-full max-w-lg mx-auto bg-white dark:bg-zinc-900 rounded-t-[2.5rem] sm:rounded-[3rem] p-8 space-y-6 animate-slide-up" onClick={e => e.stopPropagation()}>
-              <div className="flex justify-between items-center"><div className="flex items-center gap-4"><Logo className="w-10 h-10" /><h2 className="text-2xl font-black italic uppercase text-zinc-900 dark:text-white">Sync Log</h2></div><button onClick={() => setIsNotifOpen(false)} className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-2xl"><X size={24}/></button></div>
-              <div className="space-y-4 max-h-[50vh] overflow-y-auto custom-scrollbar pr-2">{notifications.length === 0 ? <div className="py-20 text-center"><p className="text-zinc-400 font-black uppercase tracking-widest text-xs">Nothing but silence.</p></div> : notifications.map(n => (<div key={n.id} className="flex gap-4 items-start border-b border-zinc-100 dark:border-white/5 pb-5"><div className={`w-3 h-3 rounded-full mt-1.5 shrink-0 ${n.type === 'error' ? 'bg-rose-500' : 'bg-blue-500'}`} /><div className="flex-1"><p className="text-sm font-bold text-zinc-900 dark:text-zinc-200">{n.text}</p><p className="text-[10px] text-zinc-400 font-black mt-1">{new Date(n.time).toLocaleTimeString()}</p></div></div>))}</div>
+              <div className="flex justify-between items-center"><div className="flex items-center gap-4"><Logo className="w-10 h-10" /><h2 className="text-2xl font-black italic uppercase text-zinc-900 dark:text-white">Live Logs</h2></div><button onClick={() => setIsNotifOpen(false)} className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-2xl"><X size={24}/></button></div>
+              <div className="space-y-4 max-h-[50vh] overflow-y-auto custom-scrollbar pr-2">
+                {notifications.length === 0 ? <div className="py-20 text-center"><p className="text-zinc-400 font-black uppercase tracking-widest text-xs">Nothing but silence.</p></div> : notifications.map(n => (
+                  <div key={n.id} className="flex gap-4 items-start border-b border-zinc-100 dark:border-white/5 pb-5">
+                    <div className={`w-3 h-3 rounded-full mt-1.5 shrink-0 ${n.type === 'error' ? 'bg-rose-500' : 'bg-blue-500'}`} />
+                    <div className="flex-1"><p className="text-sm font-bold text-zinc-900 dark:text-zinc-200">{n.text}</p><p className="text-[10px] text-zinc-400 font-black mt-1">{new Date(n.time).toLocaleTimeString()}</p></div>
+                  </div>
+                ))}
+              </div>
               <button onClick={() => setNotifications([])} className="w-full py-5 bg-rose-500/10 text-rose-500 font-black uppercase tracking-widest rounded-3xl active:scale-95 transition-all">Clear Logs</button>
             </div>
           </div>
@@ -622,47 +642,93 @@ export default function App() {
             {messages.length === 0 && !isLoading ? (
               <div className="min-h-[60vh] flex flex-col items-center justify-center text-center space-y-8 animate-vibe-in px-4">
                 <Logo className="w-20 h-20" animated />
-                <div className="space-y-2"><h2 className="text-3xl md:text-4xl font-black text-zinc-900 dark:text-white italic tracking-tighter uppercase leading-none">Mr. Cute is in.</h2><p className="text-sm font-medium text-zinc-500 max-w-xs mx-auto">Tuned into your mood. Ready to cook some heat? 🔥</p></div>
+                <div className="space-y-2">
+                  <h2 className="text-3xl md:text-4xl font-black text-zinc-900 dark:text-white italic tracking-tighter uppercase leading-none">Smart Note Taker</h2>
+                  <p className="text-sm font-medium text-zinc-500 max-w-xs mx-auto">Ask questions or share ideas. I'll pin them and provide instant answers. You can also use voice commands! ✨</p>
+                </div>
                 <div className="flex flex-col sm:flex-row gap-4 w-full max-w-xs">
-                  <button onClick={handleGenerateVibeArt} className="w-full px-8 py-4 bg-zinc-900 dark:bg-white text-white dark:text-black rounded-2xl font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3"><Wand2 size={20} /> Aura Render</button>
-                  <button onClick={connectLive} className="w-full px-8 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3"><Mic size={20} /> Voice Link</button>
+                  <button onClick={connectLive} className="w-full px-8 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3">
+                    <Mic size={20} /> Start Voice Control
+                  </button>
                 </div>
               </div>
-            ) : messages.map((msg, idx) => (
-              <div key={msg.id} className={`flex w-full group ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-vibe-in`} style={{ animationDelay: `${idx * 0.05}s` }}>
-                <div className={`flex items-end gap-2 max-w-[92%] sm:max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                  {msg.role === 'model' && (<div className="w-7 h-7 rounded-[0.7rem] bg-blue-500/10 flex items-center justify-center text-base shrink-0 overflow-hidden shadow-sm border border-zinc-100 dark:border-white/5"><span>{currentPersonality.emoji}</span></div>)}
-                  <div className={`flex flex-col gap-1 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                    <div className={`px-4 py-2.5 rounded-[1.2rem] md:rounded-[1.5rem] shadow-lg text-[14px] md:text-[15px] leading-snug font-bold relative transition-all ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white border border-zinc-100 dark:border-white/5 rounded-bl-none shadow-zinc-200/50 dark:shadow-black/30'}`}>
-                      {msg.image && (<div className="mb-2 rounded-xl overflow-hidden shadow-md border border-white/10"><img src={msg.image} alt="Vibe" className="w-full h-auto max-h-[350px] object-cover" /></div>)}
-                      {editingMessageId === msg.id ? (
-                        <div className="flex flex-col gap-2 min-w-[180px]"><textarea autoFocus className="w-full bg-white/10 p-2 rounded-lg border-2 border-white/20 outline-none text-white font-bold text-sm" value={editingText} onChange={(e) => setEditingText(e.target.value)} /><div className="flex justify-end gap-2"><button onClick={() => setEditingMessageId(null)} className="px-3 py-1 bg-black/20 rounded-lg text-[10px] uppercase font-black">Cancel</button><button onClick={() => saveEditMessage(msg.id)} className="px-3 py-1 bg-white text-blue-600 rounded-lg text-[10px] uppercase font-black">Update</button></div></div>
-                      ) : (<MarkdownText text={msg.text} />)}
-                      {msg.reaction && (
-                        <div className="absolute -bottom-2 -right-1 bg-white dark:bg-zinc-800 rounded-full px-1.5 py-0.5 shadow-md border border-black/5 dark:border-white/10 flex items-center gap-1">
-                          <span className="text-xs">{msg.reaction}</span>
+            ) : (
+              <>
+                {notes.length > 0 && (
+                  <div className="mb-8 space-y-3 animate-slide-up">
+                    <div className="flex items-center gap-2 px-1">
+                      <Pin size={14} className="text-blue-500" />
+                      <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">Pinned Essentials</h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {notes.map(note => (
+                        <div key={note.id} className="p-4 bg-blue-500/5 dark:bg-blue-500/10 border border-blue-500/20 rounded-2xl shadow-sm hover:scale-[1.02] transition-transform cursor-pointer overflow-hidden relative">
+                           <div className="absolute top-3 right-3 opacity-30"><StickyNote size={14} /></div>
+                           <p className="text-xs font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1">{note.role === 'user' ? 'Inquiry' : 'Insight'}</p>
+                           <p className="text-sm font-bold text-zinc-900 dark:text-white line-clamp-3 leading-snug">{note.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {messages.map((msg, idx) => (
+                  <div key={msg.id} className={`flex w-full group ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-vibe-in`} style={{ animationDelay: `${idx * 0.05}s` }}>
+                    <div className={`flex items-end gap-2 max-w-[92%] sm:max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                      {msg.role === 'model' && (
+                        <div className="w-7 h-7 rounded-[0.7rem] bg-blue-500/10 flex items-center justify-center text-base shrink-0 overflow-hidden shadow-sm border border-zinc-100 dark:border-white/5">
+                          <span>{currentPersonality.emoji}</span>
                         </div>
                       )}
-                    </div>
-                    <div className={`flex items-center gap-2 px-1 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                      <span className="text-[8px] font-black text-zinc-400 uppercase tracking-widest">{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                      <div className="flex items-center gap-1.5 md:opacity-0 md:group-hover:opacity-100 transition-all relative">
-                        {msg.role === 'user' && editingMessageId !== msg.id && (<button onClick={() => handleEditMessage(msg.id, msg.text)} className="p-1 text-zinc-400 hover:text-blue-500"><Edit3 size={12} /></button>)}
-                        <div className="relative">
-                          <button onClick={() => setActiveReactionMenu(activeReactionMenu === msg.id ? null : msg.id)} className={`p-1 transition-all ${msg.reaction ? 'text-blue-500' : 'text-zinc-400'} hover:text-blue-500`}>
-                            <Smile size={12} />
-                          </button>
-                          {activeReactionMenu === msg.id && <ReactionPicker onSelect={(r) => handleReaction(msg.id, r)} onClose={() => setActiveReactionMenu(null)} />}
+                      <div className={`flex flex-col gap-1 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                        <div className={`px-4 py-2.5 rounded-[1.2rem] md:rounded-[1.5rem] shadow-lg text-[14px] md:text-[15px] leading-snug font-bold relative transition-all ${
+                          msg.role === 'user' 
+                          ? 'bg-blue-600 text-white rounded-br-none' 
+                          : 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white border border-zinc-100 dark:border-white/5 rounded-bl-none shadow-zinc-200/50 dark:shadow-black/30'
+                        } ${msg.isQuestion || msg.isNote ? 'ring-2 ring-blue-500/50' : ''}`}>
+                          {msg.isQuestion && (
+                            <div className="flex items-center gap-1.5 mb-1.5 px-2 py-0.5 bg-white/10 dark:bg-black/20 rounded-full w-fit">
+                              <Pin size={10} />
+                              <span className="text-[9px] font-black uppercase tracking-widest">Question Detected</span>
+                            </div>
+                          )}
+                          {msg.isNote && !msg.isQuestion && (
+                            <div className="flex items-center gap-1.5 mb-1.5 px-2 py-0.5 bg-blue-500/20 rounded-full w-fit">
+                              <StickyNote size={10} className="text-blue-500" />
+                              <span className="text-[9px] font-black uppercase tracking-widest text-blue-500">Smart Answer</span>
+                            </div>
+                          )}
+                          {msg.image && (<div className="mb-2 rounded-xl overflow-hidden shadow-md border border-white/10"><img src={msg.image} alt="Vibe" className="w-full h-auto max-h-[350px] object-cover" /></div>)}
+                          {editingMessageId === msg.id ? (
+                            <div className="flex flex-col gap-2 min-w-[180px]"><textarea autoFocus className="w-full bg-white/10 p-2 rounded-lg border-2 border-white/20 outline-none text-white font-bold text-sm" value={editingText} onChange={(e) => setEditingText(e.target.value)} /><div className="flex justify-end gap-2"><button onClick={() => setEditingMessageId(null)} className="px-3 py-1 bg-black/20 rounded-lg text-[10px] uppercase font-black">Cancel</button><button onClick={() => saveEditMessage(msg.id)} className="px-3 py-1 bg-white text-blue-600 rounded-lg text-[10px] uppercase font-black">Update</button></div></div>
+                          ) : (<MarkdownText text={msg.text} />)}
+                          {msg.reaction && (
+                            <div className="absolute -bottom-2 -right-1 bg-white dark:bg-zinc-800 rounded-full px-1.5 py-0.5 shadow-md border border-black/5 dark:border-white/10 flex items-center gap-1">
+                              <span className="text-xs">{msg.reaction}</span>
+                            </div>
+                          )}
                         </div>
-                        <button onClick={() => handleCopy(msg.text)} className="p-1 text-zinc-400 hover:text-blue-500"><Copy size={12} /></button>
+                        <div className={`flex items-center gap-2 px-1 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                          <span className="text-[8px] font-black text-zinc-400 uppercase tracking-widest">{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                          <div className="flex items-center gap-1.5 md:opacity-0 md:group-hover:opacity-100 transition-all relative">
+                            {msg.role === 'user' && editingMessageId !== msg.id && (<button onClick={() => handleEditMessage(msg.id, msg.text)} className="p-1 text-zinc-400 hover:text-blue-500"><Edit3 size={12} /></button>)}
+                            <div className="relative">
+                              <button onClick={() => setActiveReactionMenu(activeReactionMenu === msg.id ? null : msg.id)} className={`p-1 transition-all ${msg.reaction ? 'text-blue-500' : 'text-zinc-400'} hover:text-blue-500`}>
+                                <Smile size={12} />
+                              </button>
+                              {activeReactionMenu === msg.id && <ReactionPicker onSelect={(r) => handleReaction(msg.id, r)} onClose={() => setActiveReactionMenu(null)} />}
+                            </div>
+                            <button onClick={() => handleCopy(msg.text)} className="p-1 text-zinc-400 hover:text-blue-500"><Copy size={12} /></button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            ))}
+                ))}
+              </>
+            )}
             {isLoading && <TypingIndicator personality={currentPersonality} />}
-            {isGeneratingVibe && <TypingIndicator personality={currentPersonality} label="Manifesting..." />}
+            {isSummarizing && <TypingIndicator personality={currentPersonality} label="Distilling..." />}
             <div ref={bottomRef} className="h-24" />
           </div>
         </main>
@@ -681,14 +747,12 @@ export default function App() {
             <div className="bg-white/95 dark:bg-zinc-900/95 backdrop-blur-3xl flex items-center rounded-[1.8rem] md:rounded-[2rem] px-3 md:px-4 py-1 border-2 border-zinc-200 dark:border-white/10 focus-within:border-blue-500 transition-all shadow-2xl pointer-events-auto relative">
               <button onClick={() => fileInputRef.current?.click()} className="text-zinc-400 hover:text-blue-500 p-2 shrink-0"><ImageIcon size={20} /></button>
               <input type="file" ref={fileInputRef} className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) { const r = new FileReader(); r.onload = () => setStagedFile({ data: (r.result as string).split(',')[1], mimeType: file.type, fileName: file.name }); r.readAsDataURL(file); } }} />
-              <input type="text" placeholder="Speak your truth.." value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} className="w-full bg-transparent py-4 px-2 font-bold outline-none text-zinc-900 dark:text-white text-[16px] placeholder:text-zinc-400 min-w-0" maxLength={2000} />
-              
+              <input type="text" placeholder="Note down your thoughts.." value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} className="w-full bg-transparent py-4 px-2 font-bold outline-none text-zinc-900 dark:text-white text-[16px] placeholder:text-zinc-400 min-w-0" maxLength={2000} />
               <div className="flex items-center gap-1 shrink-0">
                 {inputText.length > 0 && (
                   <>
                     <button onClick={() => setInputText('')} className="p-2 text-zinc-400 hover:text-rose-500 transition-colors shrink-0"><X size={18}/></button>
                     <div className="h-6 w-[1px] bg-zinc-200 dark:bg-zinc-800 mx-1 hidden sm:block" />
-                    <span className="hidden sm:block text-[10px] font-black text-zinc-400 w-10 text-right">{inputText.length}/2k</span>
                   </>
                 )}
                 <button onClick={() => handleSendToAI(inputText)} disabled={(!inputText.trim() && !stagedFile) || isLoading} className="text-blue-600 disabled:opacity-30 active:scale-90 transition-transform p-2 shrink-0"><Send size={24} strokeWidth={2.5}/></button>

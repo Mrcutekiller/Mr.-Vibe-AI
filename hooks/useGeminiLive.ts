@@ -1,6 +1,6 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
+import { GoogleGenAI, LiveServerMessage, Modality, FunctionDeclaration, Type } from '@google/genai';
 import { createPcmBlob, decode, decodeAudioData } from '../utils/audioUtils';
 import { Personality, AppSettings, User } from '../types';
 import { BASE_SYSTEM_PROMPT } from '../constants';
@@ -13,6 +13,7 @@ interface UseGeminiLiveProps {
   onTranscript: (text: string, isModel: boolean, isInterim: boolean) => void;
   onTurnComplete: (userText: string, modelText: string) => void;
   onConnectionStateChange: (isConnected: boolean) => void;
+  onCommand: (command: string, args?: any) => void;
   onError: (error: string) => void;
 }
 
@@ -24,6 +25,7 @@ export const useGeminiLive = ({
   onTranscript,
   onTurnComplete,
   onConnectionStateChange,
+  onCommand,
   onError,
 }: UseGeminiLiveProps) => {
   const [isLive, setIsLive] = useState(false);
@@ -105,22 +107,56 @@ export const useGeminiLive = ({
       setIsConnecting(true);
       await initAudio();
       
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Request microphone with Noise Suppression enabled
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          noiseSuppression: true,
+          echoCancellation: true,
+          autoGainControl: true,
+          sampleRate: 16000
+        } 
+      });
       streamRef.current = stream;
 
       const ai = new GoogleGenAI({ apiKey });
+
+      const voiceControlFunctions: FunctionDeclaration[] = [
+        {
+          name: 'summarize_board',
+          description: 'Summarize the current conversation and board into a Vibe Report.',
+          parameters: { type: Type.OBJECT, properties: {} }
+        },
+        {
+          name: 'create_new_session',
+          description: 'Start a completely new chat board or session.',
+          parameters: { type: Type.OBJECT, properties: {} }
+        },
+        {
+          name: 'clear_current_board',
+          description: 'Clear all messages on the current active board.',
+          parameters: { type: Type.OBJECT, properties: {} }
+        }
+      ];
 
       const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}
       - Personality: ${personality.name}
       - Context: ${personality.prompt}
       - User: ${user.userName}
-      Rules: Be concise and stay in character. Speak first to greet the user!`;
+      
+      VOICE COMMANDS:
+      You can trigger tools if the user says something like:
+      - "Summarize this" or "Give me a report" -> use summarize_board
+      - "New session" or "Start fresh" -> use create_new_session
+      - "Clear the board" or "Reset everything" -> use clear_current_board
+
+      Rules: Be concise, stay in character, and ALWAYS help with notes.`;
 
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         config: {
             responseModalities: [Modality.AUDIO],
             systemInstruction: fullSystemPrompt,
+            tools: [{ functionDeclarations: voiceControlFunctions }],
             speechConfig: {
               voiceConfig: { prebuiltVoiceConfig: { voiceName: settings.voiceName || personality.voiceName } }, 
             },
@@ -134,7 +170,7 @@ export const useGeminiLive = ({
             onConnectionStateChange(true);
             
             sessionPromise.then(session => {
-              session.sendRealtimeInput({ text: "Introduce yourself and greet me warmly based on your personality!" });
+              session.sendRealtimeInput({ text: "Introduce yourself and greet me warmly. Let me know you're ready to take notes and listen for commands!" });
             });
 
             if (!inputAudioContextRef.current) return;
@@ -159,6 +195,17 @@ export const useGeminiLive = ({
             processorRef.current = processor;
           },
           onmessage: async (message: LiveServerMessage) => {
+             if (message.toolCall) {
+                for (const fc of message.toolCall.functionCalls) {
+                  onCommand(fc.name, fc.args);
+                  sessionPromise.then(session => {
+                    session.sendToolResponse({
+                      functionResponses: { id: fc.id, name: fc.name, response: { result: "ok" } }
+                    });
+                  });
+                }
+             }
+
              const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
              if (base64Audio && audioContextRef.current) {
                 const ctx = audioContextRef.current;
@@ -208,7 +255,7 @@ export const useGeminiLive = ({
       onError(error.message || "Vibe connection failed.");
       disconnect(); 
     }
-  }, [apiKey, personality, settings, user, isLive, isConnecting, onConnectionStateChange, onTranscript, onTurnComplete, initAudio, disconnect, onError]);
+  }, [apiKey, personality, settings, user, isLive, isConnecting, onConnectionStateChange, onTranscript, onTurnComplete, onCommand, initAudio, disconnect, onError]);
 
   return { connect, disconnect, sendMessage, isLive, isConnecting, volume };
 };
