@@ -7,7 +7,7 @@ import {
   Edit3, History, LogOut, Clock, MessageSquare, StickyNote,
   UserCheck, Palette, Bell, Eraser, Info, ExternalLink, Activity,
   ChevronDown, MoreHorizontal, User as UserIcon, Copy, Share2, Heart, ThumbsUp, Pin, BookOpen, Key, Save, ListFilter,
-  Check, AlertTriangle
+  Check, AlertTriangle, FileText, File
 } from 'lucide-react';
 import { PERSONALITIES, BASE_SYSTEM_PROMPT, AVATARS, GEMINI_VOICES } from './constants';
 import { PersonalityId, Personality, AppSettings, User, ChatSession, Message, ReactionType, Notification } from './types';
@@ -115,7 +115,7 @@ export default function App() {
   const [isPinnedViewOpen, setIsPinnedViewOpen] = useState(false);
 
   const [inputText, setInputText] = useState('');
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<{data: string, name: string, type: string} | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState<{text: string, isModel: boolean}[]>([]);
   const [isAiSpeakingGlobal, setIsAiSpeakingGlobal] = useState(false);
@@ -165,10 +165,10 @@ export default function App() {
     if (autoGreet) {
       setAvatarAnimation('hi');
       setTimeout(() => setAvatarAnimation('idle'), 1200);
-      setTimeout(() => handleSendToAI("Hey Mr. Cute! Say hi and mention your personality archetype.", true), 500);
+      setTimeout(() => handleSendToAI(`Hi! I'm ${user?.userName || 'User'}. Who are you?`, true), 500);
     }
     return newId;
-  }, [sessions.length, settings.personalityId, currentApiKey]);
+  }, [sessions.length, settings.personalityId, currentApiKey, user?.userName]);
 
   const deleteSession = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -200,7 +200,7 @@ export default function App() {
   };
 
   const detectCreation = (text: string) => {
-    const keywords = ['plan', 'list', 'summary', 'recipe', 'code', 'guide', 'draft', 'steps', 'creation', 'test', 'exam'];
+    const keywords = ['plan', 'list', 'summary', 'recipe', 'code', 'guide', 'draft', 'steps', 'creation', 'test', 'exam', 'pdf'];
     return keywords.some(k => text.toLowerCase().includes(k)) && text.length > 80;
   };
 
@@ -236,7 +236,7 @@ export default function App() {
   });
 
   async function handleSendToAI(text: string, isAutoGreet = false) {
-    if ((!text.trim() && !selectedImage) || isLoading) return;
+    if ((!text.trim() && !selectedFile) || isLoading) return;
     if (!currentApiKey) { showToast("No license key detected.", "error"); return; }
     
     let sessionId = activeSessionId || handleNewChat(false);
@@ -246,24 +246,39 @@ export default function App() {
       ? `\n[NEURAL ANCHORS - USER PINNED THESE]:\n${pinnedMessages.map(pm => `- ${pm.text}`).join('\n')}\n`
       : "";
 
-    const userMessage: Message = { id: `u-${Date.now()}`, role: 'user', text, image: selectedImage || undefined, timestamp: Date.now() };
+    const userMessage: Message = { id: `u-${Date.now()}`, role: 'user', text, image: selectedFile?.type.startsWith('image/') ? selectedFile.data : undefined, timestamp: Date.now() };
     if (!isAutoGreet) setSessions(prev => {
       const updated = prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, userMessage], lastTimestamp: Date.now() } : s);
       localStorage.setItem('mr_vibe_sessions', JSON.stringify(updated));
       return updated;
     });
     
-    setIsLoading(true); setInputText(''); setSelectedImage(null);
+    setIsLoading(true); setInputText('');
     if (text.includes('?') || text.length > 40) setAvatarAnimation('thoughtful');
 
     try {
       const ai = new GoogleGenAI({ apiKey: currentApiKey });
       const contents: any[] = [{ text: `${BASE_SYSTEM_PROMPT}\n\n${currentPersonality.prompt}${contextHeader}\n\nUser: ${text}` }];
-      if (userMessage.image) contents.push({ inlineData: { data: userMessage.image.split(',')[1], mimeType: 'image/jpeg' } });
+      
+      if (selectedFile) {
+        contents.push({ 
+          inlineData: { 
+            data: selectedFile.data.split(',')[1], 
+            mimeType: selectedFile.type 
+          } 
+        });
+      }
+
+      setSelectedFile(null); // Clear preview after sending
+
       const response = await ai.models.generateContent({ 
-        model: 'gemini-3-flash-preview', contents: { parts: contents },
-        config: { tools: text.includes('?') ? [{ googleSearch: {} }] : undefined } 
+        model: 'gemini-3-flash-preview', 
+        contents: { parts: contents },
+        config: { 
+          tools: text.includes('?') || (selectedFile && selectedFile.type === 'application/pdf') ? [{ googleSearch: {} }] : undefined 
+        } 
       });
+
       const aiText = response.text || '...';
       const isAutoPinned = selectedVoiceMode === 'note' && (aiText.length > 150 || detectCreation(aiText));
       
@@ -339,7 +354,6 @@ export default function App() {
       const match = triggers.find(t => allMsgs.some(m => m.text.toLowerCase().includes(t.key)));
       if (match) {
         const lastMention = allMsgs.filter(m => m.text.toLowerCase().includes(match.key)).pop();
-        // Reminder logic: mentioned > 2 min ago and we haven't asked yet
         if (lastMention && Date.now() - lastMention.timestamp > 120000 && Date.now() - lastMention.timestamp < 10800000) {
            const msg = `Hey ${user.userName}! ${match.reminder} Mr. Cute is waiting for the tea! ☕`;
            if (!notifications.some(n => n.message === msg)) {
@@ -483,7 +497,7 @@ export default function App() {
              <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center"><StickyNote size={14} className="text-amber-500" /></div>
              <div>
                <div className="text-[10px] font-black uppercase text-amber-500 tracking-widest leading-none">Note Taker Protocol</div>
-               <div className="text-[9px] text-zinc-500 font-bold uppercase tracking-tighter">Edit or Pin insights. These will sync with AI context.</div>
+               <div className="text-[9px] text-zinc-500 font-bold uppercase tracking-tighter">strictly functional. pins insights & answers questions.</div>
              </div>
           </div>
         )}
@@ -550,20 +564,31 @@ export default function App() {
 
       {/* Input / Voice Trigger */}
       <footer className="p-4 bg-gradient-to-t from-black to-transparent">
+        {selectedFile && (
+          <div className="max-w-3xl mx-auto mb-2 flex items-center gap-3 p-2 bg-white/5 rounded-xl border border-white/10 animate-fade-in">
+             {selectedFile.type.startsWith('image/') ? (
+               <img src={selectedFile.data} className="w-10 h-10 rounded-lg object-cover" />
+             ) : (
+               <div className="w-10 h-10 bg-rose-600/20 rounded-lg flex items-center justify-center"><FileText className="text-rose-500" size={20} /></div>
+             )}
+             <div className="flex-1 text-[10px] font-black uppercase truncate">{selectedFile.name}</div>
+             <button onClick={() => setSelectedFile(null)} className="p-1.5 hover:bg-white/10 rounded-full"><X size={14} /></button>
+          </div>
+        )}
         <div className="max-w-3xl mx-auto flex items-center gap-2 p-1.5 bg-zinc-900 border border-white/5 rounded-[2rem] shadow-2xl">
           <button onClick={() => fileInputRef.current?.click()} className="p-3 text-zinc-500 hover:text-white"><ImageIcon size={20}/></button>
           <input type="file" ref={fileInputRef} onChange={(e) => {
              const file = e.target.files?.[0];
              if (file) {
                const reader = new FileReader();
-               reader.onloadend = () => setSelectedImage(reader.result as string);
+               reader.onloadend = () => setSelectedFile({ data: reader.result as string, name: file.name, type: file.type });
                reader.readAsDataURL(file);
              }
-          }} className="hidden" accept="image/*" />
-          <input type="text" placeholder={selectedVoiceMode === 'note' ? "Note something worthy..." : "Sync consciousness..."} value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} className="flex-1 bg-transparent py-3 px-1 font-bold text-sm outline-none placeholder-zinc-700" />
+          }} className="hidden" accept="image/*,.pdf" />
+          <input type="text" placeholder={selectedVoiceMode === 'note' ? "Ask, note, or summarize..." : "Talk about anything..."} value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} className="flex-1 bg-transparent py-3 px-1 font-bold text-sm outline-none placeholder-zinc-700" />
           <div className="flex items-center gap-1 pr-1">
-             <button onClick={() => setIsVoiceModeSelectOpen(true)} className={`p-3 rounded-full transition-all ${isLive ? 'bg-blue-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-blue-400'}`}><Mic size={20}/></button>
-             <button onClick={() => handleSendToAI(inputText)} className={`p-3 rounded-full transition-all ${inputText.trim() ? 'bg-blue-600 text-white' : 'bg-white/5 text-zinc-700'}`} disabled={!inputText.trim() && !selectedImage}><Send size={20}/></button>
+             <button onClick={() => setIsVoiceModeSelectOpen(true)} className={`p-3 rounded-full transition-all ${isLive ? 'bg-blue-600 text-white shadow-[0_0_10px_rgba(59,130,246,0.3)]' : 'bg-white/5 text-zinc-500 hover:text-blue-400'}`}><Mic size={20}/></button>
+             <button onClick={() => handleSendToAI(inputText)} className={`p-3 rounded-full transition-all ${inputText.trim() || selectedFile ? 'bg-blue-600 text-white' : 'bg-white/5 text-zinc-700'}`} disabled={!inputText.trim() && !selectedFile}><Send size={20}/></button>
           </div>
         </div>
       </footer>
@@ -576,11 +601,11 @@ export default function App() {
              <h3 className="text-xl font-black uppercase tracking-tight text-center italic">Link Protocol</h3>
              <div className="grid grid-cols-1 gap-4">
                 <button onClick={() => { setSelectedVoiceMode('chat'); connectLive(); setIsVoiceModeSelectOpen(false); }} className={`p-6 rounded-3xl flex items-center justify-between group transition-all ${selectedVoiceMode === 'chat' ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)]' : 'bg-white/5 text-zinc-500 border border-white/5 hover:bg-white/10'}`}>
-                   <div className="text-left"><div className="font-black text-lg">BESTIE SYNC</div><div className="text-[9px] opacity-70 uppercase tracking-widest font-bold mt-1">Full emotional connection.</div></div>
+                   <div className="text-left"><div className="font-black text-lg">BESTIE SYNC</div><div className="text-[9px] opacity-70 uppercase tracking-widest font-bold mt-1">Full connection. talk about anything.</div></div>
                    <Mic size={28}/>
                 </button>
                 <button onClick={() => { setSelectedVoiceMode('note'); connectLive(); setIsVoiceModeSelectOpen(false); }} className={`p-6 rounded-3xl flex items-center justify-between group transition-all ${selectedVoiceMode === 'note' ? 'bg-amber-600 text-white shadow-[0_0_20px_rgba(245,158,11,0.3)]' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20 hover:bg-amber-500/20'}`}>
-                   <div className="text-left"><div className="font-black text-lg">NOTE SYNC</div><div className="text-[9px] opacity-70 uppercase tracking-widest font-bold mt-1">Utility & Core Anchoring.</div></div>
+                   <div className="text-left"><div className="font-black text-lg">NOTE SYNC</div><div className="text-[9px] opacity-70 uppercase tracking-widest font-bold mt-1">strictly notes. answer & summarize.</div></div>
                    <StickyNote size={28}/>
                 </button>
              </div>

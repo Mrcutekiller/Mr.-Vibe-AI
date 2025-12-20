@@ -2,7 +2,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, FunctionDeclaration, Type } from '@google/genai';
 import { createPcmBlob, decode, decodeAudioData } from '../utils/audioUtils';
-// Removed 'CustomCommand' as it is not exported from '../types' and is not used in this file.
 import { Personality, AppSettings, User } from '../types';
 import { BASE_SYSTEM_PROMPT, GEMINI_VOICES } from '../constants';
 
@@ -101,7 +100,7 @@ export const useGeminiLive = ({
 
   const disconnect = useCallback(() => {
     if (processorRef.current) { 
-      processorRef.current.onaudioprocess = null; // Prevent aborted error from trailing process events
+      processorRef.current.onaudioprocess = null;
       processorRef.current.disconnect(); 
       processorRef.current = null; 
     }
@@ -142,12 +141,7 @@ export const useGeminiLive = ({
       await initAudio();
       
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          noiseSuppression: true,
-          echoCancellation: true,
-          autoGainControl: true,
-          sampleRate: 16000
-        } 
+        audio: { noiseSuppression: true, echoCancellation: true, autoGainControl: true, sampleRate: 16000 } 
       });
       streamRef.current = stream;
 
@@ -155,18 +149,8 @@ export const useGeminiLive = ({
 
       const voiceControlFunctions: FunctionDeclaration[] = [
         {
-          name: 'summarize_board',
-          description: 'Summarize the current conversation and board into a Vibe Report.',
-          parameters: { type: Type.OBJECT, properties: {} }
-        },
-        {
-          name: 'create_new_session',
-          description: 'Start a completely new chat board or session.',
-          parameters: { type: Type.OBJECT, properties: {} }
-        },
-        {
-          name: 'clear_current_board',
-          description: 'Clear all messages on the current active board.',
+          name: 'summarize_session',
+          description: 'Summarize the entire conversation history into a clear, concise bullet-point vibe report.',
           parameters: { type: Type.OBJECT, properties: {} }
         },
         {
@@ -175,61 +159,35 @@ export const useGeminiLive = ({
           parameters: {
             type: Type.OBJECT,
             properties: {
-              voice_id: {
-                type: Type.STRING,
-                description: 'The ID of the voice to switch to (e.g., Puck, Charon, Fenrir, Kore, Aoede, Zephyr).',
-              }
+              voice_id: { type: Type.STRING, description: 'Voice ID (Puck, Charon, Fenrir, Kore, Aoede, Zephyr).' }
             },
             required: ['voice_id']
           }
         },
         {
-          name: 'change_user_name',
-          description: 'Update the user profile name.',
-          parameters: {
-            type: Type.OBJECT,
-            properties: {
-              new_name: {
-                type: Type.STRING,
-                description: 'The new name for the user.',
-              }
-            },
-            required: ['new_name']
-          }
-        },
-        {
-          name: 'clear_notifications',
-          description: 'Clear any active notifications on the screen.',
+          name: 'clear_current_board',
+          description: 'Delete all current messages and reset memory for the active board.',
           parameters: { type: Type.OBJECT, properties: {} }
         }
       ];
 
-      const customShortcuts = settings.customCommands.map(c => `If I say "${c.trigger}", interpret it as "${c.action}"`).join('\n');
-
       const modeInstruction = mode === 'note' 
-        ? "You are now in SMART NOTE TAKER mode. Focus strictly on utility. If the user asks a question, provide ONLY the direct answer concisely. If they share info, briefly acknowledge it. No unnecessary fluff."
-        : `You are in MAIN CHARACTER CHAT mode. Be your full expressive self. Greet the user as their bestie using the ${personality.name} archetype. Engage deeply.`;
+        ? "STRICT MODE: You are a SMART NOTE TAKER. Your ONLY job is to take notes, answer direct questions from the user, or provide summaries when asked. Do NOT engage in casual chat. Be short, professional, and utilitarian."
+        : `BESTIE MODE: You are a friendly, expressive, and upbeat best friend companion. Talk about anything the user wants! Start every new session with a warm 'Hi!' and be your charming self.`;
 
       const voicesList = GEMINI_VOICES.map(v => `${v.name} (id: ${v.id})`).join(', ');
 
       const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}
-      - CURRENT MODE: ${modeInstruction}
-      - Personality: ${personality.name}
-      - Context: ${personality.prompt}
-      - User: ${user.userName}
+      - MODE PROTOCOL: ${modeInstruction}
+      - USER IDENTITY: ${user.userName} (Gender: ${user.gender})
+      - ARCHETYPE: ${personality.name} (${personality.prompt})
       
-      VOICE COMMANDS (YOU CAN CONTROL THE UI):
-      - "Change your voice to [Voice Name]" -> use change_voice(voice_id)
-        Available Voices: ${voicesList}
-      - "Call me [New Name]" -> use change_user_name(new_name)
-      - "New session" or "Start fresh" -> use create_new_session
-      - "Clear the board" or "Reset everything" -> use clear_current_board
-      - "Clear notifications" or "Close messages" -> use clear_notifications
-
-      USER DEFINED SHORTCUTS:
-      ${customShortcuts || "No custom shortcuts defined."}
-
-      Rules: Be concise in Note Taker mode, stay in character in Chat mode, and ALWAYS help with notes.`;
+      FUNCTIONAL LINKS:
+      - summarize_session: Triggered when user asks to "Summarize everything" or "What have we talked about?".
+      - change_voice: Change voice to one of: ${voicesList}.
+      - clear_current_board: Wipe the current screen.
+      
+      Rules: In Note Taker mode, answer questions and summarize strictly. In Bestie mode, be conversational and say Hi!`;
 
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
@@ -251,8 +209,8 @@ export const useGeminiLive = ({
             
             sessionPromise.then(session => {
               const greetingPrompt = mode === 'note' 
-                ? "Briefly acknowledge you're ready to take smart notes." 
-                : "Introduce yourself and greet me warmly in your selected persona. Let's chat!";
+                ? "Report ready. Note taker online." 
+                : "Hi! Mr. Cute is online. How's your vibe today?";
               session.sendRealtimeInput({ text: greetingPrompt });
             });
 
@@ -298,33 +256,26 @@ export const useGeminiLive = ({
                   const audioBuffer = await decodeAudioData(decode(base64Audio), ctx, 24000, 1);
                   const source = ctx.createBufferSource();
                   source.buffer = audioBuffer;
-                  
                   const speedMultiplier = settingsRef.current.speakingRate * settingsRef.current.speakingPitch;
                   source.playbackRate.value = speedMultiplier;
 
-                  if (outputAnalyserRef.current) {
-                    source.connect(outputAnalyserRef.current);
-                  } else {
-                    source.connect(ctx.destination);
-                  }
+                  if (outputAnalyserRef.current) source.connect(outputAnalyserRef.current);
+                  else source.connect(ctx.destination);
 
                   source.start(nextStartTimeRef.current);
                   nextStartTimeRef.current += (audioBuffer.duration / speedMultiplier);
-                  
                   sourcesRef.current.add(source);
                   source.onended = () => sourcesRef.current.delete(source);
                 } catch (err) { console.error("Audio output error", err); }
              }
 
              if (message.serverContent?.inputTranscription) {
-                const text = message.serverContent.inputTranscription.text;
-                currentInputText.current += text;
-                onTranscript(text, false, false);
+                onTranscript(message.serverContent.inputTranscription.text, false, false);
+                currentInputText.current += message.serverContent.inputTranscription.text;
              }
              if (message.serverContent?.outputTranscription) {
-                const text = message.serverContent.outputTranscription.text;
-                currentOutputText.current += text;
-                onTranscript(text, false, true);
+                onTranscript(message.serverContent.outputTranscription.text, false, true);
+                currentOutputText.current += message.serverContent.outputTranscription.text;
              }
              if (message.serverContent?.turnComplete) {
                 onTurnComplete(currentInputText.current, currentOutputText.current);
@@ -339,14 +290,14 @@ export const useGeminiLive = ({
           },
           onclose: () => disconnect(),
           onerror: (e) => {
-            onError("Connection dropped. Resetting soul link...");
+            onError("Link failure. Pulse reset.");
             disconnect();
           }
         }
       });
       sessionPromiseRef.current = sessionPromise;
     } catch (error: any) { 
-      onError(error.message || "Vibe connection failed.");
+      onError(error.message || "Vibe sync failed.");
       disconnect(); 
     }
   }, [apiKey, personality, settings, user, mode, isLive, isConnecting, onConnectionStateChange, onTranscript, onTurnComplete, onCommand, initAudio, disconnect, onError]);
