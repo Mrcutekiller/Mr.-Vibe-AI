@@ -21,11 +21,11 @@ export type Theme = 'dark' | 'light';
 export type Gender = 'Male' | 'Female' | 'Other' | 'Secret';
 
 export interface User {
-  email: string;
+  email?: string;
   password?: string;
   userName: string;
-  age: string;
-  gender: Gender;
+  age?: string;
+  gender?: Gender;
   avatarUrl: string;
   personalityId: PersonalityId;
   movieGenre?: string;
@@ -52,17 +52,11 @@ export interface GroundingSource {
   uri: string;
 }
 
-export interface CustomCommand {
-  id: string;
-  trigger: string;
-  action: string;
-}
-
 export interface Message {
   id: string;
   role: 'user' | 'model';
   text: string;
-  image?: string; // base64
+  image?: string; 
   isNote?: boolean;
   isQuestion?: boolean;
   timestamp: number;
@@ -78,6 +72,12 @@ export interface ChatSession {
   personalityId: PersonalityId;
 }
 
+export interface CustomCommand {
+  id: string;
+  trigger: string;
+  action: string;
+}
+
 export interface AppSettings {
   language: string;
   theme: Theme;
@@ -85,7 +85,6 @@ export interface AppSettings {
   voiceName: string;
   speakingRate: number;
   speakingPitch: number;
-  wakeWordEnabled: boolean;
   customCommands: CustomCommand[];
 }
 

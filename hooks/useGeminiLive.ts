@@ -99,13 +99,14 @@ export const useGeminiLive = ({
   }, [isLive]);
 
   const disconnect = useCallback(() => {
+    if (processorRef.current) { 
+      processorRef.current.onaudioprocess = null; // Prevent aborted error from trailing process events
+      processorRef.current.disconnect(); 
+      processorRef.current = null; 
+    }
     if (streamRef.current) { 
       streamRef.current.getTracks().forEach(track => track.stop()); 
       streamRef.current = null; 
-    }
-    if (processorRef.current) { 
-      processorRef.current.disconnect(); 
-      processorRef.current = null; 
     }
     if (sourceRef.current) {
       sourceRef.current.disconnect();
@@ -259,6 +260,7 @@ export const useGeminiLive = ({
             const processor = inputAudioContextRef.current.createScriptProcessor(4096, 1, 1);
             
             processor.onaudioprocess = (e) => {
+              if (!sessionPromiseRef.current) return;
               const inputData = e.inputBuffer.getChannelData(0);
               let sum = 0;
               for(let i=0; i<inputData.length; i++) sum += inputData[i] * inputData[i];

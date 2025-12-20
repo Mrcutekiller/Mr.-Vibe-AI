@@ -3,7 +3,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
     <title>Mr. Vibe AI</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -16,47 +16,25 @@
               sans: ['Plus Jakarta Sans', 'sans-serif'],
             },
             animation: {
-              'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-              'float': 'float 6s ease-in-out infinite',
-              'typing-dot': 'typing-dot 1.4s infinite ease-in-out',
-              'scale-in': 'scaleIn 0.2s ease-out forwards',
+              'pulse-orb': 'pulse-orb 3s ease-in-out infinite',
+              'orb-float': 'orb-float 6s ease-in-out infinite',
+              'scale-in': 'scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards',
               'fade-in': 'fadeIn 0.3s ease-out forwards',
               'slide-up': 'slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
-              'vibe-in': 'vibeIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
-              'nod': 'nod 0.6s ease-in-out',
-              'tilt': 'tilt 0.8s ease-in-out',
-              'wake': 'wakeUp 0.8s cubic-bezier(0.19, 1, 0.22, 1)',
-              'arm-swing-left': 'armSwingLeft 3s ease-in-out infinite',
-              'arm-swing-right': 'armSwingRight 3s ease-in-out infinite',
-              'leg-bounce': 'legBounce 1.5s ease-in-out infinite',
-              'eye-blink': 'eyeBlink 4s ease-in-out infinite',
-              'speaking-vibes': 'speaking-vibration 0.15s ease-in-out infinite',
-              'laugh': 'laughScale 0.4s ease-in-out 3',
+              'vibe-in': 'vibeIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
             },
             keyframes: {
-              float: {
+              'pulse-orb': {
+                '0%, 100%': { transform: 'scale(1)', opacity: '0.8', boxShadow: '0 0 20px rgba(59, 130, 246, 0.5)' },
+                '50%': { transform: 'scale(1.1)', opacity: '1', boxShadow: '0 0 40px rgba(59, 130, 246, 0.8)' },
+              },
+              'orb-float': {
                 '0%, 100%': { transform: 'translateY(0)' },
-                '50%': { transform: 'translateY(-15px)' },
-              },
-              armSwingLeft: {
-                '0%, 100%': { transform: 'rotate(-10deg) translateX(0)' },
-                '50%': { transform: 'rotate(5deg) translateX(-5px)' },
-              },
-              armSwingRight: {
-                '0%, 100%': { transform: 'rotate(10deg) translateX(0)' },
-                '50%': { transform: 'rotate(-5deg) translateX(5px)' },
-              },
-              legBounce: {
-                '0%, 100%': { transform: 'scaleY(1)' },
-                '50%': { transform: 'scaleY(0.9) translateY(5px)' },
-              },
-              laughScale: {
-                '0%, 100%': { transform: 'scale(1)' },
-                '50%': { transform: 'scale(1.15) translateY(-5px)' },
+                '50%': { transform: 'translateY(-10px)' },
               },
               scaleIn: {
-                '0%': { transform: 'scale(0.95)', opacity: '0' },
-                '100%': { transform: 'scale(1)', opacity: '1' },
+                '0%': { transform: 'scale(0.95) translateY(10px)', opacity: '0' },
+                '100%': { transform: 'scale(1) translateY(0)', opacity: '1' },
               },
               fadeIn: {
                 '0%': { opacity: '0' },
@@ -66,13 +44,9 @@
                 '0%': { transform: 'translateY(20px)', opacity: '0' },
                 '100%': { transform: 'translateY(0)', opacity: '1' },
               },
-              eyeBlink: {
-                '0%, 90%, 100%': { transform: 'scaleY(1)' },
-                '95%': { transform: 'scaleY(0.1)' },
-              },
-              'speaking-vibration': {
-                '0%, 100%': { transform: 'translate(0, 0) scale(1)' },
-                '50%': { transform: 'translate(0, -2px) scale(1.01)' },
+              vibeIn: {
+                '0%': { transform: 'translateY(10px) scale(0.98)', opacity: '0' },
+                '100%': { transform: 'translateY(0) scale(1)', opacity: '1' },
               }
             }
           },
@@ -81,77 +55,46 @@
     </script>
     <style>
       :root {
-        --glass: rgba(255, 255, 255, 0.03);
-        --glass-border: rgba(255, 255, 255, 0.1);
+        --app-height: 100%;
       }
-      
-      body {
-        font-family: 'Plus Jakarta Sans', sans-serif;
-        background-color: #f4f4f5;
+      html, body {
+        height: 100%;
         overflow: hidden;
-        height: 100vh;
-        height: 100dvh;
-        transition: background-color 0.5s ease;
-        padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+        position: fixed;
+        width: 100%;
       }
-
-      .dark body {
-        background-color: #030303;
-      }
-
-      .glass {
-        background: rgba(255, 255, 255, 0.7);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        border: 1px solid rgba(0, 0, 0, 0.05);
-      }
-
-      .dark .glass {
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-      }
-
-      .custom-scrollbar::-webkit-scrollbar {
-        width: 4px;
-      }
-      .custom-scrollbar::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      .custom-scrollbar::-webkit-scrollbar-thumb {
-        background: rgba(0, 0, 0, 0.05);
-        border-radius: 20px;
-      }
-      .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.05);
-      }
-
-      button, a, input, select {
-        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      body {
+        font-family: 'Plus Jakarta Sans', 'sans-serif';
+        background-color: #000;
         -webkit-tap-highlight-color: transparent;
       }
-
-      .perspective {
-        perspective: 1000px;
+      .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+      .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
       }
-      
-      .preserve-3d {
-        transform-style: preserve-3d;
+      .ios-safe-bottom {
+        padding-bottom: env(safe-area-inset-bottom);
+      }
+      .ios-safe-top {
+        padding-top: env(safe-area-inset-top);
       }
     </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3",
-    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
-    "lucide-react": "https://esm.sh/lucide-react@^0.561.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
-  }
-}
-</script>
-</head>
-  <body>
-    <div id="root"></div>
+    <script type="importmap">
+    {
+      "imports": {
+        "react/": "https://esm.sh/react@^19.2.3/",
+        "react": "https://esm.sh/react@^19.2.3",
+        "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
+        "lucide-react": "https://esm.sh/lucide-react@^0.561.0",
+        "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
+      }
+    }
+    </script>
+  </head>
+  <body class="dark">
+    <div id="root" class="h-full w-full"></div>
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>
