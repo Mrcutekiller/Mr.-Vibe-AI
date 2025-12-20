@@ -2,7 +2,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, FunctionDeclaration, Type } from '@google/genai';
 import { createPcmBlob, decode, decodeAudioData } from '../utils/audioUtils';
-import { Personality, AppSettings, User, CustomCommand } from '../types';
+// Removed 'CustomCommand' as it is not exported from '../types' and is not used in this file.
+import { Personality, AppSettings, User } from '../types';
 import { BASE_SYSTEM_PROMPT, GEMINI_VOICES } from '../constants';
 
 interface UseGeminiLiveProps {

@@ -9,7 +9,7 @@ import {
   ChevronDown, MoreHorizontal, User as UserIcon, Copy, Share2, Heart, ThumbsUp, Pin, BookOpen
 } from 'lucide-react';
 import { PERSONALITIES, BASE_SYSTEM_PROMPT, AVATARS, GEMINI_VOICES } from './constants';
-import { PersonalityId, Personality, AppSettings, User, ChatSession, Message, ReactionType } from './types';
+import { PersonalityId, Personality, AppSettings, User, ChatSession, Message, ReactionType, Notification } from './types';
 import { useGeminiLive } from './hooks/useGeminiLive';
 
 // --- Modern AI Orb Component ---
@@ -94,7 +94,7 @@ const Logo = ({ className }: { className?: string }) => (
 export default function App() {
   const [isNewUser, setIsNewUser] = useState<boolean>(() => !localStorage.getItem('mr_vibe_active_user'));
   const [toast, setToast] = useState<{message: string, type: 'info' | 'success' | 'error'} | null>(null);
-  const [notifications, setNotifications] = useState<{id: string, message: string, type: string, time: number}[]>(() => JSON.parse(localStorage.getItem('mr_vibe_notifications') || '[]'));
+  const [notifications, setNotifications] = useState<Notification[]>(() => JSON.parse(localStorage.getItem('mr_vibe_notif_history') || '[]'));
   const [user, setUser] = useState<User | null>(() => JSON.parse(localStorage.getItem('mr_vibe_active_user') || 'null'));
   const [tempProfile, setTempProfile] = useState<Partial<User>>({ userName: '', gender: 'Secret', avatarUrl: AVATARS[0], personalityId: PersonalityId.NORMAL });
 
@@ -133,10 +133,10 @@ export default function App() {
 
   const showToast = (message: string, type: 'info' | 'success' | 'error' = 'info') => {
     setToast({ message, type });
-    const newNotif = { id: Date.now().toString(), message, type, time: Date.now() };
+    const newNotif: Notification = { id: Date.now().toString(), message, type, timestamp: Date.now() };
     setNotifications(prev => {
-      const updated = [newNotif, ...prev].slice(0, 20);
-      localStorage.setItem('mr_vibe_notifications', JSON.stringify(updated));
+      const updated = [newNotif, ...prev].slice(0, 50);
+      localStorage.setItem('mr_vibe_notif_history', JSON.stringify(updated));
       return updated;
     });
     setTimeout(() => setToast(null), 5000);
@@ -252,6 +252,23 @@ export default function App() {
     } else copyToClipboard(text);
   };
 
+  // Proactive Reminders / Follow-ups logic
+  useEffect(() => {
+    if (!user || sessions.length === 0) return;
+    const checkTimer = setTimeout(() => {
+      const lastSession = sessions[0];
+      const lastMsg = lastSession.messages[lastSession.messages.length - 1];
+      if (lastMsg && lastMsg.role === 'model') {
+        const keywords = ['test', 'exam', 'work', 'project', 'plan', 'trip', 'dinner', 'pdf', 'summary'];
+        const foundKeyword = keywords.find(k => lastSession.messages.some(m => m.text.toLowerCase().includes(k)));
+        if (foundKeyword) {
+          showToast(`Hey ${user.userName}! Mr. Cute here. Thinking about that "${foundKeyword}" you mentioned... Hope it's going great!`, "info");
+        }
+      }
+    }, 15000); // 15s delay for proactive engagement
+    return () => clearTimeout(checkTimer);
+  }, [user, sessions.length]);
+
   useEffect(() => {
     if (!isNewUser && user && sessions.length > 0) {
       setAvatarAnimation('hi');
@@ -268,25 +285,28 @@ export default function App() {
         <div className="w-full max-w-sm bg-zinc-900 rounded-[2.5rem] p-10 text-center shadow-2xl animate-scale-in border border-white/5">
            <Logo className="w-20 h-20 mx-auto mb-8" />
            <h1 className="text-3xl font-black mb-2 text-white uppercase tracking-tight">Mr. Vibe AI</h1>
-           <p className="text-zinc-500 mb-8 font-bold text-sm uppercase">Welcome to the Matrix</p>
+           <p className="text-zinc-500 mb-8 font-bold text-sm">SET YOUR IDENTITY.</p>
            
            <div className="space-y-4 mb-8">
              <input 
-               type="text" placeholder="Identity Label (Name)..." 
+               type="text" placeholder="Your name..." 
                value={tempProfile.userName} 
                onChange={e => setTempProfile({...tempProfile, userName: e.target.value})} 
                className="w-full bg-white/5 rounded-2xl py-4 px-6 font-bold text-lg text-center outline-none border-2 border-transparent focus:border-blue-500 transition-all text-white" 
              />
-             <select 
-               value={tempProfile.gender}
-               onChange={e => setTempProfile({...tempProfile, gender: e.target.value as any})}
-               className="w-full bg-white/5 rounded-2xl py-4 px-6 font-bold text-lg text-center outline-none border-2 border-transparent focus:border-blue-500 transition-all text-white appearance-none cursor-pointer"
-             >
-               <option value="Male" className="bg-zinc-900">Male</option>
-               <option value="Female" className="bg-zinc-900">Female</option>
-               <option value="Other" className="bg-zinc-900">Other</option>
-               <option value="Secret" className="bg-zinc-900">Secret</option>
-             </select>
+             <div className="flex flex-col gap-2">
+               <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest text-left pl-2">GENDER FREQUENCY</label>
+               <select 
+                 value={tempProfile.gender}
+                 onChange={e => setTempProfile({...tempProfile, gender: e.target.value as any})}
+                 className="w-full bg-white/5 rounded-2xl py-4 px-6 font-bold text-lg text-center outline-none border-2 border-transparent focus:border-blue-500 transition-all text-white appearance-none cursor-pointer"
+               >
+                 <option value="Male" className="bg-zinc-900">Male</option>
+                 <option value="Female" className="bg-zinc-900">Female</option>
+                 <option value="Other" className="bg-zinc-900">Other</option>
+                 <option value="Secret" className="bg-zinc-900">Secret</option>
+               </select>
+             </div>
            </div>
 
            <button 
@@ -317,7 +337,12 @@ export default function App() {
           <span className="font-black text-sm uppercase tracking-tighter italic">Mr. Vibe</span>
         </div>
         <div className="flex items-center gap-2">
-          {journalNotes.length > 0 && <button onClick={() => setIsJournalOpen(true)} className="p-2 text-amber-500 bg-amber-500/10 rounded-xl"><BookOpen size={18}/></button>}
+          {journalNotes.length > 0 && (
+            <button onClick={() => setIsJournalOpen(true)} className="p-2 text-amber-500 bg-amber-500/10 rounded-xl relative">
+              <BookOpen size={18}/>
+              <span className="absolute top-0 right-0 w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+            </button>
+          )}
           <button onClick={() => setIsNotifHistoryOpen(true)} className="p-2 hover:bg-white/5 rounded-xl text-zinc-500"><Bell size={20} /></button>
           <button onClick={() => setIsProfileModalOpen(true)} className="w-8 h-8 rounded-full overflow-hidden border-2 border-blue-500/30">
             <img src={user?.avatarUrl} className="w-full h-full object-cover" alt="User" />
@@ -361,7 +386,7 @@ export default function App() {
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center space-y-6 opacity-30">
             <VibeOrb active={false} isThinking={false} volume={0} outputVolume={0} animationState={avatarAnimation} />
-            <div><h3 className="text-xl font-black uppercase tracking-tight">Vibe Core: Mr. Cute</h3><p className="text-xs font-bold uppercase tracking-widest mt-1">Ready for input.</p></div>
+            <div><h3 className="text-xl font-black uppercase tracking-tight">Soul Link Idle</h3><p className="text-xs font-bold uppercase tracking-widest mt-1">Ready for input.</p></div>
           </div>
         ) : (
           messages.map((msg, i) => (
@@ -384,9 +409,9 @@ export default function App() {
         {isLoading && <div className="flex justify-start gap-4 items-center"><div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center animate-thoughtful-wobble"><div className="w-2 h-2 bg-blue-500 rounded-full animate-ping" /></div></div>}
       </main>
 
-      {/* Input Footer */}
+      {/* Input / Voice Trigger */}
       <footer className="p-4 bg-gradient-to-t from-black to-transparent">
-        <div className="max-w-3xl mx-auto flex items-center gap-2 p-1.5 bg-zinc-900 border border-white/5 rounded-[2rem] shadow-2xl focus-within:border-blue-500/50 transition-all">
+        <div className="max-w-3xl mx-auto flex items-center gap-2 p-1.5 bg-zinc-900 border border-white/5 rounded-[2rem] shadow-2xl">
           <button onClick={() => fileInputRef.current?.click()} className="p-3 text-zinc-500 hover:text-white"><ImageIcon size={22}/></button>
           <input type="file" ref={fileInputRef} onChange={(e) => {
              const file = e.target.files?.[0];
@@ -404,21 +429,19 @@ export default function App() {
         </div>
       </footer>
 
-      {/* Modals remain similarly structured but with Mr. Cute references */}
-      
-      {/* Voice Selection */}
+      {/* Voice Selection Modal */}
       {isVoiceModeSelectOpen && (
         <div className="fixed inset-0 z-[8000] flex items-end justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsVoiceModeSelectOpen(false)} />
           <div className="relative w-full max-w-sm bg-zinc-900 rounded-[3rem] p-8 space-y-6 animate-slide-up border border-white/5">
-             <h3 className="text-xl font-black uppercase tracking-tight text-center">Sync Mode</h3>
+             <h3 className="text-xl font-black uppercase tracking-tight text-center">Select Mode</h3>
              <div className="grid grid-cols-1 gap-4">
                 <button onClick={() => { setSelectedVoiceMode('chat'); connectLive(); setIsVoiceModeSelectOpen(false); }} className="p-6 bg-blue-600 text-white rounded-3xl flex items-center justify-between group">
-                   <div className="text-left"><div className="font-black text-lg">CHAT WITH MR. CUTE</div><div className="text-[10px] opacity-70">Bestie conversation mode.</div></div>
+                   <div className="text-left"><div className="font-black text-lg">VOICE CHAT</div><div className="text-[10px] opacity-70">Bestie conversation mode.</div></div>
                    <Mic size={28}/>
                 </button>
                 <button onClick={() => { setSelectedVoiceMode('note'); connectLive(); setIsVoiceModeSelectOpen(false); }} className="p-6 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-3xl flex items-center justify-between group">
-                   <div className="text-left"><div className="font-black text-lg">SMART NOTE TAKER</div><div className="text-[10px] opacity-70">Mr. Cute tracks details for you.</div></div>
+                   <div className="text-left"><div className="font-black text-lg">NOTE TAKER</div><div className="text-[10px] opacity-70">Mr. Cute tracks details.</div></div>
                    <StickyNote size={28}/>
                 </button>
              </div>
@@ -426,34 +449,27 @@ export default function App() {
         </div>
       )}
 
-      {/* Notification History View */}
+      {/* Notification History Modal */}
       {isNotifHistoryOpen && (
         <div className="fixed inset-0 z-[8000] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={() => setIsNotifHistoryOpen(false)} />
           <div className="relative w-full max-w-md bg-zinc-900 rounded-[3rem] p-8 space-y-6 animate-scale-in border border-white/5 max-h-[70vh] flex flex-col">
              <div className="flex items-center justify-between border-b border-white/5 pb-4">
-                <h3 className="text-xl font-black uppercase tracking-tight">Matrix Feed</h3>
+                <h3 className="text-xl font-black uppercase tracking-tight">Vibe Feed</h3>
                 <button onClick={() => setIsNotifHistoryOpen(false)} className="p-2 bg-white/5 rounded-xl"><X size={20}/></button>
              </div>
-             <div className="flex-1 overflow-y-auto space-y-4 custom-scrollbar py-2">
-                {notifications.length === 0 ? (
-                  <div className="text-center py-10 opacity-30 text-xs font-black uppercase tracking-widest">Feed is clear.</div>
-                ) : (
+             <div className="flex-1 overflow-y-auto space-y-4 custom-scrollbar py-4">
+                {notifications.length === 0 ? <div className="text-center py-10 opacity-30 text-xs font-black">Feed is clear.</div> : 
                   notifications.map(n => (
-                    <div key={n.id} className="p-4 bg-white/5 rounded-2xl space-y-1 border border-white/5 group relative">
+                    <div key={n.id} className="p-4 bg-white/5 rounded-2xl space-y-1">
                        <div className="text-xs font-bold leading-snug">{n.message}</div>
-                       <div className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">{new Date(n.time).toLocaleString()}</div>
+                       <div className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">{new Date(n.timestamp).toLocaleTimeString()}</div>
                     </div>
                   ))
-                )}
+                }
              </div>
              {notifications.length > 0 && (
-               <button 
-                 onClick={() => { setNotifications([]); localStorage.removeItem('mr_vibe_notifications'); showToast("Matrix Feed Cleared", "info"); }} 
-                 className="w-full py-4 bg-white/5 hover:bg-white/10 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 hover:text-white rounded-2xl transition-all"
-               >
-                 Purge History
-               </button>
+               <button onClick={() => { setNotifications([]); localStorage.removeItem('mr_vibe_notif_history'); }} className="text-[10px] font-black uppercase text-zinc-500 hover:text-white transition-all text-center pb-2">Clear Matrix Feed</button>
              )}
           </div>
         </div>
@@ -466,16 +482,16 @@ export default function App() {
            <div className="relative w-full max-w-2xl bg-white text-zinc-900 rounded-[2rem] p-10 shadow-3xl animate-scale-in max-h-[85vh] overflow-y-auto flex flex-col font-serif">
               <div className="flex items-center justify-between border-b-2 border-zinc-100 pb-6 mb-8">
                  <div className="space-y-1">
-                   <h2 className="text-3xl font-black italic tracking-tighter uppercase font-sans">Mr. Cute's Journal</h2>
-                   <div className="text-[10px] uppercase font-black tracking-widest text-zinc-400 font-sans">Compiled Insights</div>
+                   <h2 className="text-3xl font-black italic tracking-tighter uppercase font-sans">Vibe Journal</h2>
+                   <div className="text-[10px] uppercase font-black tracking-widest text-zinc-400 font-sans">Compiled by Mr. Cute AI</div>
                  </div>
                  <button onClick={() => setIsJournalOpen(false)} className="p-3 bg-zinc-100 rounded-full hover:bg-zinc-200 text-zinc-400 font-sans"><X size={20}/></button>
               </div>
               <div className="flex-1 space-y-8 leading-relaxed text-lg">
-                 {journalNotes.length === 0 ? <div className="text-center py-20 font-sans opacity-20 italic">No notes synced yet.</div> : 
+                 {journalNotes.length === 0 ? <div className="text-center py-20 font-sans opacity-20 italic">No notes linked yet.</div> : 
                    journalNotes.map((note, idx) => (
                      <div key={note.id} className="space-y-2 border-l-4 border-amber-500/20 pl-6">
-                        <div className="text-[10px] font-black uppercase tracking-widest text-zinc-400 font-sans">Insight {idx + 1} • {new Date(note.timestamp).toLocaleDateString()}</div>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-zinc-400 font-sans">Entry {idx + 1} • {new Date(note.timestamp).toLocaleDateString()}</div>
                         <div className="text-zinc-800">{note.text}</div>
                      </div>
                    ))
@@ -490,41 +506,36 @@ export default function App() {
         <div className="fixed inset-0 z-[8000] flex items-center justify-center p-4">
            <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setIsProfileModalOpen(false)} />
            <div className="relative w-full max-w-lg bg-zinc-900 rounded-[3rem] p-8 space-y-10 animate-scale-in border border-white/5 max-h-[90vh] overflow-y-auto custom-scrollbar">
-              <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-black uppercase tracking-tight italic">Identity Profile</h2>
-                <button onClick={() => setIsProfileModalOpen(false)} className="p-2 bg-white/5 rounded-xl"><X size={20}/></button>
-              </div>
-              
+              <div className="flex items-center justify-between"><h2 className="text-2xl font-black uppercase tracking-tight">Identity</h2><button onClick={() => setIsProfileModalOpen(false)} className="p-2 bg-white/5 rounded-xl"><X size={20}/></button></div>
               <div className="flex flex-col items-center gap-6">
                  <div className="relative group w-32 h-32 rounded-[2.5rem] overflow-hidden border-4 border-blue-600/50 shadow-2xl transition-transform hover:scale-110">
                     <img src={user?.avatarUrl} className="w-full h-full object-cover" alt="Avatar" />
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><Edit3 size={24}/></div>
                  </div>
                  <div className="w-full space-y-4">
-                   <input type="text" value={user?.userName} placeholder="Name" onChange={e => {
-                     const updated = { ...user!, userName: e.target.value };
-                     setUser(updated); localStorage.setItem('mr_vibe_active_user', JSON.stringify(updated));
-                   }} className="text-2xl font-black text-center bg-transparent outline-none border-b-4 border-white/5 focus:border-blue-600 transition-all uppercase w-full pb-2 text-white" />
-                   
-                   <select 
-                     value={user?.gender}
-                     onChange={e => {
-                       const updated = { ...user!, gender: e.target.value as any };
-                       setUser(updated); localStorage.setItem('mr_vibe_active_user', JSON.stringify(updated));
-                     }}
-                     className="w-full bg-white/5 rounded-2xl py-3 px-6 font-bold text-center outline-none border-2 border-transparent focus:border-blue-500 transition-all text-white appearance-none cursor-pointer"
-                   >
-                     <option value="Male">Male</option>
-                     <option value="Female">Female</option>
-                     <option value="Other">Other</option>
-                     <option value="Secret">Secret</option>
-                   </select>
+                    <input type="text" value={user?.userName} onChange={e => {
+                      const updated = { ...user!, userName: e.target.value };
+                      setUser(updated); localStorage.setItem('mr_vibe_active_user', JSON.stringify(updated));
+                    }} className="text-3xl font-black text-center bg-transparent outline-none border-b-4 border-transparent focus:border-blue-600 transition-all uppercase w-full pb-2" />
+                    <select 
+                      value={user?.gender}
+                      onChange={e => {
+                        const updated = { ...user!, gender: e.target.value as any };
+                        setUser(updated); localStorage.setItem('mr_vibe_active_user', JSON.stringify(updated));
+                      }}
+                      className="w-full bg-white/5 rounded-2xl py-3 px-6 font-bold text-center outline-none border-2 border-transparent focus:border-blue-500 transition-all text-white appearance-none cursor-pointer"
+                    >
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                      <option value="Secret">Secret</option>
+                    </select>
                  </div>
               </div>
 
               <div className="space-y-6">
                  <div>
-                    <h3 className="text-xs font-black text-zinc-500 uppercase tracking-widest mb-4">Identity Shells</h3>
+                    <h3 className="text-xs font-black text-zinc-500 uppercase tracking-widest mb-4">Choose Shell</h3>
                     <div className="grid grid-cols-5 gap-3">
                        {AVATARS.map(av => (
                          <button key={av} onClick={() => {
@@ -539,10 +550,10 @@ export default function App() {
                  </div>
 
                  <div>
-                    <h3 className="text-xs font-black text-zinc-500 uppercase tracking-widest mb-4">Core Archetype</h3>
+                    <h3 className="text-xs font-black text-zinc-500 uppercase tracking-widest mb-4">Personality Core</h3>
                     <div className="grid grid-cols-2 gap-3">
                        {Object.values(PERSONALITIES).map((p: Personality) => (
-                         <button key={p.id} onClick={() => { setSettings(s => ({ ...s, personalityId: p.id })); showToast(`${p.name} active!`, "success"); }} className={`p-4 rounded-2xl text-left border-2 transition-all ${settings.personalityId === p.id ? 'bg-blue-600/10 border-blue-600/50 text-blue-400' : 'bg-white/5 border-transparent text-zinc-400'}`}>
+                         <button key={p.id} onClick={() => { setSettings(s => ({ ...s, personalityId: p.id })); showToast(`${p.name} personality active!`, "success"); }} className={`p-4 rounded-2xl text-left border-2 transition-all ${settings.personalityId === p.id ? 'bg-blue-600/10 border-blue-600/50 text-blue-400' : 'bg-white/5 border-transparent text-zinc-400'}`}>
                             <div className="text-xl mb-1">{p.emoji}</div>
                             <div className="font-black text-[10px] uppercase">{p.name}</div>
                          </button>
@@ -551,7 +562,7 @@ export default function App() {
                  </div>
               </div>
 
-              <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="w-full py-4 bg-rose-600/10 text-rose-500 rounded-2xl font-black uppercase text-xs tracking-widest">Wipe Memory & Reset</button>
+              <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="w-full py-4 bg-rose-600/10 text-rose-500 rounded-2xl font-black uppercase text-xs tracking-widest">Terminate Soul Link</button>
            </div>
         </div>
       )}
@@ -562,12 +573,12 @@ export default function App() {
           <button onClick={disconnectLive} className="self-end p-4 bg-white/5 rounded-full"><X size={28}/></button>
           <VibeOrb active={isLive} isThinking={isConnecting} isAiSpeaking={isAiSpeakingGlobal} volume={volume} outputVolume={outputVolume} animationState={avatarAnimation} />
           <div className="text-center space-y-4">
-            <h2 className="text-3xl font-black uppercase italic tracking-tighter">{isConnecting ? "Connecting to Mr. Cute..." : "Soul Sync Active"}</h2>
+            <h2 className="text-3xl font-black uppercase italic tracking-tighter">{isConnecting ? "Connecting Soul..." : "Link Active"}</h2>
             <div className="bg-white/5 backdrop-blur-xl p-6 rounded-3xl min-h-[100px] flex items-center justify-center max-w-sm">
-               <p className="font-bold text-blue-400 italic">{liveTranscript.length > 0 ? liveTranscript.slice(-1)[0].text : 'Awaiting data streams...'}</p>
+               <p className="font-bold text-blue-400 italic">{liveTranscript.length > 0 ? liveTranscript.slice(-1)[0].text : 'Awaiting data sync...'}</p>
             </div>
           </div>
-          <button onClick={disconnectLive} className="px-12 py-5 bg-rose-600 rounded-2xl font-black uppercase text-sm tracking-widest flex items-center gap-2"><MicOff size={20}/> Sever Link</button>
+          <button onClick={disconnectLive} className="px-12 py-5 bg-rose-600 rounded-2xl font-black uppercase text-sm tracking-widest flex items-center gap-2"><MicOff size={20}/> End Session</button>
         </div>
       )}
     </div>

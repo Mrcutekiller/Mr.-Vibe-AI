@@ -24,15 +24,9 @@ export interface User {
   email?: string;
   password?: string;
   userName: string;
-  age?: string;
-  gender?: Gender;
+  gender: Gender;
   avatarUrl: string;
   personalityId: PersonalityId;
-  movieGenre?: string;
-  musicGenre?: string;
-  favoriteArtists?: string[];
-  educationLevel?: string;
-  hobbies?: string[];
   mood?: string;
 }
 
@@ -47,11 +41,6 @@ export interface Personality {
 
 export type ReactionType = '❤️' | '👍' | '😂' | '😮' | '🔥' | '💀' | null;
 
-export interface GroundingSource {
-  title: string;
-  uri: string;
-}
-
 export interface Message {
   id: string;
   role: 'user' | 'model';
@@ -61,7 +50,6 @@ export interface Message {
   isPinned?: boolean;
   timestamp: number;
   reaction?: ReactionType;
-  sources?: GroundingSource[];
 }
 
 export interface ChatSession {
@@ -72,10 +60,11 @@ export interface ChatSession {
   personalityId: PersonalityId;
 }
 
-export interface CustomCommand {
+export interface Notification {
   id: string;
-  trigger: string;
-  action: string;
+  message: string;
+  type: 'info' | 'success' | 'error';
+  timestamp: number;
 }
 
 export interface AppSettings {
@@ -85,7 +74,5 @@ export interface AppSettings {
   voiceName: string;
   speakingRate: number;
   speakingPitch: number;
-  customCommands: CustomCommand[];
+  customCommands: any[];
 }
-
-export type ApiStatus = 'checking' | 'connected' | 'error';
