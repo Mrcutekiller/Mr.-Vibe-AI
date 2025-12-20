@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, FunctionDeclaration, Type } from '@google/genai';
 import { createPcmBlob, decode, decodeAudioData } from '../utils/audioUtils';
-import { Personality, AppSettings, User } from '../types';
+import { Personality, AppSettings, User, PersonalityId } from '../types';
 import { BASE_SYSTEM_PROMPT, GEMINI_VOICES } from '../constants';
 
 interface UseGeminiLiveProps {
@@ -170,7 +170,7 @@ export const useGeminiLive = ({
       
       const modeInstruction = mode === 'note' 
         ? "STRICT NOTE TAKER: Your ONLY job is to take notes, summarize data, or answer direct questions. Do NOT engage in casual conversation. Be extremely brief and efficient. Ignore casual 'how are you' style chatter."
-        : "BESTIE CHAT: You are a warm, expressive, and fun AI best friend. Talk about anything! Start every session with a friendly 'Hi!'.";
+        : `BESTIE CHAT: You are a warm, expressive, and fun AI best friend. Talk about anything! Your chosen personality is ${personality.name}.`;
 
       const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}
       - MODE PROTOCOL: ${modeInstruction}
@@ -181,7 +181,7 @@ export const useGeminiLive = ({
       - summarize_session: Triggered when user asks to "Summarize everything".
       - change_voice: Change voice to one of: ${voicesList}.
       
-      Rules: If in Note Taker mode, be utilitarian. If in Bestie mode, be conversational and friendly.`;
+      Rules: If in Note Taker mode, be utilitarian. If in Bestie mode, stay strictly in your archetype.`;
 
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
@@ -202,7 +202,25 @@ export const useGeminiLive = ({
             onConnectionStateChange(true);
             
             sessionPromise.then(session => {
-              const startMsg = mode === 'chat' ? "Hi! Mr. Cute is online. What's up?" : "Note Taker system ready. Awaiting input.";
+              let startMsg = "Hi! Mr. Cute is online.";
+              if (mode === 'note') {
+                startMsg = "Note Taker system ready. Awaiting input.";
+              } else {
+                switch(personality.id) {
+                  case PersonalityId.TRADE:
+                    startMsg = "Market pulse detected. Risk management active. What are we trading today?";
+                    break;
+                  case PersonalityId.ROAST:
+                    startMsg = "Look who decided to show up. Ready to have your feelings dismantled?";
+                    break;
+                  case PersonalityId.RIZZ:
+                    startMsg = "The charisma levels are peaking. Let's make some smooth moves. Who's the target?";
+                    break;
+                  case PersonalityId.STUDENT:
+                    startMsg = "Study session initiated. Library mode active. What's the mission today?";
+                    break;
+                }
+              }
               session.sendRealtimeInput({ text: startMsg });
             });
 

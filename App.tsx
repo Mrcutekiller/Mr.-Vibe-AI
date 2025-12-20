@@ -7,7 +7,8 @@ import {
   Edit3, History, LogOut, Clock, MessageSquare, StickyNote,
   UserCheck, Palette, Bell, Eraser, Info, ExternalLink, Activity,
   ChevronDown, MoreHorizontal, User as UserIcon, Copy, Share2, Heart, ThumbsUp, Pin, BookOpen, Key, Save, ListFilter,
-  Check, AlertTriangle, FileText, File, TrendingUp, Brain, ShieldAlert
+  Check, AlertTriangle, FileText, File, TrendingUp, Brain, ShieldAlert,
+  Headphones, BarChart3, Calculator, Zap
 } from 'lucide-react';
 import { PERSONALITIES, BASE_SYSTEM_PROMPT, AVATARS, GEMINI_VOICES } from './constants';
 import { PersonalityId, Personality, AppSettings, User, ChatSession, Message, ReactionType, Notification } from './types';
@@ -165,9 +166,27 @@ export default function App() {
     if (autoGreet) {
       setAvatarAnimation('hi');
       setTimeout(() => setAvatarAnimation('idle'), 1200);
-      const greeting = selectedVoiceMode === 'chat' 
-        ? "Hi! Say hello as Mr. Cute and ask how I am!" 
-        : "Initialize strictly: Note Taker online. Awaiting data.";
+      let greeting = "Hi! How are you?";
+      if (selectedVoiceMode === 'note') {
+        greeting = "Initialize strictly: Note Taker online. Awaiting data.";
+      } else {
+        switch(settings.personalityId) {
+          case PersonalityId.TRADE:
+            greeting = "Market's open. Risk managed. Mr. Cute is online. Ready for trade setups?";
+            break;
+          case PersonalityId.ROAST:
+            greeting = "Oh, it's you again. Ready for your daily humbling? Say something.";
+            break;
+          case PersonalityId.RIZZ:
+            greeting = "The main character has arrived. Mr. Cute is here to upgrade your charm. Who's the target?";
+            break;
+          case PersonalityId.STUDENT:
+            greeting = "Study buddy online. Let's master something today. What's on the syllabus?";
+            break;
+          default:
+            greeting = "Hi! Say hello as Mr. Cute and ask how I am!";
+        }
+      }
       setTimeout(() => handleSendToAI(greeting, true), 500);
     }
     return newId;
@@ -268,7 +287,7 @@ export default function App() {
       const ai = new GoogleGenAI({ apiKey: currentApiKey });
       const modePrompt = selectedVoiceMode === 'note' 
         ? "STRICT NOTE TAKER MODE: Answer questions, summarize data, or take notes ONLY. Do not chat. Be short."
-        : "BESTIE CHAT MODE: Be highly conversational, warm, and friendly. Talk about anything!";
+        : `BESTIE CHAT MODE: Stay strictly in your chosen neural archetype (${currentPersonality.name}). Be expressive and friendly.`;
         
       const contents: any[] = [{ text: `${BASE_SYSTEM_PROMPT}\n\n${modePrompt}\n\n${currentPersonality.prompt}${contextHeader}\n\nUser: ${text}` }];
       
@@ -348,6 +367,12 @@ export default function App() {
     }
   };
 
+  const updateSettings = (newSettings: Partial<AppSettings>) => {
+    const updated = { ...settings, ...newSettings };
+    setSettings(updated);
+    localStorage.setItem('mr_vibe_settings', JSON.stringify(updated));
+  };
+
   useEffect(() => {
     if (!user || sessions.length === 0) return;
     const interval = setInterval(() => {
@@ -359,14 +384,17 @@ export default function App() {
         { key: 'trip', ask: 'Excited for your trip! Any updates?' },
         { key: 'meeting', ask: 'How did the meeting go?' },
         { key: 'presentation', ask: 'I bet you crushed that presentation!' },
-        { key: 'trade', ask: 'Did you close that trade idea we discussed? Check your risk management!' },
+        { key: 'trade', ask: 'Checking the charts. Did you manage the risk on that position?' },
       ];
 
       const found = reminderKeys.find(rk => allMsgs.some(m => m.text.toLowerCase().includes(rk.key)));
       if (found) {
         const lastMsg = allMsgs.filter(m => m.text.toLowerCase().includes(found.key)).pop();
         if (lastMsg && Date.now() - lastMsg.timestamp > 300000 && Date.now() - lastMsg.timestamp < 86400000) {
-           const msg = `Hey ${user.userName}! Mr. Cute here. ${found.ask} 💖`;
+           let msg = `Hey ${user.userName}! Mr. Cute here. ${found.ask} 💖`;
+           if (settings.personalityId === PersonalityId.TRADE) {
+             msg = `Trader! Mr. Cute checking in. Market's moving. ${found.ask} 📉`;
+           }
            if (!notifications.some(n => n.message === msg)) {
              showToast(msg, "info");
            }
@@ -374,13 +402,13 @@ export default function App() {
       }
     }, 60000); 
     return () => clearInterval(interval);
-  }, [user, sessions, notifications]);
+  }, [user, sessions, notifications, settings.personalityId]);
 
   useEffect(() => {
     if (!isNewUser && user && sessions.length > 0) {
       setAvatarAnimation('hi');
       setTimeout(() => setAvatarAnimation('idle'), 1200);
-      handleSendToAI(`Hi Mr. Cute! ${user.userName} is back. Give a quick greeting!`, true);
+      handleSendToAI(`Hi Mr. Cute! ${user.userName} is back. Give a quick greeting in your archetype.`, true);
     } else if (!isNewUser && sessions.length === 0) handleNewChat(true);
   }, []);
 
@@ -423,7 +451,7 @@ export default function App() {
                     <button 
                       key={p.id} 
                       onClick={() => setTempProfile({...tempProfile, personalityId: p.id})}
-                      className={`p-4 rounded-2xl border-2 transition-all text-left ${tempProfile.personalityId === p.id ? 'bg-blue-600/20 border-blue-500' : 'bg-white/5 border-transparent opacity-60'}`}
+                      className={`p-4 rounded-2xl border-2 transition-all text-left ${tempProfile.personalityId === p.id ? 'bg-blue-600/20 border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.2)]' : 'bg-white/5 border-transparent opacity-60'}`}
                     >
                       <div className="text-xl mb-1">{p.emoji}</div>
                       <div className="font-black text-[10px] uppercase tracking-tighter text-white">{p.name}</div>
@@ -515,23 +543,53 @@ export default function App() {
         )}
 
         {settings.personalityId === PersonalityId.TRADE && (
-          <div className="grid grid-cols-2 gap-2 max-w-lg mx-auto animate-fade-in mb-4">
-             <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-xl flex items-center gap-2">
-                <TrendingUp size={14} className="text-emerald-500" />
-                <span className="text-[9px] font-black uppercase text-emerald-500">Market Ideas</span>
-             </div>
-             <div className="p-3 bg-blue-500/5 border border-blue-500/10 rounded-xl flex items-center gap-2">
-                <Brain size={14} className="text-blue-500" />
-                <span className="text-[9px] font-black uppercase text-blue-500">Psychology</span>
-             </div>
-             <div className="p-3 bg-rose-500/5 border border-rose-500/10 rounded-xl flex items-center gap-2">
-                <ShieldAlert size={14} className="text-rose-500" />
-                <span className="text-[9px] font-black uppercase text-rose-500">Risk Manager</span>
-             </div>
-             <div className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl flex items-center gap-2">
-                <Info size={14} className="text-amber-500" />
-                <span className="text-[9px] font-black uppercase text-amber-500">Explanations</span>
-             </div>
+          <div className="flex flex-col gap-4 max-w-lg mx-auto animate-fade-in mb-4">
+            <div className="grid grid-cols-2 gap-2">
+               <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-xl flex items-center gap-2">
+                  <TrendingUp size={14} className="text-emerald-500" />
+                  <span className="text-[9px] font-black uppercase text-emerald-500">Market Ideas</span>
+               </div>
+               <div className="p-3 bg-blue-500/5 border border-blue-500/10 rounded-xl flex items-center gap-2">
+                  <Brain size={14} className="text-blue-500" />
+                  <span className="text-[9px] font-black uppercase text-blue-500">Psychology</span>
+               </div>
+               <div className="p-3 bg-rose-500/5 border border-rose-500/10 rounded-xl flex items-center gap-2">
+                  <ShieldAlert size={14} className="text-rose-500" />
+                  <span className="text-[9px] font-black uppercase text-rose-500">Risk Manager</span>
+               </div>
+               <div className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl flex items-center gap-2">
+                  <Info size={14} className="text-amber-500" />
+                  <span className="text-[9px] font-black uppercase text-amber-500">Explanations</span>
+               </div>
+            </div>
+            
+            {/* Interactive Trade Actions */}
+            <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+              <button 
+                onClick={() => handleSendToAI("Give me a fresh trade setup for BTC/USD with risk/reward analysis.")}
+                className="whitespace-nowrap flex items-center gap-2 px-4 py-2.5 bg-blue-600/10 border border-blue-500/20 rounded-xl hover:bg-blue-600/20 transition-all text-[10px] font-black uppercase tracking-widest text-blue-400"
+              >
+                <BarChart3 size={14} /> Trade BTC
+              </button>
+              <button 
+                onClick={() => handleSendToAI("I'm feeling FOMO about a recent pump. Give me some discipline advice and a risk check.")}
+                className="whitespace-nowrap flex items-center gap-2 px-4 py-2.5 bg-rose-600/10 border border-rose-500/20 rounded-xl hover:bg-rose-600/20 transition-all text-[10px] font-black uppercase tracking-widest text-rose-400"
+              >
+                <ShieldAlert size={14} /> Psychology Check
+              </button>
+              <button 
+                onClick={() => handleSendToAI("Explain position sizing for a $1000 account with 1% risk per trade.")}
+                className="whitespace-nowrap flex items-center gap-2 px-4 py-2.5 bg-amber-600/10 border border-amber-500/20 rounded-xl hover:bg-amber-600/20 transition-all text-[10px] font-black uppercase tracking-widest text-amber-400"
+              >
+                <Calculator size={14} /> Risk Calc
+              </button>
+              <button 
+                onClick={() => handleSendToAI("What's the current overall market sentiment? Use Google Search.")}
+                className="whitespace-nowrap flex items-center gap-2 px-4 py-2.5 bg-emerald-600/10 border border-emerald-500/20 rounded-xl hover:bg-emerald-600/20 transition-all text-[10px] font-black uppercase tracking-widest text-emerald-400"
+              >
+                <Zap size={14} /> Market Pulse
+              </button>
+            </div>
           </div>
         )}
 
@@ -615,7 +673,7 @@ export default function App() {
                reader.readAsDataURL(file);
              }
           }} className="hidden" accept="image/*,.pdf" />
-          <input type="text" placeholder={selectedVoiceMode === 'note' ? "Strict: note or summarize..." : "Bestie: talk about anything..."} value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} className="flex-1 bg-transparent py-3 px-1 font-bold text-sm outline-none placeholder-zinc-700" />
+          <input type="text" placeholder={selectedVoiceMode === 'note' ? "Strict: note or summarize..." : "Speak or type to sync vibe..."} value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} className="flex-1 bg-transparent py-3 px-1 font-bold text-sm outline-none placeholder-zinc-700" />
           <div className="flex items-center gap-1 pr-1">
              <button onClick={() => setIsVoiceModeSelectOpen(true)} className={`p-3 rounded-full transition-all ${isLive ? 'bg-blue-600 text-white shadow-[0_0_10px_rgba(59,130,246,0.3)]' : 'bg-white/5 text-zinc-500 hover:text-blue-400'}`}><Mic size={20}/></button>
              <button onClick={() => handleSendToAI(inputText)} className={`p-3 rounded-full transition-all ${inputText.trim() || selectedFile ? 'bg-blue-600 text-white' : 'bg-white/5 text-zinc-700'}`} disabled={!inputText.trim() && !selectedFile}><Send size={20}/></button>
@@ -631,7 +689,7 @@ export default function App() {
              <h3 className="text-xl font-black uppercase tracking-tight text-center italic">Link Protocol</h3>
              <div className="grid grid-cols-1 gap-4">
                 <button onClick={() => { setSelectedVoiceMode('chat'); connectLive(); setIsVoiceModeSelectOpen(false); }} className={`p-6 rounded-3xl flex items-center justify-between group transition-all ${selectedVoiceMode === 'chat' ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)]' : 'bg-white/5 text-zinc-500 border border-white/5 hover:bg-white/10'}`}>
-                   <div className="text-left"><div className="font-black text-lg">BESTIE SYNC</div><div className="text-[9px] opacity-70 uppercase tracking-widest font-bold mt-1">Full talk about anything!</div></div>
+                   <div className="text-left"><div className="font-black text-lg">BESTIE SYNC</div><div className="text-[9px] opacity-70 uppercase tracking-widest font-bold mt-1">Chat in your chosen archetype</div></div>
                    <Mic size={28}/>
                 </button>
                 <button onClick={() => { setSelectedVoiceMode('note'); connectLive(); setIsVoiceModeSelectOpen(false); }} className={`p-6 rounded-3xl flex items-center justify-between group transition-all ${selectedVoiceMode === 'note' ? 'bg-amber-600 text-white shadow-[0_0_20px_rgba(245,158,11,0.3)]' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20 hover:bg-amber-500/20'}`}>
@@ -684,15 +742,33 @@ export default function App() {
                  </div>
               </div>
 
+              {/* Neural Archetype Section */}
               <div>
-                <h3 className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-4">Neural Archetype</h3>
+                <h3 className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-4 flex items-center gap-2"><Sparkles size={12}/> Neural Archetype</h3>
                 <div className="grid grid-cols-2 gap-3">
                     {Object.values(PERSONALITIES).map((p) => (
-                      <button key={p.id} onClick={() => { setSettings(s => ({ ...s, personalityId: p.id })); showToast(`${p.name} online.`, "success"); }} className={`p-4 rounded-2xl text-left border-2 transition-all ${settings.personalityId === p.id ? 'bg-blue-600/10 border-blue-600/40 text-blue-400' : 'bg-white/5 border-transparent text-zinc-500'}`}>
+                      <button key={p.id} onClick={() => { updateSettings({ personalityId: p.id }); showToast(`${p.name} online.`, "success"); }} className={`p-4 rounded-2xl text-left border-2 transition-all ${settings.personalityId === p.id ? 'bg-blue-600/10 border-blue-600/40 text-blue-400' : 'bg-white/5 border-transparent text-zinc-500 hover:bg-white/10'}`}>
                         <div className="text-lg mb-1">{p.emoji}</div>
                         <div className="font-black text-[9px] uppercase tracking-widest">{p.name}</div>
                       </button>
                     ))}
+                </div>
+              </div>
+
+              {/* Voice Selection Section */}
+              <div>
+                <h3 className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-4 flex items-center gap-2"><Headphones size={12}/> Neural Vocalizer</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {GEMINI_VOICES.map((v) => (
+                    <button 
+                      key={v.id} 
+                      onClick={() => { updateSettings({ voiceName: v.id }); showToast(`Vocal frequency: ${v.name}`, "success"); }}
+                      className={`px-3 py-4 rounded-xl text-center border transition-all ${settings.voiceName === v.id ? 'bg-emerald-600/10 border-emerald-500/50 text-emerald-400' : 'bg-white/5 border-white/5 text-zinc-600 hover:text-zinc-400 hover:bg-white/10'}`}
+                    >
+                      <div className="font-black text-[10px] uppercase tracking-tighter">{v.name.split(' ')[0]}</div>
+                      <div className="text-[8px] font-bold opacity-60 mt-1 uppercase truncate">{v.id}</div>
+                    </button>
+                  ))}
                 </div>
               </div>
 
