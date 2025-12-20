@@ -21,6 +21,7 @@
               'scale-in': 'scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards',
               'fade-in': 'fadeIn 0.3s ease-out forwards',
               'slide-up': 'slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+              'slide-in-right': 'slideInRight 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
               'vibe-in': 'vibeIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
               'hi-pulse': 'hi-pulse 1s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
               'thoughtful-wobble': 'thoughtful-wobble 4s ease-in-out infinite',
@@ -61,6 +62,10 @@
               slideUp: {
                 '0%': { transform: 'translateY(20px)', opacity: '0' },
                 '100%': { transform: 'translateY(0)', opacity: '1' },
+              },
+              slideInRight: {
+                '0%': { transform: 'translateX(100%)' },
+                '100%': { transform: 'translateX(0)' },
               },
               vibeIn: {
                 '0%': { transform: 'translateY(10px) scale(0.98)', opacity: '0' },

@@ -6,7 +6,7 @@ import {
   Volume2, CheckCircle2, Sparkles, MicOff, ImageIcon, Globe,
   Edit3, History, LogOut, Clock, MessageSquare, StickyNote,
   UserCheck, Palette, Bell, Eraser, Info, ExternalLink, Activity,
-  ChevronDown, MoreHorizontal, User as UserIcon, Copy, Share2, Heart, ThumbsUp, Pin, BookOpen, Key, Save
+  ChevronDown, MoreHorizontal, User as UserIcon, Copy, Share2, Heart, ThumbsUp, Pin, BookOpen, Key, Save, ListFilter
 } from 'lucide-react';
 import { PERSONALITIES, BASE_SYSTEM_PROMPT, AVATARS, GEMINI_VOICES } from './constants';
 import { PersonalityId, Personality, AppSettings, User, ChatSession, Message, ReactionType, Notification } from './types';
@@ -112,6 +112,7 @@ export default function App() {
   const [isVoiceModeSelectOpen, setIsVoiceModeSelectOpen] = useState(false);
   const [isNotifHistoryOpen, setIsNotifHistoryOpen] = useState(false);
   const [isJournalOpen, setIsJournalOpen] = useState(false);
+  const [isPinnedViewOpen, setIsPinnedViewOpen] = useState(false);
 
   const [inputText, setInputText] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -170,6 +171,11 @@ export default function App() {
     return newId;
   }, [sessions.length, settings.personalityId, currentApiKey]);
 
+  const detectCreation = (text: string) => {
+    const keywords = ['plan', 'list', 'summary', 'recipe', 'code', 'guide', 'draft', 'steps', 'creation'];
+    return keywords.some(k => text.toLowerCase().includes(k)) && text.length > 100;
+  };
+
   const { connect: connectLive, disconnect: disconnectLive, isLive, isConnecting, volume, outputVolume } = useGeminiLive({
     apiKey: currentApiKey, personality: currentPersonality, settings, user: user as User, mode: selectedVoiceMode,
     onTranscript: (t, iM, isModel) => {
@@ -180,8 +186,7 @@ export default function App() {
       setLiveTranscript([]); setIsAiSpeakingGlobal(false);
       const sId = activeSessionId || handleNewChat(false); 
       const isQuestion = u.includes('?');
-      // Logic for automatic pinning: if text is long or looks like a summary/list
-      const isAutoPinned = selectedVoiceMode === 'note' && (m.length > 100 || m.includes('1.') || m.includes('•'));
+      const isAutoPinned = selectedVoiceMode === 'note' && (m.length > 120 || detectCreation(m) || m.includes('1.') || m.includes('•'));
       
       setSessions(prev => {
         const updated = prev.map(s => s.id === sId ? { ...s, messages: [...s.messages, 
@@ -225,7 +230,7 @@ export default function App() {
         config: { tools: text.includes('?') ? [{ googleSearch: {} }] : undefined } 
       });
       const aiText = response.text || 'Thinking...';
-      const isAutoPinned = selectedVoiceMode === 'note' && (aiText.length > 100 || aiText.includes('1.') || aiText.includes('•'));
+      const isAutoPinned = selectedVoiceMode === 'note' && (aiText.length > 120 || detectCreation(aiText) || aiText.includes('1.') || aiText.includes('•'));
       
       const aiMessage: Message = { 
         id: `ai-${Date.now()}`, role: 'model', text: aiText, timestamp: Date.now(), 
@@ -267,7 +272,7 @@ export default function App() {
       return updated;
     });
     setEditingMessageId(null);
-    showToast("Insight updated", "success");
+    showToast("Insight manual edit saved", "success");
   };
 
   const copyToClipboard = (text: string) => {
@@ -281,23 +286,28 @@ export default function App() {
     } else copyToClipboard(text);
   };
 
-  // Proactive Reminders / Follow-ups logic
+  // Improved Proactive Reminders
   useEffect(() => {
     if (!user || sessions.length === 0) return;
-    const checkTimer = setTimeout(() => {
-      const allMsgs = sessions.flatMap(s => s.messages);
-      const keywords = ['test', 'exam', 'exam', 'work', 'project', 'trip', 'dinner', 'pdf', 'summary', 'doctor', 'meeting'];
-      const foundKeyword = keywords.find(k => allMsgs.some(m => m.text.toLowerCase().includes(k)));
+    const interval = setInterval(() => {
+      const allSessions = JSON.parse(localStorage.getItem('mr_vibe_sessions') || '[]');
+      const allMsgs = allSessions.flatMap((s: any) => s.messages);
+      const keywords = ['test', 'exam', 'pdf', 'subject', 'meeting', 'dinner', 'project', 'presentation', 'interview'];
+      const foundKeyword = keywords.find(k => allMsgs.some((m: any) => m.text.toLowerCase().includes(k)));
       
       if (foundKeyword) {
-        const lastMention = allMsgs.filter(m => m.text.toLowerCase().includes(foundKeyword)).pop();
-        if (lastMention && Date.now() - lastMention.timestamp > 30000) { // If mentioned > 30s ago
-          showToast(`Hey ${user.userName}! How did that "${foundKeyword}" go? Mr. Cute wants to know!`, "info");
+        const lastMention = allMsgs.filter((m: any) => m.text.toLowerCase().includes(foundKeyword)).pop();
+        // If it was mentioned more than 2 minutes ago but within 24 hours
+        if (lastMention && Date.now() - lastMention.timestamp > 120000 && Date.now() - lastMention.timestamp < 86400000) {
+          const msg = `Hey ${user.userName}! How was that "${foundKeyword}"? Mr. Cute is curious!`;
+          if (!notifications.some(n => n.message === msg)) {
+             showToast(msg, "info");
+          }
         }
       }
-    }, 20000); // 20s initial delay
-    return () => clearTimeout(checkTimer);
-  }, [user, sessions.length]);
+    }, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, [user, notifications]);
 
   useEffect(() => {
     if (!isNewUser && user && sessions.length > 0) {
@@ -384,7 +394,11 @@ export default function App() {
           <Logo className="w-6 h-6" />
           <span className="font-black text-sm uppercase tracking-tighter italic">Mr. Vibe</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 md:gap-2">
+          <button onClick={() => setIsPinnedViewOpen(true)} className="p-2 text-blue-400 bg-blue-400/10 rounded-xl relative">
+            <Pin size={18}/>
+            {pinnedMessages.length > 0 && <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center">{pinnedMessages.length}</span>}
+          </button>
           {journalNotes.length > 0 && (
             <button onClick={() => setIsJournalOpen(true)} className="p-2 text-amber-500 bg-amber-500/10 rounded-xl relative">
               <BookOpen size={18}/>
@@ -422,24 +436,17 @@ export default function App() {
 
       {/* Main Chat Area */}
       <main ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6 custom-scrollbar space-y-8">
-        {pinnedMessages.length > 0 && (
-          <div className="bg-blue-600/5 border border-blue-600/20 rounded-3xl p-4 space-y-3 animate-slide-up">
-             <div className="text-[10px] font-black uppercase text-blue-400 flex items-center gap-2 mb-2"><Pin size={12}/> Pinned Core Insights</div>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               {pinnedMessages.map(pm => (
-                 <div key={pm.id} className="text-xs bg-white/5 p-3 rounded-2xl relative group">
-                    <button onClick={() => togglePin(pm.id)} className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"><X size={10}/></button>
-                    <div className="text-zinc-100 leading-relaxed line-clamp-3">{pm.text}</div>
-                 </div>
-               ))}
-             </div>
+        {selectedVoiceMode === 'note' && (
+          <div className="flex items-center gap-2 bg-amber-500/5 border border-amber-500/20 p-3 rounded-2xl animate-fade-in">
+             <StickyNote size={14} className="text-amber-500" />
+             <div className="text-[10px] font-black uppercase text-amber-500/80 tracking-widest">Note Taker Active • Detecting creations...</div>
           </div>
         )}
 
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center space-y-6 opacity-30">
             <VibeOrb active={false} isThinking={false} volume={0} outputVolume={0} animationState={avatarAnimation} />
-            <div><h3 className="text-xl font-black uppercase tracking-tight">Sync Established</h3><p className="text-xs font-bold uppercase tracking-widest mt-1">Awaiting Consciousness...</p></div>
+            <div><h3 className="text-xl font-black uppercase tracking-tight">Vibe Link Stable</h3><p className="text-xs font-bold uppercase tracking-widest mt-1">Ready for Neural Input...</p></div>
           </div>
         ) : (
           messages.map((msg, i) => (
@@ -449,16 +456,17 @@ export default function App() {
                 {msg.isPinned && <div className="absolute -top-3 left-0 bg-blue-600 text-white p-1 rounded-full"><Pin size={10}/></div>}
                 
                 {editingMessageId === msg.id ? (
-                  <div className="space-y-2 min-w-[200px]">
+                  <div className="space-y-2 min-w-[240px]">
                     <textarea 
                       value={editingText} 
                       onChange={e => setEditingText(e.target.value)} 
-                      className="w-full bg-white/10 p-2 rounded-xl outline-none border border-white/20 text-white" 
-                      rows={4}
+                      className="w-full bg-white/10 p-3 rounded-xl outline-none border border-white/20 text-white font-medium text-xs leading-relaxed" 
+                      rows={5}
+                      autoFocus
                     />
                     <div className="flex justify-end gap-2">
-                      <button onClick={() => setEditingMessageId(null)} className="p-2 text-zinc-400"><X size={14}/></button>
-                      <button onClick={() => saveEdit(msg.id)} className="p-2 text-blue-500"><Save size={14}/></button>
+                      <button onClick={() => setEditingMessageId(null)} className="px-3 py-1.5 text-zinc-400 text-[10px] font-black uppercase">Cancel</button>
+                      <button onClick={() => saveEdit(msg.id)} className="px-3 py-1.5 bg-blue-600 text-white text-[10px] font-black rounded-lg uppercase flex items-center gap-1"><Save size={10}/> Save</button>
                     </div>
                   </div>
                 ) : (
@@ -472,7 +480,7 @@ export default function App() {
                 <div className="flex items-center gap-3 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button onClick={() => toggleReaction(msg.id, '👍')} className="p-1.5 text-zinc-500 hover:text-blue-400 transition-all"><ThumbsUp size={14}/></button>
                   <button onClick={() => togglePin(msg.id)} className={`p-1.5 transition-all ${msg.isPinned ? 'text-blue-500' : 'text-zinc-500 hover:text-blue-300'}`}><Pin size={14}/></button>
-                  {selectedVoiceMode === 'note' && msg.role === 'model' && (
+                  {selectedVoiceMode === 'note' && (
                     <button onClick={() => { setEditingMessageId(msg.id); setEditingText(msg.text); }} className="p-1.5 text-zinc-500 hover:text-amber-400 transition-all"><Edit3 size={14}/></button>
                   )}
                   <button onClick={() => copyToClipboard(msg.text)} className="p-1.5 text-zinc-500 hover:text-white transition-all"><Copy size={14}/></button>
@@ -512,16 +520,48 @@ export default function App() {
           <div className="relative w-full max-w-sm bg-zinc-900 rounded-[3rem] p-8 space-y-6 animate-slide-up border border-white/5">
              <h3 className="text-xl font-black uppercase tracking-tight text-center">Neural Link Mode</h3>
              <div className="grid grid-cols-1 gap-4">
-                <button onClick={() => { setSelectedVoiceMode('chat'); connectLive(); setIsVoiceModeSelectOpen(false); }} className={`p-6 rounded-3xl flex items-center justify-between group transition-all ${selectedVoiceMode === 'chat' ? 'bg-blue-600 text-white' : 'bg-white/5 text-zinc-400 border border-white/10'}`}>
-                   <div className="text-left"><div className="font-black text-lg">VOICE CHAT</div><div className="text-[10px] opacity-70">Emotional bestie link.</div></div>
+                <button onClick={() => { setSelectedVoiceMode('chat'); connectLive(); setIsVoiceModeSelectOpen(false); }} className={`p-6 rounded-3xl flex items-center justify-between group transition-all ${selectedVoiceMode === 'chat' ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)]' : 'bg-white/5 text-zinc-400 border border-white/10 hover:bg-white/10'}`}>
+                   <div className="text-left"><div className="font-black text-lg">VOICE CHAT</div><div className="text-[10px] opacity-70 uppercase tracking-widest">Emotional bestie link.</div></div>
                    <Mic size={28}/>
                 </button>
-                <button onClick={() => { setSelectedVoiceMode('note'); connectLive(); setIsVoiceModeSelectOpen(false); }} className={`p-6 rounded-3xl flex items-center justify-between group transition-all ${selectedVoiceMode === 'note' ? 'bg-amber-600 text-white' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'}`}>
-                   <div className="text-left"><div className="font-black text-lg">NOTE TAKER</div><div className="text-[10px] opacity-70">Utility & Archive mode.</div></div>
+                <button onClick={() => { setSelectedVoiceMode('note'); connectLive(); setIsVoiceModeSelectOpen(false); }} className={`p-6 rounded-3xl flex items-center justify-between group transition-all ${selectedVoiceMode === 'note' ? 'bg-amber-600 text-white shadow-[0_0_20px_rgba(245,158,11,0.3)]' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20 hover:bg-amber-500/20'}`}>
+                   <div className="text-left"><div className="font-black text-lg">NOTE TAKER</div><div className="text-[10px] opacity-70 uppercase tracking-widest">Detects & Pins Key Insights.</div></div>
                    <StickyNote size={28}/>
                 </button>
              </div>
           </div>
+        </div>
+      )}
+
+      {/* Pinned Insights Drawer */}
+      {isPinnedViewOpen && (
+        <div className="fixed inset-0 z-[8500] flex justify-end">
+           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsPinnedViewOpen(false)} />
+           <div className="relative w-full max-w-sm bg-[#121212] h-full shadow-3xl animate-slide-in-right flex flex-col border-l border-white/5">
+              <div className="p-6 border-b border-white/5 flex items-center justify-between bg-zinc-900/50">
+                 <h3 className="text-lg font-black uppercase tracking-tight flex items-center gap-2"><Pin size={18} className="text-blue-500" /> Pinned Insights</h3>
+                 <button onClick={() => setIsPinnedViewOpen(false)} className="p-2 hover:bg-white/5 rounded-xl"><X size={20}/></button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+                 {pinnedMessages.length === 0 ? (
+                   <div className="text-center py-20 opacity-20 italic space-y-2">
+                     <Pin size={40} className="mx-auto" />
+                     <div className="text-xs font-black uppercase">Archive Empty</div>
+                   </div>
+                 ) : (
+                   pinnedMessages.map(pm => (
+                     <div key={pm.id} className="p-5 bg-white/5 border border-white/5 rounded-[1.5rem] relative group hover:border-blue-500/30 transition-all">
+                        <button onClick={() => togglePin(pm.id)} className="absolute top-4 right-4 text-zinc-600 hover:text-rose-500"><Trash2 size={14}/></button>
+                        <div className="text-xs font-black text-zinc-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+                          {pm.isNote ? <StickyNote size={10} className="text-amber-500"/> : <MessageSquare size={10} className="text-blue-500"/>}
+                          {new Date(pm.timestamp).toLocaleDateString()}
+                        </div>
+                        <div className="text-zinc-100 leading-relaxed text-sm font-medium"><MarkdownText text={pm.text} /></div>
+                     </div>
+                   ))
+                 )}
+              </div>
+           </div>
         </div>
       )}
 
@@ -558,7 +598,7 @@ export default function App() {
            <div className="relative w-full max-w-2xl bg-white text-zinc-900 rounded-[2rem] p-10 shadow-3xl animate-scale-in max-h-[85vh] overflow-y-auto flex flex-col font-serif">
               <div className="flex items-center justify-between border-b-2 border-zinc-100 pb-6 mb-8">
                  <div className="space-y-1">
-                   <h2 className="text-3xl font-black italic tracking-tighter uppercase font-sans">Memory Archive</h2>
+                   <h2 className="text-3xl font-black italic tracking-tighter uppercase font-sans">Neural Memory Archive</h2>
                    <div className="text-[10px] uppercase font-black tracking-widest text-zinc-400 font-sans">Compiled by Mr. Cute AI</div>
                  </div>
                  <button onClick={() => setIsJournalOpen(false)} className="p-3 bg-zinc-100 rounded-full hover:bg-zinc-200 text-zinc-400 font-sans"><X size={20}/></button>
