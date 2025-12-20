@@ -150,7 +150,7 @@ export const useGeminiLive = ({
       const voiceControlFunctions: FunctionDeclaration[] = [
         {
           name: 'summarize_session',
-          description: 'Summarize the entire conversation history into a clear, concise bullet-point vibe report.',
+          description: 'Summarize the entire conversation history into a clear, concise bullet-point report.',
           parameters: { type: Type.OBJECT, properties: {} }
         },
         {
@@ -163,31 +163,25 @@ export const useGeminiLive = ({
             },
             required: ['voice_id']
           }
-        },
-        {
-          name: 'clear_current_board',
-          description: 'Delete all current messages and reset memory for the active board.',
-          parameters: { type: Type.OBJECT, properties: {} }
         }
       ];
 
-      const modeInstruction = mode === 'note' 
-        ? "STRICT MODE: You are a SMART NOTE TAKER. Your ONLY job is to take notes, answer direct questions from the user, or provide summaries when asked. Do NOT engage in casual chat. Be short, professional, and utilitarian."
-        : `BESTIE MODE: You are a friendly, expressive, and upbeat best friend companion. Talk about anything the user wants! Start every new session with a warm 'Hi!' and be your charming self.`;
-
       const voicesList = GEMINI_VOICES.map(v => `${v.name} (id: ${v.id})`).join(', ');
+      
+      const modeInstruction = mode === 'note' 
+        ? "STRICT NOTE TAKER: Your ONLY job is to take notes, summarize data, or answer direct questions. Do NOT engage in casual conversation. Be extremely brief and efficient. Ignore casual 'how are you' style chatter."
+        : "BESTIE CHAT: You are a warm, expressive, and fun AI best friend. Talk about anything! Start every session with a friendly 'Hi!'.";
 
       const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}
       - MODE PROTOCOL: ${modeInstruction}
-      - USER IDENTITY: ${user.userName} (Gender: ${user.gender})
+      - USER: ${user.userName} (Gender: ${user.gender})
       - ARCHETYPE: ${personality.name} (${personality.prompt})
       
-      FUNCTIONAL LINKS:
-      - summarize_session: Triggered when user asks to "Summarize everything" or "What have we talked about?".
+      AVAILABLE TOOLS:
+      - summarize_session: Triggered when user asks to "Summarize everything".
       - change_voice: Change voice to one of: ${voicesList}.
-      - clear_current_board: Wipe the current screen.
       
-      Rules: In Note Taker mode, answer questions and summarize strictly. In Bestie mode, be conversational and say Hi!`;
+      Rules: If in Note Taker mode, be utilitarian. If in Bestie mode, be conversational and friendly.`;
 
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
@@ -208,10 +202,8 @@ export const useGeminiLive = ({
             onConnectionStateChange(true);
             
             sessionPromise.then(session => {
-              const greetingPrompt = mode === 'note' 
-                ? "Report ready. Note taker online." 
-                : "Hi! Mr. Cute is online. How's your vibe today?";
-              session.sendRealtimeInput({ text: greetingPrompt });
+              const startMsg = mode === 'chat' ? "Hi! Mr. Cute is online. What's up?" : "Note Taker system ready. Awaiting input.";
+              session.sendRealtimeInput({ text: startMsg });
             });
 
             if (!inputAudioContextRef.current) return;
@@ -290,14 +282,14 @@ export const useGeminiLive = ({
           },
           onclose: () => disconnect(),
           onerror: (e) => {
-            onError("Link failure. Pulse reset.");
+            onError("Link failure. Terminating.");
             disconnect();
           }
         }
       });
       sessionPromiseRef.current = sessionPromise;
     } catch (error: any) { 
-      onError(error.message || "Vibe sync failed.");
+      onError(error.message || "Failed to initialize Live sync.");
       disconnect(); 
     }
   }, [apiKey, personality, settings, user, mode, isLive, isConnecting, onConnectionStateChange, onTranscript, onTurnComplete, onCommand, initAudio, disconnect, onError]);

@@ -1,20 +1,9 @@
 
 export enum PersonalityId {
-  NORMAL = 'NORMAL',
   ROAST = 'ROAST',
-  RIZZ_GOD = 'RIZZ_GOD',
-  BIG_BRO = 'BIG_BRO',
-  LITTLE_SIS = 'LITTLE_SIS',
-  ROMAN = 'ROMAN',
-  TRADER = 'TRADER',
-  GIRLFRIEND = 'GIRLFRIEND',
-  BOYFRIEND = 'BOYFRIEND',
-  FUNNY = 'FUNNY',
-  CRAZY = 'CRAZY',
-  WISDOM_GURU = 'WISDOM_GURU',
-  ADVENTURE_BUDDY = 'ADVENTURE_BUDDY',
-  MYSTERY_MENTOR = 'MYSTERY_MENTOR',
-  CAR_LOVER = 'CAR_LOVER'
+  RIZZ = 'RIZZ',
+  TRADE = 'TRADE',
+  STUDENT = 'STUDENT'
 }
 
 export type Theme = 'dark' | 'light';
