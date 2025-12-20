@@ -3,13 +3,14 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, FunctionDeclaration, Type } from '@google/genai';
 import { createPcmBlob, decode, decodeAudioData } from '../utils/audioUtils';
 import { Personality, AppSettings, User, CustomCommand } from '../types';
-import { BASE_SYSTEM_PROMPT } from '../constants';
+import { BASE_SYSTEM_PROMPT, GEMINI_VOICES } from '../constants';
 
 interface UseGeminiLiveProps {
   apiKey: string;
   personality: Personality;
   settings: AppSettings;
   user: User;
+  mode: 'note' | 'chat';
   onTranscript: (text: string, isInterim: boolean, isModel: boolean) => void;
   onTurnComplete: (userText: string, modelText: string) => void;
   onConnectionStateChange: (isConnected: boolean) => void;
@@ -22,6 +23,7 @@ export const useGeminiLive = ({
   personality,
   settings,
   user,
+  mode,
   onTranscript,
   onTurnComplete,
   onConnectionStateChange,
@@ -74,7 +76,6 @@ export const useGeminiLive = ({
     }
   }, []);
 
-  // Monitor output volume
   useEffect(() => {
     let animationFrame: number;
     const updateOutputVolume = () => {
@@ -165,26 +166,68 @@ export const useGeminiLive = ({
           name: 'clear_current_board',
           description: 'Clear all messages on the current active board.',
           parameters: { type: Type.OBJECT, properties: {} }
+        },
+        {
+          name: 'change_voice',
+          description: 'Change the voice of the AI.',
+          parameters: {
+            type: Type.OBJECT,
+            properties: {
+              voice_id: {
+                type: Type.STRING,
+                description: 'The ID of the voice to switch to (e.g., Puck, Charon, Fenrir, Kore, Aoede, Zephyr).',
+              }
+            },
+            required: ['voice_id']
+          }
+        },
+        {
+          name: 'change_user_name',
+          description: 'Update the user profile name.',
+          parameters: {
+            type: Type.OBJECT,
+            properties: {
+              new_name: {
+                type: Type.STRING,
+                description: 'The new name for the user.',
+              }
+            },
+            required: ['new_name']
+          }
+        },
+        {
+          name: 'clear_notifications',
+          description: 'Clear any active notifications on the screen.',
+          parameters: { type: Type.OBJECT, properties: {} }
         }
       ];
 
       const customShortcuts = settings.customCommands.map(c => `If I say "${c.trigger}", interpret it as "${c.action}"`).join('\n');
 
+      const modeInstruction = mode === 'note' 
+        ? "You are now in SMART NOTE TAKER mode. Focus strictly on utility. If the user asks a question, provide ONLY the direct answer concisely. If they share info, briefly acknowledge it. No unnecessary fluff."
+        : `You are in MAIN CHARACTER CHAT mode. Be your full expressive self. Greet the user as their bestie using the ${personality.name} archetype. Engage deeply.`;
+
+      const voicesList = GEMINI_VOICES.map(v => `${v.name} (id: ${v.id})`).join(', ');
+
       const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}
+      - CURRENT MODE: ${modeInstruction}
       - Personality: ${personality.name}
       - Context: ${personality.prompt}
       - User: ${user.userName}
       
-      VOICE COMMANDS:
-      You can trigger tools if the user says something like:
-      - "Summarize this" or "Give me a report" -> use summarize_board
+      VOICE COMMANDS (YOU CAN CONTROL THE UI):
+      - "Change your voice to [Voice Name]" -> use change_voice(voice_id)
+        Available Voices: ${voicesList}
+      - "Call me [New Name]" -> use change_user_name(new_name)
       - "New session" or "Start fresh" -> use create_new_session
       - "Clear the board" or "Reset everything" -> use clear_current_board
+      - "Clear notifications" or "Close messages" -> use clear_notifications
 
       USER DEFINED SHORTCUTS:
       ${customShortcuts || "No custom shortcuts defined."}
 
-      Rules: Be concise, stay in character, and ALWAYS help with notes.`;
+      Rules: Be concise in Note Taker mode, stay in character in Chat mode, and ALWAYS help with notes.`;
 
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
@@ -205,7 +248,10 @@ export const useGeminiLive = ({
             onConnectionStateChange(true);
             
             sessionPromise.then(session => {
-              session.sendRealtimeInput({ text: "Introduce yourself and greet me warmly. Let me know you're ready to take notes and listen for commands!" });
+              const greetingPrompt = mode === 'note' 
+                ? "Briefly acknowledge you're ready to take smart notes." 
+                : "Introduce yourself and greet me warmly in your selected persona. Let's chat!";
+              session.sendRealtimeInput({ text: greetingPrompt });
             });
 
             if (!inputAudioContextRef.current) return;
@@ -253,7 +299,6 @@ export const useGeminiLive = ({
                   const speedMultiplier = settingsRef.current.speakingRate * settingsRef.current.speakingPitch;
                   source.playbackRate.value = speedMultiplier;
 
-                  // Connect through analyser for visual sync
                   if (outputAnalyserRef.current) {
                     source.connect(outputAnalyserRef.current);
                   } else {
@@ -261,7 +306,6 @@ export const useGeminiLive = ({
                   }
 
                   source.start(nextStartTimeRef.current);
-                  
                   nextStartTimeRef.current += (audioBuffer.duration / speedMultiplier);
                   
                   sourcesRef.current.add(source);
@@ -302,7 +346,7 @@ export const useGeminiLive = ({
       onError(error.message || "Vibe connection failed.");
       disconnect(); 
     }
-  }, [apiKey, personality, settings, user, isLive, isConnecting, onConnectionStateChange, onTranscript, onTurnComplete, onCommand, initAudio, disconnect, onError]);
+  }, [apiKey, personality, settings, user, mode, isLive, isConnecting, onConnectionStateChange, onTranscript, onTurnComplete, onCommand, initAudio, disconnect, onError]);
 
   return { connect, disconnect, isLive, isConnecting, volume, outputVolume };
 };
