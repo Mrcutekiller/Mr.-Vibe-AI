@@ -28,6 +28,7 @@ export interface User {
   avatarUrl: string;
   personalityId: PersonalityId;
   mood?: string;
+  apiKey?: string;
 }
 
 export interface Personality {
