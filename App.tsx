@@ -7,7 +7,7 @@ import {
   Edit3, History, LogOut, Clock, MessageSquare, StickyNote,
   UserCheck, Palette, Bell, Eraser, Info, ExternalLink, Activity,
   ChevronDown, MoreHorizontal, User as UserIcon, Copy, Share2, Heart, ThumbsUp, Pin, BookOpen, Key, Save, ListFilter,
-  Check
+  Check, AlertTriangle
 } from 'lucide-react';
 import { PERSONALITIES, BASE_SYSTEM_PROMPT, AVATARS, GEMINI_VOICES } from './constants';
 import { PersonalityId, Personality, AppSettings, User, ChatSession, Message, ReactionType, Notification } from './types';
@@ -55,14 +55,14 @@ const VibeOrb = ({ active, isThinking, isAiSpeaking, volume, outputVolume, anima
 // --- Professional Toast Notification ---
 const NotificationToast = ({ message, type, onClose }: { message: string, type: 'info' | 'success' | 'error', onClose: () => void }) => (
   <div className="fixed top-4 md:top-8 inset-x-4 z-[10000] flex justify-center pointer-events-none">
-    <div className={`w-full max-sm bg-[#1e1e1e] shadow-2xl rounded-2xl border flex items-center gap-3 p-4 pointer-events-auto animate-slide-up ${
+    <div className={`w-full max-w-sm bg-[#1e1e1e] shadow-2xl rounded-2xl border flex items-center gap-3 p-4 pointer-events-auto animate-slide-up ${
       type === 'success' ? 'border-emerald-500/20 text-emerald-400' :
       type === 'error' ? 'border-rose-500/20 text-rose-400' :
       'border-blue-500/20 text-blue-400'
     }`}>
       <div className="p-2 rounded-xl bg-white/5"><Bell size={18} /></div>
-      <div className="flex-1 font-bold text-sm leading-snug">{message}</div>
-      <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-lg transition-all"><X size={16} /></button>
+      <div className="flex-1 font-bold text-xs leading-snug">{message}</div>
+      <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-lg transition-all text-zinc-500"><X size={16} /></button>
     </div>
   </div>
 );
@@ -75,7 +75,7 @@ const MarkdownText = ({ text }: { text: string }) => {
       <div key={key} className="mb-1.5 last:mb-0">
         {parts.map((part, idx) => {
           if (part.startsWith('**') && part.endsWith('**')) return <strong key={idx} className="font-extrabold text-white">{part.slice(2, -2)}</strong>;
-          if (part.startsWith('`') && part.endsWith('`')) return <code key={idx} className="bg-white/10 px-1 py-0.5 rounded font-mono text-xs">{part.slice(1, -1)}</code>;
+          if (part.startsWith('`') && part.endsWith('`')) return <code key={idx} className="bg-white/10 px-1 py-0.5 rounded font-mono text-[10px]">{part.slice(1, -1)}</code>;
           if (part.startsWith('http')) return <a key={idx} href={part} target="_blank" className="text-blue-400 underline">{part}</a>;
           return <span key={idx}>{part}</span>;
         })}
@@ -112,7 +112,6 @@ export default function App() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isVoiceModeSelectOpen, setIsVoiceModeSelectOpen] = useState(false);
   const [isNotifHistoryOpen, setIsNotifHistoryOpen] = useState(false);
-  const [isJournalOpen, setIsJournalOpen] = useState(false);
   const [isPinnedViewOpen, setIsPinnedViewOpen] = useState(false);
 
   const [inputText, setInputText] = useState('');
@@ -134,7 +133,6 @@ export default function App() {
   const activeSession = useMemo(() => sessions.find(s => s.id === activeSessionId), [sessions, activeSessionId]);
   const messages = activeSession?.messages || [];
   const pinnedMessages = useMemo(() => messages.filter(m => m.isPinned), [messages]);
-  const journalNotes = useMemo(() => messages.filter(m => m.isNote), [messages]);
 
   const showToast = (message: string, type: 'info' | 'success' | 'error' = 'info') => {
     setToast({ message, type });
@@ -154,7 +152,7 @@ export default function App() {
   const handleNewChat = useCallback((autoGreet = true) => {
     const newId = Date.now().toString();
     const newSession: ChatSession = { 
-      id: newId, title: 'Session ' + (sessions.length + 1), messages: [], lastTimestamp: Date.now(), personalityId: settings.personalityId 
+      id: newId, title: 'Chat ' + (sessions.length + 1), messages: [], lastTimestamp: Date.now(), personalityId: settings.personalityId 
     };
     setSessions(prev => {
       const updated = [newSession, ...prev];
@@ -167,14 +165,43 @@ export default function App() {
     if (autoGreet) {
       setAvatarAnimation('hi');
       setTimeout(() => setAvatarAnimation('idle'), 1200);
-      setTimeout(() => handleSendToAI("Hi! Introduce yourself shortly as Mr. Cute and ask how my day is going.", true), 500);
+      setTimeout(() => handleSendToAI("Hey Mr. Cute! Say hi and mention your personality archetype.", true), 500);
     }
     return newId;
   }, [sessions.length, settings.personalityId, currentApiKey]);
 
+  const deleteSession = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSessions(prev => {
+      const updated = prev.filter(s => s.id !== id);
+      localStorage.setItem('mr_vibe_sessions', JSON.stringify(updated));
+      return updated;
+    });
+    if (activeSessionId === id) setActiveSessionId(null);
+    showToast("Session purged from memory.", "info");
+  };
+
+  const clearAllHistory = () => {
+    if (confirm("This will sever all neural history. Proceed?")) {
+      setSessions([]);
+      localStorage.setItem('mr_vibe_sessions', '[]');
+      setActiveSessionId(null);
+      showToast("All memories wiped.", "error");
+    }
+  };
+
+  const deleteMessage = (msgId: string) => {
+    setSessions(prev => {
+      const updated = prev.map(s => s.id === activeSessionId ? { ...s, messages: s.messages.filter(m => m.id !== msgId) } : s);
+      localStorage.setItem('mr_vibe_sessions', JSON.stringify(updated));
+      return updated;
+    });
+    showToast("Message frequency deleted.", "info");
+  };
+
   const detectCreation = (text: string) => {
-    const keywords = ['plan', 'list', 'summary', 'recipe', 'code', 'guide', 'draft', 'steps', 'creation'];
-    return keywords.some(k => text.toLowerCase().includes(k)) && text.length > 100;
+    const keywords = ['plan', 'list', 'summary', 'recipe', 'code', 'guide', 'draft', 'steps', 'creation', 'test', 'exam'];
+    return keywords.some(k => text.toLowerCase().includes(k)) && text.length > 80;
   };
 
   const { connect: connectLive, disconnect: disconnectLive, isLive, isConnecting, volume, outputVolume } = useGeminiLive({
@@ -187,7 +214,7 @@ export default function App() {
       setLiveTranscript([]); setIsAiSpeakingGlobal(false);
       const sId = activeSessionId || handleNewChat(false); 
       const isQuestion = u.includes('?');
-      const isAutoPinned = selectedVoiceMode === 'note' && (m.length > 120 || detectCreation(m) || m.includes('1.') || m.includes('•'));
+      const isAutoPinned = selectedVoiceMode === 'note' && (m.length > 150 || detectCreation(m));
       
       setSessions(prev => {
         const updated = prev.map(s => s.id === sId ? { ...s, messages: [...s.messages, 
@@ -214,9 +241,9 @@ export default function App() {
     
     let sessionId = activeSessionId || handleNewChat(false);
     
-    // Inject context: include all pinned items so they are reflected in AI generation
+    // Core Pinned Context Injected
     const contextHeader = pinnedMessages.length > 0 
-      ? `\n[CORE ARCHIVE - PINNED INSIGHTS]:\n${pinnedMessages.map(pm => `- ${pm.text}`).join('\n')}\n`
+      ? `\n[NEURAL ANCHORS - USER PINNED THESE]:\n${pinnedMessages.map(pm => `- ${pm.text}`).join('\n')}\n`
       : "";
 
     const userMessage: Message = { id: `u-${Date.now()}`, role: 'user', text, image: selectedImage || undefined, timestamp: Date.now() };
@@ -227,7 +254,7 @@ export default function App() {
     });
     
     setIsLoading(true); setInputText(''); setSelectedImage(null);
-    if (text.includes('?') || text.length > 50) setAvatarAnimation('thoughtful');
+    if (text.includes('?') || text.length > 40) setAvatarAnimation('thoughtful');
 
     try {
       const ai = new GoogleGenAI({ apiKey: currentApiKey });
@@ -237,8 +264,8 @@ export default function App() {
         model: 'gemini-3-flash-preview', contents: { parts: contents },
         config: { tools: text.includes('?') ? [{ googleSearch: {} }] : undefined } 
       });
-      const aiText = response.text || 'Thinking...';
-      const isAutoPinned = selectedVoiceMode === 'note' && (aiText.length > 120 || detectCreation(aiText) || aiText.includes('1.') || aiText.includes('•'));
+      const aiText = response.text || '...';
+      const isAutoPinned = selectedVoiceMode === 'note' && (aiText.length > 150 || detectCreation(aiText));
       
       const aiMessage: Message = { 
         id: `ai-${Date.now()}`, role: 'model', text: aiText, timestamp: Date.now(), 
@@ -249,11 +276,11 @@ export default function App() {
         localStorage.setItem('mr_vibe_sessions', JSON.stringify(updated));
         return updated;
       });
-      if (/(great|good|awesome|yes|perfect|happy|hi|hello|link)/i.test(aiText)) {
+      if (/(great|good|awesome|yes|perfect|happy|love|link)/i.test(aiText)) {
         setAvatarAnimation('excited');
         setTimeout(() => setAvatarAnimation('idle'), 2000);
       } else setAvatarAnimation('idle');
-    } catch (e: any) { showToast("Vibe link glitched.", "error"); setAvatarAnimation('idle'); } finally { setIsLoading(false); }
+    } catch (e: any) { showToast("Frequency mismatch.", "error"); setAvatarAnimation('idle'); } finally { setIsLoading(false); }
   }
 
   const toggleReaction = (msgId: string, type: ReactionType) => {
@@ -271,7 +298,7 @@ export default function App() {
       return updated;
     });
     const msg = messages.find(m => m.id === msgId);
-    showToast(msg?.isPinned ? "Removed from Archive" : "Pinned to Core Archive", msg?.isPinned ? "info" : "success");
+    showToast(msg?.isPinned ? "Insight unpinned." : "Insight anchored to Core Archive.", msg?.isPinned ? "info" : "success");
   };
 
   const saveEdit = (msgId: string) => {
@@ -281,12 +308,12 @@ export default function App() {
       return updated;
     });
     setEditingMessageId(null);
-    showToast("Note manual edit preserved", "success");
+    showToast("Memory manual edit synchronized.", "success");
   };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    showToast("Data copied to clipboard", "success");
+    showToast("Insight copied.", "success");
   };
 
   const shareMessage = async (text: string) => {
@@ -295,34 +322,40 @@ export default function App() {
     } else copyToClipboard(text);
   };
 
-  // Improved Proactive Reminders
+  // Proactive History Reminders
   useEffect(() => {
     if (!user || sessions.length === 0) return;
     const interval = setInterval(() => {
-      const allSessions = JSON.parse(localStorage.getItem('mr_vibe_sessions') || '[]');
-      const allMsgs = allSessions.flatMap((s: any) => s.messages);
-      const keywords = ['test', 'exam', 'subject', 'meeting', 'dinner', 'project', 'presentation', 'interview', 'doctor'];
-      const foundKeyword = keywords.find(k => allMsgs.some((m: any) => m.text.toLowerCase().includes(k)));
-      
-      if (foundKeyword) {
-        const lastMention = allMsgs.filter((m: any) => m.text.toLowerCase().includes(foundKeyword)).pop();
-        // If it was mentioned > 1 min ago and we haven't reminded about it recently
-        if (lastMention && Date.now() - lastMention.timestamp > 60000 && Date.now() - lastMention.timestamp < 172800000) {
-          const msg = `Hey ${user.userName}! Following up on that "${foundKeyword}"... how did it go?`;
-          if (!notifications.some(n => n.message === msg)) {
+      const allMsgs = sessions.flatMap(s => s.messages);
+      const triggers = [
+        { key: 'test', reminder: 'How was the test?' },
+        { key: 'exam', reminder: 'How was the exam?' },
+        { key: 'doctor', reminder: 'Hope the doctor visit went well!' },
+        { key: 'meeting', reminder: 'How did that meeting go?' },
+        { key: 'dinner', reminder: 'How was the dinner tonight?' },
+        { key: 'interview', reminder: 'Rooting for you! How was the interview?' },
+      ];
+
+      const match = triggers.find(t => allMsgs.some(m => m.text.toLowerCase().includes(t.key)));
+      if (match) {
+        const lastMention = allMsgs.filter(m => m.text.toLowerCase().includes(match.key)).pop();
+        // Reminder logic: mentioned > 2 min ago and we haven't asked yet
+        if (lastMention && Date.now() - lastMention.timestamp > 120000 && Date.now() - lastMention.timestamp < 10800000) {
+           const msg = `Hey ${user.userName}! ${match.reminder} Mr. Cute is waiting for the tea! ☕`;
+           if (!notifications.some(n => n.message === msg)) {
              showToast(msg, "info");
-          }
+           }
         }
       }
-    }, 45000); 
+    }, 60000); 
     return () => clearInterval(interval);
-  }, [user, notifications]);
+  }, [user, sessions, notifications]);
 
   useEffect(() => {
     if (!isNewUser && user && sessions.length > 0) {
       setAvatarAnimation('hi');
       setTimeout(() => setAvatarAnimation('idle'), 1200);
-      handleSendToAI(`Hey Mr. Cute! ${user.userName} is back. Give me a quick upbeat welcome.`, true);
+      handleSendToAI(`Hey Mr. Cute! ${user.userName} is back in the vibe.`, true);
     } else if (!isNewUser && sessions.length === 0) handleNewChat(true);
   }, []);
 
@@ -348,7 +381,7 @@ export default function App() {
              </div>
              
              <div className="space-y-1">
-               <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest text-left block pl-2">LICENSE KEY (GEMINI API KEY)</label>
+               <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest text-left block pl-2">LICENSE KEY (API KEY)</label>
                <div className="relative">
                  <input 
                    type="password" placeholder="AI-XXXXXXXXXXXX" 
@@ -382,10 +415,10 @@ export default function App() {
                localStorage.setItem('mr_vibe_active_user', JSON.stringify(newUser)); 
                setIsNewUser(false); 
                handleNewChat(true); 
-             } else { showToast("Label and License Key required.", "error"); } }} 
+             } else { showToast("Missing Label or License Key.", "error"); } }} 
              className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-lg shadow-xl hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2"
            >
-             <Sparkles size={18}/> SYNC WITH MR. CUTE
+             <Sparkles size={18}/> INITIALIZE LINK
            </button>
         </div>
       </div>
@@ -400,10 +433,10 @@ export default function App() {
         <button onClick={() => setIsHistoryOpen(true)} className="p-2 hover:bg-white/5 rounded-xl"><Menu size={20} /></button>
         <div className="flex items-center gap-2">
           <Logo className="w-5 h-5" />
-          <span className="font-black text-sm uppercase tracking-tighter italic">Mr. Vibe</span>
+          <span className="font-black text-sm uppercase tracking-tighter italic">Mr. Vibe AI</span>
         </div>
-        <div className="flex items-center gap-1 md:gap-2">
-          <button onClick={() => setIsPinnedViewOpen(true)} className={`p-2 rounded-xl relative transition-all ${pinnedMessages.length > 0 ? 'bg-blue-600 text-white shadow-[0_0_10px_rgba(59,130,246,0.3)]' : 'text-zinc-500 bg-white/5'}`}>
+        <div className="flex items-center gap-1">
+          <button onClick={() => setIsPinnedViewOpen(true)} className={`p-2 rounded-xl relative transition-all ${pinnedMessages.length > 0 ? 'bg-blue-600 text-white' : 'text-zinc-500 bg-white/5'}`}>
             <Pin size={18}/>
             {pinnedMessages.length > 0 && <span className="absolute -top-1 -right-1 bg-white text-blue-600 text-[8px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center border border-blue-600">{pinnedMessages.length}</span>}
           </button>
@@ -424,14 +457,21 @@ export default function App() {
                <h2 className="font-black uppercase tracking-tight flex items-center gap-2 text-sm"><History size={16}/> History</h2>
                <button onClick={() => setIsHistoryOpen(false)} className="p-2 bg-white/5 rounded-xl"><X size={16}/></button>
             </div>
-            <div className="p-4"><button onClick={() => handleNewChat(true)} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 text-xs shadow-lg uppercase tracking-widest"><Plus size={16}/> NEW CHAT</button></div>
+            <div className="p-4 space-y-2">
+              <button onClick={() => handleNewChat(true)} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 text-xs shadow-lg uppercase tracking-widest"><Plus size={16}/> NEW SESSION</button>
+            </div>
             <div className="flex-1 overflow-y-auto px-4 space-y-2 custom-scrollbar">
                {sessions.map(s => (
-                 <button key={s.id} onClick={() => { setActiveSessionId(s.id); setIsHistoryOpen(false); }} className={`w-full p-4 rounded-2xl text-left border-2 transition-all ${activeSessionId === s.id ? 'bg-blue-600/10 border-blue-600/50' : 'bg-transparent border-transparent hover:bg-white/5'}`}>
-                    <div className="font-black text-xs uppercase truncate">{s.title}</div>
-                    <div className="text-[9px] text-zinc-600 font-bold mt-1 uppercase italic tracking-widest">{new Date(s.lastTimestamp).toLocaleDateString()}</div>
-                 </button>
+                 <div key={s.id} onClick={() => { setActiveSessionId(s.id); setIsHistoryOpen(false); }} className={`group w-full p-4 rounded-2xl text-left border-2 transition-all cursor-pointer relative ${activeSessionId === s.id ? 'bg-blue-600/10 border-blue-600/50' : 'bg-transparent border-transparent hover:bg-white/5'}`}>
+                    <div className="font-black text-xs uppercase truncate pr-6">{s.title}</div>
+                    <div className="text-[8px] text-zinc-600 font-bold mt-1 uppercase italic tracking-widest">{new Date(s.lastTimestamp).toLocaleDateString()}</div>
+                    <button onClick={(e) => deleteSession(s.id, e)} className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-2 text-zinc-500 hover:text-rose-500 transition-all"><Trash2 size={14}/></button>
+                 </div>
                ))}
+               {sessions.length === 0 && <div className="text-center py-10 opacity-20 italic text-[10px] font-black uppercase">Archive empty.</div>}
+            </div>
+            <div className="p-4 border-t border-white/5">
+               <button onClick={clearAllHistory} className="w-full py-3 bg-white/5 text-zinc-500 hover:text-rose-500 rounded-xl font-bold flex items-center justify-center gap-2 text-[10px] uppercase tracking-widest transition-all"><Eraser size={14}/> Wipe All History</button>
             </div>
          </div>
       </div>
@@ -439,11 +479,11 @@ export default function App() {
       {/* Main Chat Area */}
       <main ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6 custom-scrollbar space-y-8">
         {selectedVoiceMode === 'note' && (
-          <div className="flex items-center gap-3 bg-amber-500/5 border border-amber-500/10 p-3 rounded-2xl animate-fade-in">
+          <div className="flex items-center gap-3 bg-amber-500/5 border border-amber-500/10 p-3 rounded-2xl animate-fade-in mx-auto max-w-lg">
              <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center"><StickyNote size={14} className="text-amber-500" /></div>
              <div>
                <div className="text-[10px] font-black uppercase text-amber-500 tracking-widest leading-none">Note Taker Protocol</div>
-               <div className="text-[9px] text-zinc-500 font-bold uppercase tracking-tighter">Pin or Edit any insight for future link context.</div>
+               <div className="text-[9px] text-zinc-500 font-bold uppercase tracking-tighter">Edit or Pin insights. These will sync with AI context.</div>
              </div>
           </div>
         )}
@@ -451,12 +491,12 @@ export default function App() {
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center space-y-6 opacity-30">
             <VibeOrb active={false} isThinking={false} volume={0} outputVolume={0} animationState={avatarAnimation} />
-            <div><h3 className="text-lg font-black uppercase tracking-tight">Sync Online</h3><p className="text-[9px] font-black uppercase tracking-widest mt-1">Listening for neural resonance...</p></div>
+            <div><h3 className="text-lg font-black uppercase tracking-tight">System Ready</h3><p className="text-[9px] font-black uppercase tracking-widest mt-1">Initialize link to begin resonance...</p></div>
           </div>
         ) : (
           messages.map((msg, i) => (
             <div key={msg.id} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} animate-vibe-in group`}>
-              {msg.image && <img src={msg.image} className="max-w-[180px] rounded-2xl border-2 border-white/5 mb-2" alt="Visual" />}
+              {msg.image && <img src={msg.image} className="max-w-[160px] rounded-2xl border-2 border-white/5 mb-2" alt="Visual" />}
               <div className={`relative px-4 py-3 rounded-2xl shadow-sm text-sm font-semibold leading-relaxed max-w-[85%] transition-all ${
                 msg.role === 'user' ? 'bg-zinc-800 text-white rounded-br-none' : 
                 `bg-transparent text-zinc-100 border-none rounded-bl-none ${msg.isPinned ? 'ring-1 ring-blue-500/30 bg-blue-500/5' : ''}`
@@ -474,7 +514,7 @@ export default function App() {
                     />
                     <div className="flex justify-end gap-2">
                       <button onClick={() => setEditingMessageId(null)} className="px-4 py-2 text-zinc-500 text-[10px] font-black uppercase hover:text-white">Discard</button>
-                      <button onClick={() => saveEdit(msg.id)} className="px-4 py-2 bg-blue-600 text-white text-[10px] font-black rounded-xl uppercase flex items-center gap-1.5 hover:bg-blue-700 transition-all"><Check size={12}/> Update Note</button>
+                      <button onClick={() => saveEdit(msg.id)} className="px-4 py-2 bg-blue-600 text-white text-[10px] font-black rounded-xl uppercase flex items-center gap-1.5 hover:bg-blue-700 transition-all"><Check size={12}/> Sync Edit</button>
                     </div>
                   </div>
                 ) : (
@@ -485,18 +525,19 @@ export default function App() {
               </div>
               
               {!editingMessageId && (
-                <div className="flex items-center gap-1.5 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button onClick={() => toggleReaction(msg.id, '👍')} className="p-2 text-zinc-600 hover:text-blue-400 transition-all"><ThumbsUp size={14}/></button>
                   <button onClick={() => togglePin(msg.id)} className={`p-2 flex items-center gap-1.5 rounded-lg transition-all ${msg.isPinned ? 'text-blue-400 bg-blue-400/10' : 'text-zinc-600 hover:text-blue-300'}`}>
                     <Pin size={14}/>
-                    <span className="text-[9px] font-black uppercase">{msg.isPinned ? 'Pinned' : 'Pin'}</span>
+                    <span className="text-[8px] font-black uppercase">{msg.isPinned ? 'Anchored' : 'Anchor'}</span>
                   </button>
                   {selectedVoiceMode === 'note' && msg.role === 'model' && (
                     <button onClick={() => { setEditingMessageId(msg.id); setEditingText(msg.text); }} className="p-2 flex items-center gap-1.5 text-zinc-600 hover:text-amber-400 hover:bg-amber-400/10 rounded-lg transition-all">
                       <Edit3 size={14}/>
-                      <span className="text-[9px] font-black uppercase">Edit</span>
+                      <span className="text-[8px] font-black uppercase">Edit</span>
                     </button>
                   )}
+                  <button onClick={() => deleteMessage(msg.id)} className="p-2 text-zinc-600 hover:text-rose-500 transition-all"><Trash2 size={14}/></button>
                   <button onClick={() => copyToClipboard(msg.text)} className="p-2 text-zinc-600 hover:text-white transition-all"><Copy size={14}/></button>
                   <button onClick={() => shareMessage(msg.text)} className="p-2 text-zinc-600 hover:text-white transition-all"><Share2 size={14}/></button>
                 </div>
@@ -519,7 +560,7 @@ export default function App() {
                reader.readAsDataURL(file);
              }
           }} className="hidden" accept="image/*" />
-          <input type="text" placeholder={selectedVoiceMode === 'note' ? "Record something to pin..." : "Sync your frequency..."} value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} className="flex-1 bg-transparent py-3 px-1 font-bold text-sm outline-none placeholder-zinc-700" />
+          <input type="text" placeholder={selectedVoiceMode === 'note' ? "Note something worthy..." : "Sync consciousness..."} value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} className="flex-1 bg-transparent py-3 px-1 font-bold text-sm outline-none placeholder-zinc-700" />
           <div className="flex items-center gap-1 pr-1">
              <button onClick={() => setIsVoiceModeSelectOpen(true)} className={`p-3 rounded-full transition-all ${isLive ? 'bg-blue-600 text-white' : 'bg-white/5 text-zinc-500 hover:text-blue-400'}`}><Mic size={20}/></button>
              <button onClick={() => handleSendToAI(inputText)} className={`p-3 rounded-full transition-all ${inputText.trim() ? 'bg-blue-600 text-white' : 'bg-white/5 text-zinc-700'}`} disabled={!inputText.trim() && !selectedImage}><Send size={20}/></button>
@@ -532,14 +573,14 @@ export default function App() {
         <div className="fixed inset-0 z-[8000] flex items-end justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsVoiceModeSelectOpen(false)} />
           <div className="relative w-full max-w-sm bg-zinc-900 rounded-[3rem] p-8 space-y-6 animate-slide-up border border-white/5">
-             <h3 className="text-xl font-black uppercase tracking-tight text-center italic">Neural Link Mode</h3>
+             <h3 className="text-xl font-black uppercase tracking-tight text-center italic">Link Protocol</h3>
              <div className="grid grid-cols-1 gap-4">
                 <button onClick={() => { setSelectedVoiceMode('chat'); connectLive(); setIsVoiceModeSelectOpen(false); }} className={`p-6 rounded-3xl flex items-center justify-between group transition-all ${selectedVoiceMode === 'chat' ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)]' : 'bg-white/5 text-zinc-500 border border-white/5 hover:bg-white/10'}`}>
-                   <div className="text-left"><div className="font-black text-lg">BESTIE CHAT</div><div className="text-[9px] opacity-70 uppercase tracking-widest font-bold mt-1">Full expressive emotional link.</div></div>
+                   <div className="text-left"><div className="font-black text-lg">BESTIE SYNC</div><div className="text-[9px] opacity-70 uppercase tracking-widest font-bold mt-1">Full emotional connection.</div></div>
                    <Mic size={28}/>
                 </button>
                 <button onClick={() => { setSelectedVoiceMode('note'); connectLive(); setIsVoiceModeSelectOpen(false); }} className={`p-6 rounded-3xl flex items-center justify-between group transition-all ${selectedVoiceMode === 'note' ? 'bg-amber-600 text-white shadow-[0_0_20px_rgba(245,158,11,0.3)]' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20 hover:bg-amber-500/20'}`}>
-                   <div className="text-left"><div className="font-black text-lg">NOTE TAKER</div><div className="text-[9px] opacity-70 uppercase tracking-widest font-bold mt-1">Manual edits & Core pinning.</div></div>
+                   <div className="text-left"><div className="font-black text-lg">NOTE SYNC</div><div className="text-[9px] opacity-70 uppercase tracking-widest font-bold mt-1">Utility & Core Anchoring.</div></div>
                    <StickyNote size={28}/>
                 </button>
              </div>
@@ -555,15 +596,15 @@ export default function App() {
               <div className="p-6 border-b border-white/5 flex items-center justify-between bg-zinc-900/50">
                  <div className="flex flex-col">
                    <h3 className="text-sm font-black uppercase tracking-tight flex items-center gap-2"><Pin size={16} className="text-blue-500" /> Core Archive</h3>
-                   <span className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Permanent memory matrix</span>
+                   <span className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Permanent data store</span>
                  </div>
                  <button onClick={() => setIsPinnedViewOpen(false)} className="p-2 hover:bg-white/5 rounded-xl"><X size={18}/></button>
               </div>
               <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-gradient-to-b from-transparent to-black/40">
                  {pinnedMessages.length === 0 ? (
                    <div className="text-center py-24 opacity-10 italic space-y-4">
-                     <Pin size={48} className="mx-auto" />
-                     <div className="text-[10px] font-black uppercase tracking-widest">No data nodes archived</div>
+                     <Pin size={48} className="mx-auto text-zinc-600" />
+                     <div className="text-[10px] font-black uppercase tracking-widest">No anchored nodes.</div>
                    </div>
                  ) : (
                    pinnedMessages.map(pm => (
@@ -571,12 +612,13 @@ export default function App() {
                         <button onClick={() => togglePin(pm.id)} className="absolute top-4 right-4 text-zinc-700 hover:text-rose-500 transition-colors"><Trash2 size={14}/></button>
                         <div className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-3 flex items-center gap-2">
                           {pm.isNote ? <StickyNote size={10} className="text-amber-500"/> : <MessageSquare size={10} className="text-blue-500"/>}
-                          Archive Entry • {new Date(pm.timestamp).toLocaleDateString()}
+                          Archive Data • {new Date(pm.timestamp).toLocaleDateString()}
                         </div>
                         <div className="text-zinc-100 leading-relaxed text-xs font-medium"><MarkdownText text={pm.text} /></div>
-                        {pm.isNote && (
-                          <div className="mt-3 pt-3 border-t border-white/5 flex justify-end">
-                            <button onClick={() => { setEditingMessageId(pm.id); setEditingText(pm.text); setIsPinnedViewOpen(false); }} className="text-[8px] font-black uppercase text-blue-500 flex items-center gap-1 hover:underline"><Edit3 size={10}/> Edit Entry</button>
+                        {pm.role === 'model' && (
+                          <div className="mt-3 pt-3 border-t border-white/5 flex justify-end gap-2">
+                            <button onClick={() => deleteMessage(pm.id)} className="text-[8px] font-black uppercase text-rose-500/50 hover:text-rose-500 transition-all">Discard</button>
+                            <button onClick={() => { setEditingMessageId(pm.id); setEditingText(pm.text); setIsPinnedViewOpen(false); }} className="text-[8px] font-black uppercase text-blue-500 flex items-center gap-1 hover:underline"><Edit3 size={10}/> Manual Edit</button>
                           </div>
                         )}
                      </div>
@@ -587,20 +629,20 @@ export default function App() {
         </div>
       )}
 
-      {/* Pulse Feed / Notifications Modal */}
+      {/* Pulse Feed Modal */}
       {isNotifHistoryOpen && (
         <div className="fixed inset-0 z-[8000] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={() => setIsNotifHistoryOpen(false)} />
           <div className="relative w-full max-w-md bg-zinc-900 rounded-[2.5rem] p-8 space-y-6 animate-scale-in border border-white/5 max-h-[70vh] flex flex-col">
              <div className="flex items-center justify-between border-b border-white/5 pb-4">
                 <div className="flex flex-col">
-                  <h3 className="text-lg font-black uppercase tracking-tight italic">Pulse Feed</h3>
-                  <span className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Past interactions & follow-ups</span>
+                  <h3 className="text-lg font-black uppercase tracking-tight italic">Pulse Matrix</h3>
+                  <span className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Neural follow-ups & log</span>
                 </div>
                 <button onClick={() => setIsNotifHistoryOpen(false)} className="p-2 bg-white/5 rounded-xl"><X size={18}/></button>
              </div>
              <div className="flex-1 overflow-y-auto space-y-4 custom-scrollbar py-2">
-                {notifications.length === 0 ? <div className="text-center py-12 opacity-10 text-[10px] font-black uppercase">No active pulses.</div> : 
+                {notifications.length === 0 ? <div className="text-center py-12 opacity-10 text-[10px] font-black uppercase">Link silent.</div> : 
                   notifications.map(n => (
                     <div key={n.id} className="p-4 bg-white/5 rounded-2xl space-y-1.5 hover:bg-white/10 transition-all border border-transparent hover:border-blue-500/20">
                        <div className="text-xs font-bold leading-snug">{n.message}</div>
@@ -610,18 +652,18 @@ export default function App() {
                 }
              </div>
              {notifications.length > 0 && (
-               <button onClick={() => { setNotifications([]); localStorage.removeItem('mr_vibe_notif_history'); showToast("Feed cleared.", "info"); }} className="text-[9px] font-black uppercase text-zinc-600 hover:text-white transition-all text-center pt-2 flex items-center justify-center gap-2"><Eraser size={12}/> Wipe Feed Matrix</button>
+               <button onClick={() => { setNotifications([]); localStorage.removeItem('mr_vibe_notif_history'); showToast("Matrix Feed Purged.", "info"); }} className="text-[9px] font-black uppercase text-zinc-600 hover:text-white transition-all text-center pt-2 flex items-center justify-center gap-2"><Eraser size={12}/> Purge Feed</button>
              )}
           </div>
         </div>
       )}
 
-      {/* Profile / Identity Dashboard Modal */}
+      {/* Profile Modal */}
       {isProfileModalOpen && (
         <div className="fixed inset-0 z-[8000] flex items-center justify-center p-4">
            <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setIsProfileModalOpen(false)} />
            <div className="relative w-full max-w-lg bg-zinc-900 rounded-[3rem] p-8 space-y-10 animate-scale-in border border-white/5 max-h-[90vh] overflow-y-auto custom-scrollbar">
-              <div className="flex items-center justify-between"><h2 className="text-xl font-black uppercase tracking-tight italic">Identity Dashboard</h2><button onClick={() => setIsProfileModalOpen(false)} className="p-2 bg-white/5 rounded-xl"><X size={18}/></button></div>
+              <div className="flex items-center justify-between"><h2 className="text-xl font-black uppercase tracking-tight italic">Identity Matrix</h2><button onClick={() => setIsProfileModalOpen(false)} className="p-2 bg-white/5 rounded-xl"><X size={18}/></button></div>
               <div className="flex flex-col items-center gap-6">
                  <div className="relative group w-32 h-32 rounded-[2.5rem] overflow-hidden border-4 border-blue-600/50 shadow-2xl transition-transform hover:scale-110">
                     <img src={user?.avatarUrl} className="w-full h-full object-cover" alt="Avatar" />
@@ -659,13 +701,13 @@ export default function App() {
 
               <div className="space-y-6">
                  <div>
-                    <h3 className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-4">Consciousness Shell</h3>
+                    <h3 className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-4">Neural Shell</h3>
                     <div className="grid grid-cols-5 gap-3">
                        {AVATARS.map(av => (
                          <button key={av} onClick={() => {
                            const updated = { ...user!, avatarUrl: av };
                            setUser(updated); localStorage.setItem('mr_vibe_active_user', JSON.stringify(updated));
-                           showToast("Neural shell updated!", "success");
+                           showToast("Identity shell synced.", "success");
                          }} className={`w-12 h-12 rounded-xl overflow-hidden border-2 transition-all ${user?.avatarUrl === av ? 'border-blue-600 ring-4 ring-blue-600/10' : 'border-transparent opacity-30 hover:opacity-100'}`}>
                             <img src={av} className="w-full h-full" alt="av" />
                          </button>
@@ -677,7 +719,7 @@ export default function App() {
                     <h3 className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-4">Neural Archetype</h3>
                     <div className="grid grid-cols-2 gap-3">
                        {Object.values(PERSONALITIES).map((p: Personality) => (
-                         <button key={p.id} onClick={() => { setSettings(s => ({ ...s, personalityId: p.id })); showToast(`${p.name} activated!`, "success"); }} className={`p-4 rounded-2xl text-left border-2 transition-all ${settings.personalityId === p.id ? 'bg-blue-600/10 border-blue-600/40 text-blue-400' : 'bg-white/5 border-transparent text-zinc-500'}`}>
+                         <button key={p.id} onClick={() => { setSettings(s => ({ ...s, personalityId: p.id })); showToast(`${p.name} online.`, "success"); }} className={`p-4 rounded-2xl text-left border-2 transition-all ${settings.personalityId === p.id ? 'bg-blue-600/10 border-blue-600/40 text-blue-400' : 'bg-white/5 border-transparent text-zinc-500'}`}>
                             <div className="text-lg mb-1">{p.emoji}</div>
                             <div className="font-black text-[9px] uppercase tracking-widest">{p.name}</div>
                          </button>
@@ -686,23 +728,23 @@ export default function App() {
                  </div>
               </div>
 
-              <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="w-full py-4 bg-rose-600/10 text-rose-500 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-600/20 transition-all">Sever Soul Link & Wipe Memory</button>
+              <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="w-full py-4 bg-rose-600/10 text-rose-500 hover:bg-rose-600/20 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all">Sever Neural Link & Wipe All</button>
            </div>
         </div>
       )}
       
-      {/* Live Sync Fullscreen View */}
+      {/* Live Sync View */}
       {(isLive || isConnecting) && (
         <div className="fixed inset-0 z-[7000] bg-black flex flex-col items-center justify-between p-10 animate-fade-in">
           <button onClick={disconnectLive} className="self-end p-4 bg-white/5 rounded-full text-white/50 hover:text-white transition-colors"><X size={24}/></button>
           <VibeOrb active={isLive} isThinking={isConnecting} isAiSpeaking={isAiSpeakingGlobal} volume={volume} outputVolume={outputVolume} animationState={avatarAnimation} />
           <div className="text-center space-y-6 w-full max-w-md">
-            <h2 className="text-2xl font-black uppercase italic tracking-tighter text-white/80">{isConnecting ? "Initiating Neural Link..." : "Frequency Sync Active"}</h2>
+            <h2 className="text-2xl font-black uppercase italic tracking-tighter text-white/80">{isConnecting ? "Initiating Frequency..." : "Live Vibe Active"}</h2>
             <div className="bg-white/5 backdrop-blur-3xl p-6 rounded-3xl min-h-[140px] flex items-center justify-center border border-white/5 shadow-3xl">
-               <p className="font-bold text-blue-400 italic text-lg leading-relaxed">{liveTranscript.length > 0 ? liveTranscript.slice(-1)[0].text : 'Streaming data pulses...'}</p>
+               <p className="font-bold text-blue-400 italic text-lg leading-relaxed">{liveTranscript.length > 0 ? liveTranscript.slice(-1)[0].text : 'Awaiting data streams...'}</p>
             </div>
           </div>
-          <button onClick={disconnectLive} className="px-12 py-5 bg-rose-600/90 text-white rounded-2xl font-black uppercase text-xs tracking-widest flex items-center gap-2 shadow-2xl hover:bg-rose-600 active:scale-95 transition-all"><MicOff size={18}/> End Frequency Link</button>
+          <button onClick={disconnectLive} className="px-12 py-5 bg-rose-600/90 text-white rounded-2xl font-black uppercase text-xs tracking-widest flex items-center gap-2 shadow-2xl hover:bg-rose-600 active:scale-95 transition-all"><MicOff size={18}/> Terminate Link</button>
         </div>
       )}
     </div>
