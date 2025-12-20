@@ -58,7 +58,7 @@ export interface Message {
   text: string;
   image?: string; 
   isNote?: boolean;
-  isQuestion?: boolean;
+  isPinned?: boolean;
   timestamp: number;
   reaction?: ReactionType;
   sources?: GroundingSource[];
