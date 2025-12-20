@@ -120,7 +120,6 @@ export const useGeminiLive = ({
 
     sourcesRef.current.forEach(source => { try { source.stop(); } catch(e) {} });
     sourcesRef.current.clear();
-    nextStartTimeRef.current = 0;
     currentInputText.current = '';
     currentOutputText.current = '';
     setIsLive(false);
@@ -128,6 +127,7 @@ export const useGeminiLive = ({
     onConnectionStateChange(false);
     setVolume(0);
     setOutputVolume(0);
+    nextStartTimeRef.current = 0;
   }, [onConnectionStateChange]);
 
   const connect = useCallback(async () => {
@@ -140,8 +140,18 @@ export const useGeminiLive = ({
       setIsConnecting(true);
       await initAudio();
       
+      // MAXIMUM NOISE CANCELLATION PROTOCOL
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: { noiseSuppression: true, echoCancellation: true, autoGainControl: true, sampleRate: 16000 } 
+        audio: { 
+          noiseSuppression: true, 
+          echoCancellation: true, 
+          autoGainControl: true, 
+          channelCount: 1,
+          sampleRate: 16000,
+          // Aggressive filtering hint for browsers that support it
+          // @ts-ignore
+          suppressLocalAudioPlayback: true 
+        } 
       });
       streamRef.current = stream;
 
@@ -181,7 +191,7 @@ export const useGeminiLive = ({
       - summarize_session: Triggered when user asks to "Summarize everything".
       - change_voice: Change voice to one of: ${voicesList}.
       
-      Rules: If in Note Taker mode, be utilitarian. If in Bestie mode, stay strictly in your archetype.`;
+      Rules: If in Note Taker mode, be utilitarian. If in Bestie mode, stay strictly in your archetype. Everything you say will be transcribed and saved to the user's history for reference.`;
 
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
@@ -288,7 +298,10 @@ export const useGeminiLive = ({
                 currentOutputText.current += message.serverContent.outputTranscription.text;
              }
              if (message.serverContent?.turnComplete) {
-                onTurnComplete(currentInputText.current, currentOutputText.current);
+                // Ensure we only save if there's actual content
+                if (currentInputText.current.trim() || currentOutputText.current.trim()) {
+                  onTurnComplete(currentInputText.current.trim(), currentOutputText.current.trim());
+                }
                 currentInputText.current = '';
                 currentOutputText.current = '';
              }
@@ -300,7 +313,7 @@ export const useGeminiLive = ({
           },
           onclose: () => disconnect(),
           onerror: (e) => {
-            onError("Link failure. Terminating.");
+            onError("Link failure. Terminating frequency.");
             disconnect();
           }
         }
