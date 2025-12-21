@@ -13,7 +13,8 @@ import {
   ZapOff,
   Flame,
   AlertCircle,
-  Gamepad2
+  Gamepad2,
+  Command
 } from 'lucide-react';
 import { PERSONALITIES, BASE_SYSTEM_PROMPT, AVATARS, GEMINI_VOICES, PERSONALITY_STYLES } from './constants';
 import { PersonalityId, Personality, AppSettings, User, ChatSession, Message, ReactionType, Notification, FileAttachment, Quiz, QuizQuestion, GroundingChunk, Gender } from './types';
@@ -130,14 +131,16 @@ type OrbAnimationState = 'idle' | 'hi' | 'thoughtful' | 'excited';
 
 export default function App() {
   const [isNewUser, setIsNewUser] = useState<boolean>(() => !localStorage.getItem('mr_vibe_active_user'));
+  const [licenseKey, setLicenseKey] = useState<string>(() => localStorage.getItem('mr_vibe_license_key') || '');
   const [toast, setToast] = useState<{id: string, message: string, type: string, onClick?: () => void} | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>(() => JSON.parse(localStorage.getItem('mr_vibe_notif_history') || '[]'));
   const [user, setUser] = useState<User | null>(() => JSON.parse(localStorage.getItem('mr_vibe_active_user') || 'null'));
-  const [tempProfile, setTempProfile] = useState<Partial<User>>({ 
+  const [tempProfile, setTempProfile] = useState<Partial<User> & { licenseKey?: string }>({ 
     userName: '', 
     gender: 'Secret', 
     avatarUrl: AVATARS[0], 
-    personalityId: PersonalityId.STUDENT 
+    personalityId: PersonalityId.STUDENT,
+    licenseKey: localStorage.getItem('mr_vibe_license_key') || ''
   });
 
   const [settings, setSettings] = useState<AppSettings>(() => {
@@ -185,6 +188,8 @@ export default function App() {
     return score;
   }, [messages.length, pinnedMessages.length]);
 
+  const currentApiKey = licenseKey || process.env.API_KEY || '';
+
   // Heartbeat Auto-save
   useEffect(() => {
     const saveTimer = setInterval(() => {
@@ -194,19 +199,64 @@ export default function App() {
     return () => clearInterval(saveTimer);
   }, [sessions, activeSessionId]);
 
+  // Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (isNewUser) return;
+      
+      const isCmd = e.metaKey || e.ctrlKey;
+      
+      if (isCmd) {
+        switch (e.key.toLowerCase()) {
+          case 'k':
+            e.preventDefault();
+            setIsHistoryOpen(prev => !prev);
+            setIsLibraryOpen(false);
+            break;
+          case 'b':
+            e.preventDefault();
+            setIsLibraryOpen(prev => !prev);
+            setIsHistoryOpen(false);
+            break;
+          case 'p':
+            e.preventDefault();
+            setIsProfileModalOpen(prev => !prev);
+            break;
+          case 'n':
+            e.preventDefault();
+            handleNewChat(true);
+            break;
+          case 'm':
+            e.preventDefault();
+            handleVoiceButtonClick();
+            break;
+        }
+      } else if (e.key === 'Escape') {
+        setIsHistoryOpen(false);
+        setIsLibraryOpen(false);
+        setIsProfileModalOpen(false);
+        setIsVoiceModeModalOpen(false);
+        setActiveQuiz(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isNewUser, activeSessionId]);
+
   // Neural Pulse Logic
   useEffect(() => {
-    if (user && !isNewUser) {
+    if (user && !isNewUser && currentApiKey) {
       setTimeout(checkForNeuralPulse, 8000);
     }
-  }, [user, isNewUser, activeSessionId]);
+  }, [user, isNewUser, activeSessionId, currentApiKey]);
 
   const checkForNeuralPulse = async () => {
-    if (isSyncingMemories || sessions.length === 0 || !activeSessionId) return;
+    if (isSyncingMemories || sessions.length === 0 || !activeSessionId || !currentApiKey) return;
     setIsSyncingMemories(true);
     
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: currentApiKey });
       const currentSess = sessions.find(s => s.id === activeSessionId);
       if (!currentSess || currentSess.messages.length < 3) return;
       
@@ -313,18 +363,18 @@ export default function App() {
     setIsLibraryOpen(false);
     setSelectedPinnedId(null);
     
-    if (autoGreet) {
+    if (autoGreet && currentApiKey) {
       generateInitialGreeting(newId, settings.personalityId);
     }
     return newId;
-  }, [settings.personalityId, user]);
+  }, [settings.personalityId, user, currentApiKey]);
 
   const generateInitialGreeting = async (sessionId: string, personalityId: PersonalityId) => {
+    if (!currentApiKey) return;
     setIsLoading(true);
     setAvatarAnimation('hi');
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const persona = PERSONALITIES[personalityId];
+      const ai = new GoogleGenAI({ apiKey: currentApiKey });
       const prompt = `ACT AS Mr. Cute. Say hi to ${user?.userName || 'bestie'}. Keep it very brief, high energy, and "bestie" vibe. Introduce yourself as Mr. Cute ONLY this once. Use emojis like ✨ or 👋.`;
       
       const response = await ai.models.generateContent({
@@ -363,12 +413,18 @@ export default function App() {
     setIsNewUser(true);
     setUser(null);
     setSessions([]);
+    setLicenseKey('');
     setActiveSessionId(null);
     setIsProfileModalOpen(false);
     showToast("Frequency Link Terminated.", "info");
   };
 
   const handleSendToAI = async (text: string, isAutoGreet = false) => {
+    if (!currentApiKey) {
+      showToast("LICENSE KEY required.", "error");
+      setIsProfileModalOpen(true);
+      return;
+    }
     if ((!text.trim() && !selectedFile) || isLoading) return;
     
     let sessionId = activeSessionId || handleNewChat(false);
@@ -392,7 +448,7 @@ export default function App() {
     setAvatarAnimation('thoughtful');
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: currentApiKey });
       const parts: any[] = [{ text: `${BASE_SYSTEM_PROMPT}\n\nUSER: ${user?.userName}\nMODE: ${selectedVoiceMode}\n\nINPUT: ${text}` }];
       
       if (currentFile?.data) {
@@ -441,7 +497,7 @@ export default function App() {
 
       playNotificationSound();
     } catch (e: any) { 
-      showToast("Signal Interrupted. Check your network or matrix link.", "error"); 
+      showToast("Signal Interrupted. Check your network or License key.", "error"); 
     } finally { 
       setIsLoading(false); 
       setAvatarAnimation('idle');
@@ -490,6 +546,7 @@ export default function App() {
   };
 
   const generateNeuralQuiz = async (specificMessageId?: string) => {
+    if (!currentApiKey) return;
     const contextSource = specificMessageId 
       ? pinnedMessages.find(m => m.id === specificMessageId)
       : pinnedMessages;
@@ -505,7 +562,7 @@ export default function App() {
 
     try {
       const text = Array.isArray(contextSource) ? contextSource.map(m => m.text).join("\n") : contextSource.text;
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: currentApiKey });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `CONTEXT: ${text}\n\nAct as Mr. Cute. Create a 3-question MCQ test based on this for the user. Return ONLY JSON:\n{ "title": "Memory Check", "questions": [ { "question": "", "options": [], "correctAnswer": "", "explanation": "" } ] }`,
@@ -525,19 +582,21 @@ export default function App() {
   };
 
   const handleOnboardingComplete = () => {
-    if (tempProfile.userName && tempProfile.gender && tempProfile.personalityId) {
+    if (tempProfile.userName && tempProfile.gender && tempProfile.personalityId && tempProfile.licenseKey) {
       const newUser = { 
         ...tempProfile, 
         avatarUrl: AVATARS[Math.floor(Math.random() * AVATARS.length)] 
       } as User;
       
       localStorage.setItem('mr_vibe_active_user', JSON.stringify(newUser));
+      localStorage.setItem('mr_vibe_license_key', tempProfile.licenseKey);
       setUser(newUser);
+      setLicenseKey(tempProfile.licenseKey);
       updateSettings({ personalityId: tempProfile.personalityId });
       setIsNewUser(false);
       handleNewChat(true);
     } else {
-      showToast("Complete your Identity Protocol first.", "info");
+      showToast("Complete your Identity Protocol & License key first.", "info");
     }
   };
 
@@ -547,7 +606,13 @@ export default function App() {
 
       <header className={`h-24 px-4 md:px-8 flex items-center justify-between border-b ${theme === 'dark' ? 'border-white/5 bg-black/50' : 'border-black/5 bg-white/50'} backdrop-blur-3xl z-50`}>
         <div className="flex items-center gap-1 md:gap-3">
-          <button onClick={() => setIsHistoryOpen(true)} className={`p-3 rounded-2xl active:scale-90 transition-all ${theme === 'dark' ? 'hover:bg-white/5 text-zinc-400' : 'hover:bg-black/5 text-zinc-500'}`}><Menu size={22} /></button>
+          <button 
+            onClick={() => setIsHistoryOpen(true)} 
+            className={`p-3 rounded-2xl active:scale-90 transition-all ${theme === 'dark' ? 'hover:bg-white/5 text-zinc-400' : 'hover:bg-black/5 text-zinc-500'}`}
+            title="Archive (Ctrl/Cmd + K)"
+          >
+            <Menu size={22} />
+          </button>
           <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className={`p-3 rounded-2xl active:scale-90 transition-all ${theme === 'dark' ? 'text-yellow-400' : 'text-blue-600'}`}>
             {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
           </button>
@@ -559,11 +624,19 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-1 md:gap-3">
-          <button onClick={() => setIsLibraryOpen(true)} className={`p-3 rounded-2xl relative active:scale-90 transition-all ${theme === 'dark' ? 'text-blue-400 bg-blue-500/10' : 'text-blue-600 bg-blue-500/5'}`}>
+          <button 
+            onClick={() => setIsLibraryOpen(true)} 
+            className={`p-3 rounded-2xl relative active:scale-90 transition-all ${theme === 'dark' ? 'text-blue-400 bg-blue-500/10' : 'text-blue-600 bg-blue-500/5'}`}
+            title="Brain (Ctrl/Cmd + B)"
+          >
             <Brain size={20} />
             {pinnedMessages.length > 0 && <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-blue-500 rounded-full animate-ping" />}
           </button>
-          <button onClick={() => setIsProfileModalOpen(true)} className="w-11 h-11 rounded-2xl overflow-hidden border-2 border-white/10 active:scale-90 transition-all shadow-xl">
+          <button 
+            onClick={() => setIsProfileModalOpen(true)} 
+            className="w-11 h-11 rounded-2xl overflow-hidden border-2 border-white/10 active:scale-90 transition-all shadow-xl"
+            title="Identity (Ctrl/Cmd + P)"
+          >
              {user?.avatarUrl ? <img src={user.avatarUrl} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-zinc-800 flex items-center justify-center"><UserIcon size={18} /></div>}
           </button>
         </div>
@@ -579,6 +652,9 @@ export default function App() {
               <div className="pt-4 flex flex-wrap justify-center gap-2">
                  <button onClick={() => setInputText("Yo Mr. Cute, what's good?")} className="px-4 py-2 rounded-full border border-white/5 bg-white/5 text-[9px] font-black uppercase tracking-widest text-zinc-500 hover:text-blue-400 hover:border-blue-400 transition-all">Say Hello</button>
                  <button onClick={() => setIsVoiceModeModalOpen(true)} className="px-4 py-2 rounded-full border border-blue-500/20 bg-blue-600/10 text-[9px] font-black uppercase tracking-widest text-blue-500 hover:bg-blue-600 hover:text-white transition-all">Voice Link</button>
+              </div>
+              <div className="mt-8 flex items-center justify-center gap-2 text-[8px] font-black text-zinc-800 uppercase tracking-[0.2em]">
+                <Command size={10} /> Shortcut Ready
               </div>
             </div>
           </div>
@@ -718,6 +794,23 @@ export default function App() {
                  </div>
 
                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-blue-500 uppercase tracking-[0.3em] ml-3 flex items-center gap-2">
+                       <Key size={12} /> License Key (API)
+                    </label>
+                    <input 
+                      type="password" 
+                      value={licenseKey} 
+                      onChange={e => {
+                        const val = e.target.value;
+                        setLicenseKey(val);
+                        localStorage.setItem('mr_vibe_license_key', val);
+                      }} 
+                      className="w-full py-5 px-8 rounded-3xl bg-white/5 border border-white/5 focus:border-blue-500 outline-none font-mono text-[11px] transition-all" 
+                      placeholder="Enter API Key..."
+                    />
+                 </div>
+
+                 <div className="space-y-4">
                     <label className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] ml-3">Sync Gender</label>
                     <div className="flex flex-wrap gap-2.5">
                        {['Male', 'Female', 'Other', 'Secret'].map((g) => (
@@ -756,7 +849,26 @@ export default function App() {
              </div>
              
              <div className="space-y-10 text-left">
-               {/* 1. NAME SECTION */}
+               {/* 1. LICENSE KEY SECTION */}
+               <div className="space-y-4">
+                 <label className="text-[10px] font-black text-blue-500 uppercase tracking-[0.3em] ml-4 flex items-center gap-2">
+                    <Key size={12} /> ENTER LICENSE KEY (API KEY)
+                 </label>
+                 <div className="relative">
+                   <input 
+                     type="password" 
+                     placeholder="Paste your 39-character key here..." 
+                     value={tempProfile.licenseKey} 
+                     onChange={e => setTempProfile({...tempProfile, licenseKey: e.target.value})} 
+                     className="w-full bg-white/5 rounded-3xl py-6 px-8 font-mono text-[13px] outline-none border border-transparent focus:border-blue-600 transition-all placeholder-zinc-800" 
+                   />
+                   <div className="absolute right-6 top-1/2 -translate-y-1/2 text-zinc-800 pointer-events-none">
+                     <Fingerprint size={24} />
+                   </div>
+                 </div>
+               </div>
+
+               {/* 2. NAME SECTION */}
                <div className="space-y-4">
                  <label className="text-[10px] font-black text-blue-500 uppercase tracking-[0.3em] ml-4">What's your handle, bestie?</label>
                  <input 
@@ -768,7 +880,7 @@ export default function App() {
                  />
                </div>
 
-               {/* 2. PERSONALITY SECTION */}
+               {/* 3. PERSONALITY SECTION */}
                <div className="space-y-4">
                  <label className="text-[10px] font-black text-blue-500 uppercase tracking-[0.3em] ml-4 flex items-center gap-2">
                     <Palette size={12} /> PICK MY VIBE (ARCHETYPE)
@@ -783,14 +895,13 @@ export default function App() {
                        <span className="text-3xl">{p.emoji}</span>
                        <div className="flex flex-col items-center">
                           <span className="text-[10px] font-black uppercase tracking-widest">{p.name}</span>
-                          <span className="text-[7px] font-bold text-zinc-700 uppercase tracking-widest mt-0.5 line-clamp-1">{p.description}</span>
                        </div>
                      </button>
                    ))}
                  </div>
                </div>
 
-               {/* 3. GENDER SECTION */}
+               {/* 4. GENDER SECTION */}
                <div className="space-y-4">
                  <label className="text-[10px] font-black text-blue-500 uppercase tracking-[0.3em] ml-4">Sync Protocol</label>
                  <div className="grid grid-cols-4 gap-2">
@@ -810,8 +921,8 @@ export default function App() {
              <div className="pt-6">
                 <button 
                   onClick={handleOnboardingComplete} 
-                  disabled={!tempProfile.userName || !tempProfile.personalityId}
-                  className={`w-full py-7 rounded-[32px] font-black text-xl uppercase tracking-[0.3em] transition-all ${tempProfile.userName && tempProfile.personalityId ? 'bg-blue-600 shadow-2xl shadow-blue-600/40 text-white hover:scale-[1.03] active:scale-95' : 'bg-zinc-900 text-zinc-800 cursor-not-allowed'}`}
+                  disabled={!tempProfile.userName || !tempProfile.personalityId || !tempProfile.licenseKey}
+                  className={`w-full py-7 rounded-[32px] font-black text-xl uppercase tracking-[0.3em] transition-all ${tempProfile.userName && tempProfile.personalityId && tempProfile.licenseKey ? 'bg-blue-600 shadow-2xl shadow-blue-600/40 text-white hover:scale-[1.03] active:scale-95' : 'bg-zinc-900 text-zinc-800 cursor-not-allowed'}`}
                 >
                   Start Frequency Sync
                 </button>
@@ -852,7 +963,7 @@ export default function App() {
       </div>
 
       {/* Neural Library Sidebar */}
-      <div className={`fixed inset-y-0 right-0 z-[10000] w-80 md:w-96 transition-transform duration-700 transform ${isLibraryOpen ? 'translate-x-0' : 'translate-x-full'} border-l shadow-[-50px_0_100px_rgba(0,0,0,0.5)] ${theme === 'dark' ? 'bg-[#080808] border-white/5' : 'bg-white border-black/5'}`}>
+      <div className={`fixed inset-y-0 right-0 z-[10000] w-80 md:w-96 transition-transform duration-700 transform ${isLibraryOpen ? 'translate-x-0' : '-translate-x-full'} border-l shadow-[-50px_0_100px_rgba(0,0,0,0.5)] ${theme === 'dark' ? 'bg-[#080808] border-white/5' : 'bg-white border-black/5'}`}>
          <div className="flex flex-col h-full">
             <div className="p-10 flex items-center justify-between border-b border-white/5">
                <h2 className="font-black uppercase tracking-[0.4em] text-[11px] flex items-center gap-3 text-blue-500"><Brain size={20}/> Core Memories</h2>
