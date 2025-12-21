@@ -14,7 +14,7 @@ import {
   History as HistoryIcon
 } from 'lucide-react';
 import { PERSONALITIES, BASE_SYSTEM_PROMPT, AVATARS, GEMINI_VOICES } from './constants';
-import { PersonalityId, Personality, AppSettings, User, ChatSession, Message, ReactionType, Notification, FileAttachment, Quiz, QuizQuestion, GroundingChunk } from './types';
+import { PersonalityId, Personality, AppSettings, User, ChatSession, Message, ReactionType, Notification, FileAttachment, Quiz, QuizQuestion, GroundingChunk, Gender } from './types';
 import { useGeminiLive } from './hooks/useGeminiLive';
 
 declare global {
@@ -123,7 +123,12 @@ export default function App() {
   const [toast, setToast] = useState<{id: string, message: string, type: string, onClick?: () => void} | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>(() => JSON.parse(localStorage.getItem('mr_vibe_notif_history') || '[]'));
   const [user, setUser] = useState<User | null>(() => JSON.parse(localStorage.getItem('mr_vibe_active_user') || 'null'));
-  const [tempProfile, setTempProfile] = useState<Partial<User>>({ userName: '', gender: 'Male', avatarUrl: AVATARS[0], personalityId: PersonalityId.STUDENT });
+  const [tempProfile, setTempProfile] = useState<Partial<User>>({ 
+    userName: '', 
+    gender: 'Secret', 
+    avatarUrl: AVATARS[0], 
+    personalityId: PersonalityId.STUDENT 
+  });
 
   const [settings, setSettings] = useState<AppSettings>(() => {
     const saved = localStorage.getItem('mr_vibe_settings');
@@ -150,7 +155,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState<{text: string, isModel: boolean}[]>([]);
   const [isAiSpeakingGlobal, setIsAiSpeakingGlobal] = useState(false);
-  const [selectedVoiceMode, setSelectedVoiceMode] = useState<'note' | 'chat'>('chat');
+  const [selectedVoiceMode, setSelectedVoiceMode] = useState<'chat' | 'note'>('chat');
   const [avatarAnimation, setAvatarAnimation] = useState<OrbAnimationState>('idle');
   const [isSyncingMemories, setIsSyncingMemories] = useState(false);
   
@@ -512,24 +517,49 @@ export default function App() {
     }
   };
 
+  const handleOnboardingComplete = async () => {
+    if (!hasLicense) {
+      await handleOpenLicenseKey();
+    }
+    
+    // Check again after license attempt
+    const currentlyLicensed = await window.aistudio?.hasSelectedApiKey();
+    if (!currentlyLicensed) {
+      showToast("Identity verified, but Neural Link is missing.", "error");
+      return;
+    }
+
+    if (tempProfile.userName && tempProfile.gender && tempProfile.personalityId) {
+      const newUser = { 
+        ...tempProfile, 
+        avatarUrl: AVATARS[Math.floor(Math.random() * AVATARS.length)] 
+      } as User;
+      
+      localStorage.setItem('mr_vibe_active_user', JSON.stringify(newUser));
+      setUser(newUser);
+      updateSettings({ personalityId: tempProfile.personalityId });
+      setIsNewUser(false);
+      handleNewChat(true);
+    } else {
+      showToast("Complete your Identity Matrix.", "info");
+    }
+  };
+
   return (
     <div className={`flex flex-col h-full w-full transition-colors duration-500 ${theme === 'dark' ? 'bg-[#050505] text-white' : 'bg-zinc-50 text-black'} relative overflow-hidden ios-safe-top ios-safe-bottom font-sans`}>
       {toast && <NotificationToast {...toast} onClose={() => setToast(null)} />}
 
-      <header className={`h-20 px-6 flex items-center justify-between border-b ${theme === 'dark' ? 'border-white/5 bg-black/40' : 'border-black/5 bg-white/40'} backdrop-blur-3xl z-50`}>
-        <div className="flex items-center gap-3">
+      <header className={`h-20 px-4 md:px-6 flex items-center justify-between border-b ${theme === 'dark' ? 'border-white/5 bg-black/40' : 'border-black/5 bg-white/40'} backdrop-blur-3xl z-50`}>
+        <div className="flex items-center gap-1 md:gap-3">
           <button onClick={() => setIsHistoryOpen(true)} className={`p-3 rounded-2xl active:scale-90 ${theme === 'dark' ? 'hover:bg-white/5 text-zinc-400' : 'hover:bg-black/5 text-zinc-500'}`}><Menu size={22} /></button>
           <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className={`p-3 rounded-2xl active:scale-90 ${theme === 'dark' ? 'text-yellow-400' : 'text-blue-600'}`}>
             {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
           </button>
         </div>
         <div className="flex flex-col items-center">
-          <span className="font-black text-[10px] uppercase tracking-[0.4em] text-blue-500">Mr. Vibe AI</span>
-          <span className={`text-[8px] font-black flex items-center gap-1.5 uppercase tracking-widest mt-1 ${theme === 'dark' ? 'text-zinc-600' : 'text-zinc-400'}`}>
-             <span className={`w-1 h-1 rounded-full ${hasLicense ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} /> {isSyncingMemories ? 'Syncing...' : hasLicense ? 'Neural Link Active' : 'Offline'}
-          </span>
+          <span className="font-black text-[11px] uppercase tracking-[0.4em] text-blue-500">Mr. Vibe AI</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 md:gap-2">
           <button onClick={() => setIsLibraryOpen(true)} className={`p-3 rounded-2xl relative active:scale-90 ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>
             <Brain size={20} />
             {pinnedMessages.length > 0 && <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 bg-blue-500 rounded-full" />}
@@ -620,7 +650,7 @@ export default function App() {
         <div ref={messagesEndRef} className="h-4 w-full" />
       </main>
 
-      <footer className={`p-6 bg-gradient-to-t ${theme === 'dark' ? 'from-black via-black/90' : 'from-zinc-50 via-zinc-50/90'} to-transparent z-40`}>
+      <footer className={`px-4 pb-6 pt-2 bg-gradient-to-t ${theme === 'dark' ? 'from-black via-black/90' : 'from-zinc-50 via-zinc-50/90'} to-transparent z-40 ios-safe-bottom`}>
         {selectedFile && (
           <div className="max-w-2xl mx-auto mb-4 animate-slide-up">
             <div className={`relative inline-flex items-center gap-3 p-3 rounded-[20px] border shadow-2xl ${theme === 'dark' ? 'bg-[#1a1a1a] border-white/10' : 'bg-white border-black/10'}`}>
@@ -632,9 +662,9 @@ export default function App() {
             </div>
           </div>
         )}
-        <div className={`max-w-4xl mx-auto flex items-center gap-3 p-2 border rounded-[32px] shadow-2xl backdrop-blur-3xl transition-all ${theme === 'dark' ? 'bg-[#111111]/80 border-white/10' : 'bg-white border-black/10'}`}>
-          <button onClick={() => fileInputRef.current?.click()} className="p-3.5 rounded-full text-zinc-500 hover:text-blue-500 transition-all">
-            <Paperclip size={22}/>
+        <div className={`max-w-4xl mx-auto flex items-center gap-2 p-1 border rounded-[32px] shadow-2xl backdrop-blur-3xl transition-all ${theme === 'dark' ? 'bg-[#111111]/80 border-white/10' : 'bg-white border-black/10'}`}>
+          <button onClick={() => fileInputRef.current?.click()} className="p-3 rounded-full text-zinc-500 hover:text-blue-500 transition-all flex-shrink-0">
+            <Paperclip size={20}/>
             <input type="file" ref={fileInputRef} className="hidden" onChange={(e) => {
                const file = e.target.files?.[0]; if (!file) return;
                const reader = new FileReader(); reader.onload = () => setSelectedFile({ data: reader.result as string, name: file.name, type: file.type });
@@ -643,15 +673,15 @@ export default function App() {
           </button>
           <input 
             type="text" 
-            placeholder={hasLicense ? "Link frequencies..." : "Activate License to chat..."}
+            placeholder={hasLicense ? "Link frequencies..." : "Activate Neural Link..."}
             value={inputText} 
             onChange={e => setInputText(e.target.value)} 
             onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} 
-            className="flex-1 bg-transparent py-3 px-1 font-bold text-[14px] outline-none placeholder-zinc-700"
+            className="flex-1 bg-transparent py-3 px-1 font-bold text-[14px] outline-none placeholder-zinc-700 min-w-0"
           />
-          <div className="flex items-center gap-2 pr-1">
-             <button onClick={handleVoiceButtonClick} className={`p-3.5 rounded-full transition-all ${isLive ? 'bg-rose-600 text-white animate-pulse' : 'bg-white/5 text-zinc-500'}`}>{isLive ? <MicOff size={22}/> : <Mic size={22}/>}</button>
-             <button onClick={() => handleSendToAI(inputText)} className={`p-3.5 rounded-full transition-all ${(inputText.trim() || selectedFile) ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'bg-zinc-500/10 text-zinc-700'}`}><Send size={22}/></button>
+          <div className="flex items-center gap-1 pr-1 flex-shrink-0">
+             <button onClick={handleVoiceButtonClick} className={`p-3 rounded-full transition-all ${isLive ? 'bg-rose-600 text-white animate-pulse' : 'bg-white/5 text-zinc-500'}`}>{isLive ? <MicOff size={20}/> : <Mic size={20}/>}</button>
+             <button onClick={() => handleSendToAI(inputText)} className={`p-3 rounded-full transition-all ${(inputText.trim() || selectedFile) ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'bg-zinc-500/10 text-zinc-700'}`}><Send size={20}/></button>
           </div>
         </div>
       </footer>
@@ -671,17 +701,28 @@ export default function App() {
                        <label className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Neural License</label>
                        <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase ${hasLicense ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>{hasLicense ? 'Verified' : 'Required'}</span>
                     </div>
-                    <button onClick={handleOpenLicenseKey} className="w-full py-4 bg-white/5 border border-white/5 rounded-2xl font-black text-[9px] uppercase tracking-widest flex items-center justify-center gap-2">Write / Paste License Key</button>
+                    <button onClick={handleOpenLicenseKey} className="w-full py-4 bg-white/5 border border-white/5 rounded-2xl font-black text-[9px] uppercase tracking-widest flex items-center justify-center gap-2">Sync Neural License</button>
                     {!hasLicense && (
                        <a href="https://t.me/Mrvibeai" target="_blank" className="flex items-center justify-center gap-1.5 text-[8px] font-black uppercase text-blue-500 hover:text-blue-400 transition-all mt-1">
                          Get a license from Mr. Vibe AI <ExternalLink size={10} />
                        </a>
                     )}
                  </div>
+                 
                  <div className="space-y-3">
                     <label className="text-[9px] font-black text-zinc-600 uppercase tracking-widest ml-2">Human Label</label>
                     <input type="text" value={user?.userName} onChange={e => setUser(u => u ? ({...u, userName: e.target.value}) : null)} onBlur={() => localStorage.setItem('mr_vibe_active_user', JSON.stringify(user))} className="w-full py-4 px-6 rounded-2xl bg-white/5 border border-transparent focus:border-blue-500 outline-none font-bold" />
                  </div>
+
+                 <div className="space-y-3">
+                    <label className="text-[9px] font-black text-zinc-600 uppercase tracking-widest ml-2">Gender Identification</label>
+                    <div className="flex flex-wrap gap-2">
+                       {['Male', 'Female', 'Other', 'Secret'].map((g) => (
+                          <button key={g} onClick={() => { setUser(u => u ? ({...u, gender: g as Gender}) : null); localStorage.setItem('mr_vibe_active_user', JSON.stringify({...user, gender: g})); }} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${user?.gender === g ? 'bg-blue-600 text-white' : 'bg-white/5 text-zinc-500'}`}>{g}</button>
+                       ))}
+                    </div>
+                 </div>
+
                  <div className="space-y-3">
                     <label className="text-[9px] font-black text-zinc-600 uppercase tracking-widest ml-2">Neural Archetype</label>
                     <div className="grid grid-cols-2 gap-3">
@@ -699,7 +740,7 @@ export default function App() {
       {isVoiceModeModalOpen && (
         <div className="fixed inset-0 z-[11000] flex items-center justify-center p-8 animate-fade-in">
           <div className="absolute inset-0 bg-black/95 backdrop-blur-3xl" onClick={() => setIsVoiceModeModalOpen(false)} />
-          <div className={`relative w-full max-w-sm rounded-[48px] p-10 space-y-10 border shadow-2xl animate-scale-in ${theme === 'dark' ? 'bg-[#0a0a0a] border-white/10' : 'bg-white border-black/10'}`}>
+          <div className={`relative w-full max-sm rounded-[48px] p-10 space-y-10 border shadow-2xl animate-scale-in ${theme === 'dark' ? 'bg-[#0a0a0a] border-white/10' : 'bg-white border-black/10'}`}>
             <div className="text-center space-y-3">
               <div className="w-14 h-14 bg-blue-600/10 rounded-2xl flex items-center justify-center mx-auto text-blue-500"><Mic size={28}/></div>
               <h2 className="text-lg font-black uppercase italic tracking-tighter">Voice Frequency</h2>
@@ -803,30 +844,68 @@ export default function App() {
       {/* New User Onboarding */}
       {isNewUser && (
         <div className="fixed inset-0 z-[9000] bg-black flex items-center justify-center p-6 overflow-y-auto">
-          <div className="w-full max-w-lg bg-[#080808] rounded-[48px] p-10 text-center border border-white/5 animate-scale-in">
-             <Logo className="w-12 h-12 mx-auto mb-8" />
-             <h1 className="text-3xl font-black mb-10 uppercase italic tracking-tighter text-white">Neural Protocol</h1>
-             <div className="space-y-8 text-left mb-10">
-               <div className="p-8 rounded-[32px] bg-blue-600/5 border border-blue-500/10 space-y-4">
-                 <div className="flex items-center justify-between">
-                   <h3 className="text-sm font-black uppercase flex items-center gap-2"><Key size={18} className="text-blue-500" /> License</h3>
-                   <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase ${hasLicense ? 'bg-emerald-500' : 'bg-rose-500/20 text-rose-400'}`}>{hasLicense ? 'Ready' : 'Missing'}</span>
-                 </div>
-                 <button onClick={handleOpenLicenseKey} className={`w-full py-5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all shadow-2xl ${hasLicense ? 'bg-emerald-500' : 'bg-blue-600 shadow-blue-600/30'}`}>{hasLicense ? 'Linked & Verified' : 'Fill / Paste License Key'}</button>
-                 {!hasLicense && (
-                   <div className="text-center">
-                     <a href="https://t.me/Mrvibeai" target="_blank" className="inline-flex items-center gap-2 text-[9px] font-black uppercase text-blue-500 hover:text-blue-400 transition-all">
-                       Need a license? Connect on Telegram <ExternalLink size={12} />
-                     </a>
-                   </div>
-                 )}
+          <div className="w-full max-w-lg bg-[#080808] rounded-[48px] p-10 text-center border border-white/5 animate-scale-in space-y-8">
+             <Logo className="w-12 h-12 mx-auto mb-2" />
+             <h1 className="text-3xl font-black uppercase italic tracking-tighter text-white">Neural Protocol</h1>
+             
+             <div className="space-y-10 text-left">
+               {/* Name Input */}
+               <div className="space-y-3">
+                 <label className="text-[9px] font-black text-blue-500 uppercase tracking-widest ml-3">Identity Label (Name)</label>
+                 <input 
+                   type="text" 
+                   placeholder="e.g. Neo..." 
+                   value={tempProfile.userName} 
+                   onChange={e => setTempProfile({...tempProfile, userName: e.target.value})} 
+                   className="w-full bg-white/5 rounded-2xl py-5 px-6 font-bold text-lg outline-none border border-transparent focus:border-blue-600 transition-all placeholder-zinc-800" 
+                 />
                </div>
-               <div className="space-y-2">
-                 <label className="text-[9px] font-black text-zinc-800 uppercase tracking-widest ml-3">Identity Label</label>
-                 <input type="text" placeholder="Identity..." value={tempProfile.userName} onChange={e => setTempProfile({...tempProfile, userName: e.target.value})} className="w-full bg-white/5 rounded-2xl py-4 px-6 font-bold text-lg outline-none border border-transparent focus:border-blue-600" />
+
+               {/* Gender Selection */}
+               <div className="space-y-3">
+                 <label className="text-[9px] font-black text-blue-500 uppercase tracking-widest ml-3">Gender Sync</label>
+                 <div className="grid grid-cols-2 gap-3">
+                   {['Male', 'Female', 'Other', 'Secret'].map((g) => (
+                     <button 
+                       key={g} 
+                       onClick={() => setTempProfile({...tempProfile, gender: g as Gender})}
+                       className={`py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border ${tempProfile.gender === g ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-600/20' : 'bg-white/5 border-transparent text-zinc-600 hover:bg-white/10'}`}
+                     >
+                       {g}
+                     </button>
+                   ))}
+                 </div>
+               </div>
+
+               {/* Personality Grid */}
+               <div className="space-y-3">
+                 <label className="text-[9px] font-black text-blue-500 uppercase tracking-widest ml-3">Neural Archetype</label>
+                 <div className="grid grid-cols-2 gap-3">
+                    {Object.values(PERSONALITIES).map(p => (
+                       <button 
+                         key={p.id} 
+                         onClick={() => setTempProfile({...tempProfile, personalityId: p.id})}
+                         className={`p-4 rounded-[24px] font-black text-[9px] uppercase tracking-widest border transition-all flex items-center gap-3 ${tempProfile.personalityId === p.id ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-600/20' : 'bg-white/5 border-transparent text-zinc-600 hover:bg-white/10'}`}
+                       >
+                         <span className="text-xl">{p.emoji}</span>
+                         <span className="truncate">{p.name}</span>
+                       </button>
+                    ))}
+                 </div>
                </div>
              </div>
-             <button onClick={() => { if(!hasLicense) return; if(tempProfile.userName) { const newUser = { ...tempProfile, avatarUrl: AVATARS[Math.floor(Math.random()*AVATARS.length)] } as User; localStorage.setItem('mr_vibe_active_user', JSON.stringify(newUser)); setUser(newUser); setIsNewUser(false); handleNewChat(true); } }} className={`w-full py-6 rounded-[24px] font-black text-lg uppercase tracking-widest transition-all ${hasLicense ? 'bg-blue-600 shadow-2xl shadow-blue-600/30' : 'bg-zinc-800 opacity-50'}`}>Activate Neural Link</button>
+
+             <div className="pt-4">
+                <button 
+                  onClick={handleOnboardingComplete} 
+                  className={`w-full py-6 rounded-[24px] font-black text-lg uppercase tracking-widest transition-all ${tempProfile.userName ? 'bg-blue-600 shadow-2xl shadow-blue-600/30 text-white hover:scale-[1.02] active:scale-95' : 'bg-zinc-800 text-zinc-600 cursor-not-allowed opacity-50'}`}
+                >
+                  Activate Neural Link
+                </button>
+                <p className="mt-4 text-[8px] font-black uppercase tracking-widest text-zinc-600 text-center">
+                  Secure connection via Google Neural Network
+                </p>
+             </div>
           </div>
         </div>
       )}
