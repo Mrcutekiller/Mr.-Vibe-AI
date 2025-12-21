@@ -12,21 +12,12 @@ import {
   MessageCircle, Link2, GraduationCap, Award, PlayCircle, Fingerprint,
   ZapOff,
   Flame,
-  AlertCircle
+  AlertCircle,
+  Gamepad2
 } from 'lucide-react';
 import { PERSONALITIES, BASE_SYSTEM_PROMPT, AVATARS, GEMINI_VOICES, PERSONALITY_STYLES } from './constants';
 import { PersonalityId, Personality, AppSettings, User, ChatSession, Message, ReactionType, Notification, FileAttachment, Quiz, QuizQuestion, GroundingChunk, Gender } from './types';
 import { useGeminiLive } from './hooks/useGeminiLive';
-
-declare global {
-  interface AIStudio {
-    hasSelectedApiKey: () => Promise<boolean>;
-    openSelectKey: () => Promise<void>;
-  }
-  interface Window {
-    aistudio?: AIStudio;
-  }
-}
 
 const Logo = ({ className }: { className?: string }) => (
   <div className={`flex items-center justify-center ${className}`}>
@@ -139,7 +130,6 @@ type OrbAnimationState = 'idle' | 'hi' | 'thoughtful' | 'excited';
 
 export default function App() {
   const [isNewUser, setIsNewUser] = useState<boolean>(() => !localStorage.getItem('mr_vibe_active_user'));
-  const [hasLicense, setHasLicense] = useState(false);
   const [toast, setToast] = useState<{id: string, message: string, type: string, onClick?: () => void} | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>(() => JSON.parse(localStorage.getItem('mr_vibe_notif_history') || '[]'));
   const [user, setUser] = useState<User | null>(() => JSON.parse(localStorage.getItem('mr_vibe_active_user') || 'null'));
@@ -204,25 +194,12 @@ export default function App() {
     return () => clearInterval(saveTimer);
   }, [sessions, activeSessionId]);
 
-  // License check
-  useEffect(() => {
-    const checkLicense = async () => {
-      if (window.aistudio) {
-        const has = await window.aistudio.hasSelectedApiKey();
-        setHasLicense(has);
-      }
-    };
-    checkLicense();
-    const interval = setInterval(checkLicense, 3000);
-    return () => clearInterval(interval);
-  }, []);
-
   // Neural Pulse Logic
   useEffect(() => {
-    if (hasLicense && user && !isNewUser) {
+    if (user && !isNewUser) {
       setTimeout(checkForNeuralPulse, 8000);
     }
-  }, [hasLicense, user, isNewUser, activeSessionId]);
+  }, [user, isNewUser, activeSessionId]);
 
   const checkForNeuralPulse = async () => {
     if (isSyncingMemories || sessions.length === 0 || !activeSessionId) return;
@@ -336,11 +313,11 @@ export default function App() {
     setIsLibraryOpen(false);
     setSelectedPinnedId(null);
     
-    if (autoGreet && hasLicense) {
+    if (autoGreet) {
       generateInitialGreeting(newId, settings.personalityId);
     }
     return newId;
-  }, [settings.personalityId, user, hasLicense]);
+  }, [settings.personalityId, user]);
 
   const generateInitialGreeting = async (sessionId: string, personalityId: PersonalityId) => {
     setIsLoading(true);
@@ -381,14 +358,6 @@ export default function App() {
     showToast("Uploaded to Core Memories.", "success");
   };
 
-  const handleOpenLicenseKey = async () => {
-    if (window.aistudio) {
-      await window.aistudio.openSelectKey();
-      const has = await window.aistudio.hasSelectedApiKey();
-      setHasLicense(has);
-    }
-  };
-
   const handleLogout = () => {
     localStorage.clear();
     setIsNewUser(true);
@@ -400,11 +369,6 @@ export default function App() {
   };
 
   const handleSendToAI = async (text: string, isAutoGreet = false) => {
-    if (!hasLicense) {
-      showToast("LICENSE KEY required for Neural Sync.", "error");
-      handleOpenLicenseKey();
-      return;
-    }
     if ((!text.trim() && !selectedFile) || isLoading) return;
     
     let sessionId = activeSessionId || handleNewChat(false);
@@ -477,8 +441,7 @@ export default function App() {
 
       playNotificationSound();
     } catch (e: any) { 
-      if (e.message?.includes("Requested entity was not found")) setHasLicense(false);
-      showToast("Signal Interrupted.", "error"); 
+      showToast("Signal Interrupted. Check your network or matrix link.", "error"); 
     } finally { 
       setIsLoading(false); 
       setAvatarAnimation('idle');
@@ -512,13 +475,11 @@ export default function App() {
       }
     },
     onError: (m) => {
-      if (m.includes("Requested entity was not found")) setHasLicense(false);
       showToast(m, "error");
     }
   });
 
   const handleVoiceButtonClick = () => {
-    if (!hasLicense) { showToast("License link required.", "error"); handleOpenLicenseKey(); return; }
     if (isLive) disconnectLive(); else setIsVoiceModeModalOpen(true);
   };
 
@@ -563,18 +524,7 @@ export default function App() {
     }
   };
 
-  const handleOnboardingComplete = async () => {
-    if (!hasLicense) {
-      await handleOpenLicenseKey();
-    }
-    
-    // Check again immediately
-    const currentlyLicensed = await window.aistudio?.hasSelectedApiKey();
-    if (!currentlyLicensed) {
-      showToast("Click 'LINK NEURAL MATRIX' to setup your API key.", "error");
-      return;
-    }
-
+  const handleOnboardingComplete = () => {
     if (tempProfile.userName && tempProfile.gender && tempProfile.personalityId) {
       const newUser = { 
         ...tempProfile, 
@@ -587,7 +537,7 @@ export default function App() {
       setIsNewUser(false);
       handleNewChat(true);
     } else {
-      showToast("Finish your Identity Protocol first.", "info");
+      showToast("Complete your Identity Protocol first.", "info");
     }
   };
 
@@ -618,17 +568,6 @@ export default function App() {
           </button>
         </div>
       </header>
-
-      {/* API Warning if missing */}
-      {!hasLicense && !isNewUser && (
-        <div className="bg-rose-500/10 border-b border-rose-500/20 px-6 py-3 flex items-center justify-between animate-fade-in">
-          <div className="flex items-center gap-3 text-rose-500">
-            <AlertCircle size={16} />
-            <span className="text-[10px] font-black uppercase tracking-widest">Neural Link Offline</span>
-          </div>
-          <button onClick={handleOpenLicenseKey} className="px-4 py-1.5 bg-rose-500 text-white rounded-full text-[9px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all">Link Now</button>
-        </div>
-      )}
 
       <main ref={mainContentRef} className="flex-1 overflow-y-auto px-5 py-10 md:px-10 space-y-10 custom-scrollbar scroll-smooth">
         {messages.length === 0 ? (
@@ -747,7 +686,7 @@ export default function App() {
           </button>
           <input 
             type="text" 
-            placeholder={hasLicense ? "Talk to Mr. Cute..." : "Connect Neural Link..."}
+            placeholder="Talk to Mr. Cute..."
             value={inputText} 
             onChange={e => setInputText(e.target.value)} 
             onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} 
@@ -773,19 +712,6 @@ export default function App() {
                 <button onClick={() => setIsProfileModalOpen(false)} className="p-3 bg-white/5 rounded-2xl text-zinc-500 hover:bg-white/10 transition-all"><X size={22}/></button>
               </div>
               <div className="space-y-8 pb-4">
-                 <div className="p-7 rounded-[40px] bg-blue-600/5 border border-blue-500/10 space-y-5">
-                    <div className="flex items-center justify-between">
-                       <label className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Neural Link Auth</label>
-                       <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest ${hasLicense ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>{hasLicense ? 'Secured' : 'Missing'}</span>
-                    </div>
-                    <div className="space-y-3">
-                       <p className="text-[11px] font-medium text-zinc-500 leading-relaxed px-1">You need a Neural Link Key to vibe with Mr. Cute. This connects you to the core processing matrix.</p>
-                       <button onClick={handleOpenLicenseKey} className="w-full py-5 bg-white/5 border border-white/10 rounded-3xl font-black text-[11px] uppercase tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-blue-600 hover:text-white transition-all shadow-lg">
-                          <Fingerprint size={18} /> Update Matrix Key
-                       </button>
-                    </div>
-                 </div>
-                 
                  <div className="space-y-4">
                     <label className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] ml-3">Label Name</label>
                     <input type="text" value={user?.userName} onChange={e => setUser(u => u ? ({...u, userName: e.target.value}) : null)} onBlur={() => localStorage.setItem('mr_vibe_active_user', JSON.stringify(user))} className="w-full py-5 px-8 rounded-3xl bg-white/5 border border-white/5 focus:border-blue-500 outline-none font-black text-lg transition-all" />
@@ -801,7 +727,7 @@ export default function App() {
                  </div>
 
                  <div className="space-y-4">
-                    <label className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] ml-3">Neural Archetype</label>
+                    <label className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] ml-3">Neural Archetype (Vibe)</label>
                     <div className="grid grid-cols-2 gap-4">
                        {Object.values(PERSONALITIES).map(p => (
                           <button key={p.id} onClick={() => { updateSettings({ personalityId: p.id }); showToast(`Archetype Synced: ${p.name}`, "info"); }} className={`p-5 rounded-[32px] font-black text-[10px] uppercase tracking-widest border-2 transition-all flex items-center gap-4 ${settings.personalityId === p.id ? 'bg-blue-600 border-blue-500 text-white shadow-xl' : 'bg-white/5 border-transparent text-zinc-600 hover:bg-white/10'}`}><span className="text-2xl">{p.emoji}</span><span className="truncate">{p.name}</span></button>
@@ -830,26 +756,9 @@ export default function App() {
              </div>
              
              <div className="space-y-10 text-left">
-               {/* 1. API KEY SECTION */}
+               {/* 1. NAME SECTION */}
                <div className="space-y-4">
-                 <label className="text-[10px] font-black text-blue-500 uppercase tracking-[0.3em] ml-4 flex items-center gap-2">
-                   <Key size={12} /> Neural Matrix Link (API KEY)
-                 </label>
-                 <div 
-                   onClick={handleOpenLicenseKey}
-                   className={`group w-full py-6 px-8 rounded-3xl border cursor-pointer transition-all flex items-center justify-between ${hasLicense ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-blue-600/10 border-blue-600/30 hover:bg-blue-600/20 shadow-lg shadow-blue-500/10 animate-pulse'}`}
-                 >
-                   <div className="flex flex-col gap-1">
-                    <span className={`font-black text-[14px] uppercase tracking-widest ${hasLicense ? 'text-emerald-400' : 'text-blue-500'}`}>{hasLicense ? 'Neural Link Verified ✓' : 'Setup Neural Matrix Link'}</span>
-                    {!hasLicense && <span className="text-[10px] font-bold text-zinc-600">MANDATORY: Click here to link your API key</span>}
-                   </div>
-                   <Fingerprint size={28} className={hasLicense ? 'text-emerald-400' : 'text-blue-500 group-hover:scale-110 transition-transform'} />
-                 </div>
-               </div>
-
-               {/* 2. NAME SECTION */}
-               <div className="space-y-4">
-                 <label className="text-[10px] font-black text-blue-500 uppercase tracking-[0.3em] ml-4">What should I call you, bestie?</label>
+                 <label className="text-[10px] font-black text-blue-500 uppercase tracking-[0.3em] ml-4">What's your handle, bestie?</label>
                  <input 
                    type="text" 
                    placeholder="Enter your handle..." 
@@ -859,9 +768,11 @@ export default function App() {
                  />
                </div>
 
-               {/* 3. PERSONALITY SECTION */}
+               {/* 2. PERSONALITY SECTION */}
                <div className="space-y-4">
-                 <label className="text-[10px] font-black text-blue-500 uppercase tracking-[0.3em] ml-4">Pick My Vibe (Archetype)</label>
+                 <label className="text-[10px] font-black text-blue-500 uppercase tracking-[0.3em] ml-4 flex items-center gap-2">
+                    <Palette size={12} /> PICK MY VIBE (ARCHETYPE)
+                 </label>
                  <div className="grid grid-cols-2 gap-3">
                    {Object.values(PERSONALITIES).map((p) => (
                      <button 
@@ -870,13 +781,16 @@ export default function App() {
                        className={`flex flex-col items-center gap-2 p-5 rounded-3xl border-2 transition-all ${tempProfile.personalityId === p.id ? 'bg-blue-600/10 border-blue-600 text-white shadow-lg' : 'bg-white/5 border-transparent text-zinc-600 hover:bg-white/10'}`}
                      >
                        <span className="text-3xl">{p.emoji}</span>
-                       <span className="text-[10px] font-black uppercase tracking-widest">{p.name}</span>
+                       <div className="flex flex-col items-center">
+                          <span className="text-[10px] font-black uppercase tracking-widest">{p.name}</span>
+                          <span className="text-[7px] font-bold text-zinc-700 uppercase tracking-widest mt-0.5 line-clamp-1">{p.description}</span>
+                       </div>
                      </button>
                    ))}
                  </div>
                </div>
 
-               {/* 4. GENDER SECTION */}
+               {/* 3. GENDER SECTION */}
                <div className="space-y-4">
                  <label className="text-[10px] font-black text-blue-500 uppercase tracking-[0.3em] ml-4">Sync Protocol</label>
                  <div className="grid grid-cols-4 gap-2">
@@ -896,13 +810,13 @@ export default function App() {
              <div className="pt-6">
                 <button 
                   onClick={handleOnboardingComplete} 
-                  disabled={!tempProfile.userName || !hasLicense}
-                  className={`w-full py-7 rounded-[32px] font-black text-xl uppercase tracking-[0.3em] transition-all ${tempProfile.userName && hasLicense ? 'bg-blue-600 shadow-2xl shadow-blue-600/40 text-white hover:scale-[1.03] active:scale-95' : 'bg-zinc-900 text-zinc-800 cursor-not-allowed'}`}
+                  disabled={!tempProfile.userName || !tempProfile.personalityId}
+                  className={`w-full py-7 rounded-[32px] font-black text-xl uppercase tracking-[0.3em] transition-all ${tempProfile.userName && tempProfile.personalityId ? 'bg-blue-600 shadow-2xl shadow-blue-600/40 text-white hover:scale-[1.03] active:scale-95' : 'bg-zinc-900 text-zinc-800 cursor-not-allowed'}`}
                 >
-                  Link Neural Sync
+                  Start Frequency Sync
                 </button>
                 <p className="mt-6 text-[9px] font-black uppercase tracking-[0.4em] text-zinc-800 text-center flex items-center justify-center gap-2">
-                   <ShieldAlert size={10} /> Secure Frequency Link Verification
+                   <ShieldAlert size={10} /> Secure Identity Verification
                 </p>
              </div>
           </div>
