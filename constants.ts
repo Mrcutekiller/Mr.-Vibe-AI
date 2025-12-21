@@ -40,6 +40,19 @@ TONE:
 - No corporate "How can I assist?". Say "Yo! What's the frequency?" or "Talk to me!".
 - You are witty, slightly chaotic, and extremely supportive.`;
 
+export interface PersonalityStyle {
+  color: string;
+  glow: string;
+  gradient: string;
+}
+
+export const PERSONALITY_STYLES: Record<PersonalityId, PersonalityStyle> = {
+  [PersonalityId.ROAST]: { color: '#f43f5e', glow: 'rgba(244, 63, 94, 0.5)', gradient: 'from-rose-500 to-orange-600' },
+  [PersonalityId.RIZZ]: { color: '#d946ef', glow: 'rgba(217, 70, 239, 0.5)', gradient: 'from-fuchsia-500 to-indigo-600' },
+  [PersonalityId.TRADE]: { color: '#10b981', glow: 'rgba(16, 185, 129, 0.5)', gradient: 'from-emerald-500 to-teal-600' },
+  [PersonalityId.STUDENT]: { color: '#3b82f6', glow: 'rgba(59, 130, 246, 0.5)', gradient: 'from-blue-500 to-indigo-600' },
+};
+
 export const PERSONALITIES: Record<PersonalityId, Personality> = {
   [PersonalityId.ROAST]: {
     id: PersonalityId.ROAST,
