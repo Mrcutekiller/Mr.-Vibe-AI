@@ -6,7 +6,6 @@ import { Personality, AppSettings, User, PersonalityId } from '../types';
 import { BASE_SYSTEM_PROMPT, GEMINI_VOICES } from '../constants';
 
 interface UseGeminiLiveProps {
-  apiKey: string;
   personality: Personality;
   settings: AppSettings;
   user: User;
@@ -19,7 +18,6 @@ interface UseGeminiLiveProps {
 }
 
 export const useGeminiLive = ({
-  apiKey,
   personality,
   settings,
   user,
@@ -131,8 +129,7 @@ export const useGeminiLive = ({
   }, [onConnectionStateChange]);
 
   const connect = useCallback(async () => {
-    if (isLive || isConnecting || !apiKey) {
-      if (!apiKey) onError("No API Key linked.");
+    if (isLive || isConnecting) {
       return;
     }
 
@@ -140,29 +137,20 @@ export const useGeminiLive = ({
       setIsConnecting(true);
       await initAudio();
       
-      // MAXIMUM NOISE CANCELLATION PROTOCOL
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: { 
           noiseSuppression: true, 
           echoCancellation: true, 
           autoGainControl: true, 
           channelCount: 1,
-          sampleRate: 16000,
-          // Aggressive filtering hint for browsers that support it
-          // @ts-ignore
-          suppressLocalAudioPlayback: true 
+          sampleRate: 16000
         } 
       });
       streamRef.current = stream;
 
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
       const voiceControlFunctions: FunctionDeclaration[] = [
-        {
-          name: 'summarize_session',
-          description: 'Summarize the entire conversation history into a clear, concise bullet-point report.',
-          parameters: { type: Type.OBJECT, properties: {} }
-        },
         {
           name: 'change_voice',
           description: 'Change the voice of the AI.',
@@ -179,8 +167,8 @@ export const useGeminiLive = ({
       const voicesList = GEMINI_VOICES.map(v => `${v.name} (id: ${v.id})`).join(', ');
       
       const modeInstruction = mode === 'note' 
-        ? "STRICT NOTE TAKER: Your ONLY job is to take notes, summarize data, or answer direct questions. Do NOT engage in casual conversation. Be extremely brief and efficient. Ignore casual 'how are you' style chatter."
-        : `BESTIE CHAT: You are a warm, expressive, and fun AI best friend. Talk about anything! Your chosen personality is ${personality.name}.`;
+        ? "STRICT NOTE TAKER: Your ONLY job is to take notes, summarize data, or answer direct questions. Be extremely brief."
+        : `BESTIE CHAT: You are Mr. Cute, a warm, expressive AI best friend. Your personality is ${personality.name}.`;
 
       const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}
       - MODE PROTOCOL: ${modeInstruction}
@@ -188,10 +176,9 @@ export const useGeminiLive = ({
       - ARCHETYPE: ${personality.name} (${personality.prompt})
       
       AVAILABLE TOOLS:
-      - summarize_session: Triggered when user asks to "Summarize everything".
       - change_voice: Change voice to one of: ${voicesList}.
       
-      Rules: If in Note Taker mode, be utilitarian. If in Bestie mode, stay strictly in your archetype. Everything you say will be transcribed and saved to the user's history for reference.`;
+      Rules: Always refer to yourself as Mr. Cute.`;
 
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
@@ -212,25 +199,7 @@ export const useGeminiLive = ({
             onConnectionStateChange(true);
             
             sessionPromise.then(session => {
-              let startMsg = "Hi! Mr. Cute is online.";
-              if (mode === 'note') {
-                startMsg = "Note Taker system ready. Awaiting input.";
-              } else {
-                switch(personality.id) {
-                  case PersonalityId.TRADE:
-                    startMsg = "Market pulse detected. Risk management active. What are we trading today?";
-                    break;
-                  case PersonalityId.ROAST:
-                    startMsg = "Look who decided to show up. Ready to have your feelings dismantled?";
-                    break;
-                  case PersonalityId.RIZZ:
-                    startMsg = "The charisma levels are peaking. Let's make some smooth moves. Who's the target?";
-                    break;
-                  case PersonalityId.STUDENT:
-                    startMsg = "Study session initiated. Library mode active. What's the mission today?";
-                    break;
-                }
-              }
+              let startMsg = "Hey! Mr. Cute is here.";
               session.sendRealtimeInput({ text: startMsg });
             });
 
@@ -276,14 +245,13 @@ export const useGeminiLive = ({
                   const audioBuffer = await decodeAudioData(decode(base64Audio), ctx, 24000, 1);
                   const source = ctx.createBufferSource();
                   source.buffer = audioBuffer;
-                  const speedMultiplier = settingsRef.current.speakingRate * settingsRef.current.speakingPitch;
-                  source.playbackRate.value = speedMultiplier;
+                  source.playbackRate.value = settingsRef.current.speakingRate;
 
                   if (outputAnalyserRef.current) source.connect(outputAnalyserRef.current);
                   else source.connect(ctx.destination);
 
                   source.start(nextStartTimeRef.current);
-                  nextStartTimeRef.current += (audioBuffer.duration / speedMultiplier);
+                  nextStartTimeRef.current += audioBuffer.duration;
                   sourcesRef.current.add(source);
                   source.onended = () => sourcesRef.current.delete(source);
                 } catch (err) { console.error("Audio output error", err); }
@@ -298,7 +266,6 @@ export const useGeminiLive = ({
                 currentOutputText.current += message.serverContent.outputTranscription.text;
              }
              if (message.serverContent?.turnComplete) {
-                // Ensure we only save if there's actual content
                 if (currentInputText.current.trim() || currentOutputText.current.trim()) {
                   onTurnComplete(currentInputText.current.trim(), currentOutputText.current.trim());
                 }
@@ -313,17 +280,17 @@ export const useGeminiLive = ({
           },
           onclose: () => disconnect(),
           onerror: (e) => {
-            onError("Link failure. Terminating frequency.");
+            onError("Connection flicker detected.");
             disconnect();
           }
         }
       });
       sessionPromiseRef.current = sessionPromise;
     } catch (error: any) { 
-      onError(error.message || "Failed to initialize Live sync.");
+      onError(error.message || "Failed to link frequencies.");
       disconnect(); 
     }
-  }, [apiKey, personality, settings, user, mode, isLive, isConnecting, onConnectionStateChange, onTranscript, onTurnComplete, onCommand, initAudio, disconnect, onError]);
+  }, [personality, settings, user, mode, isLive, isConnecting, onConnectionStateChange, onTranscript, onTurnComplete, onCommand, initAudio, disconnect, onError]);
 
   return { connect, disconnect, isLive, isConnecting, volume, outputVolume };
 };

@@ -17,7 +17,6 @@ export interface User {
   avatarUrl: string;
   personalityId: PersonalityId;
   mood?: string;
-  apiKey?: string;
 }
 
 export interface Personality {
@@ -31,11 +30,17 @@ export interface Personality {
 
 export type ReactionType = '❤️' | '👍' | '😂' | '😮' | '🔥' | '💀' | null;
 
+export interface FileAttachment {
+  data: string;
+  name: string;
+  type: string;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'model';
   text: string;
-  image?: string; 
+  file?: FileAttachment;
   isNote?: boolean;
   isPinned?: boolean;
   timestamp: number;
