@@ -36,6 +36,19 @@ export interface FileAttachment {
   type: string;
 }
 
+export interface QuizQuestion {
+  question: string;
+  options: string[];
+  correctAnswer: string;
+  explanation: string;
+}
+
+export interface Quiz {
+  title: string;
+  questions: QuizQuestion[];
+  score?: number;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'model';
