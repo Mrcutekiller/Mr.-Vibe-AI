@@ -1,6 +1,5 @@
-
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="background-color: #000;">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
@@ -85,11 +84,18 @@
         overflow: hidden;
         position: fixed;
         width: 100%;
+        background-color: #000;
+        margin: 0;
+        padding: 0;
       }
       body {
         font-family: 'Plus Jakarta Sans', 'sans-serif';
-        background-color: #000;
         -webkit-tap-highlight-color: transparent;
+      }
+      #root {
+        height: 100%;
+        width: 100%;
+        overflow: hidden;
       }
       .custom-scrollbar::-webkit-scrollbar { width: 4px; }
       .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -117,7 +123,7 @@
     </script>
   </head>
   <body class="dark">
-    <div id="root" class="h-full w-full"></div>
+    <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>

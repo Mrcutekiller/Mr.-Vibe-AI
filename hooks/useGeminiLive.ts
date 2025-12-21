@@ -10,11 +10,12 @@ interface UseGeminiLiveProps {
   settings: AppSettings;
   user: User;
   mode: 'note' | 'chat';
+  apiKey: string;
   onTranscript: (text: string, isInterim: boolean, isModel: boolean) => void;
   onTurnComplete: (userText: string, modelText: string) => void;
   onConnectionStateChange: (isConnected: boolean) => void;
   onCommand: (command: string, args?: any) => void;
-  onError: (error: string) => void;
+  onError: (error: any) => void;
 }
 
 export const useGeminiLive = ({
@@ -22,6 +23,7 @@ export const useGeminiLive = ({
   settings,
   user,
   mode,
+  apiKey,
   onTranscript,
   onTurnComplete,
   onConnectionStateChange,
@@ -129,7 +131,7 @@ export const useGeminiLive = ({
   }, [onConnectionStateChange]);
 
   const connect = useCallback(async () => {
-    if (isLive || isConnecting) {
+    if (isLive || isConnecting || !apiKey) {
       return;
     }
 
@@ -148,7 +150,7 @@ export const useGeminiLive = ({
       });
       streamRef.current = stream;
 
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: apiKey });
 
       const voiceControlFunctions: FunctionDeclaration[] = [
         {
@@ -280,17 +282,17 @@ export const useGeminiLive = ({
           },
           onclose: () => disconnect(),
           onerror: (e) => {
-            onError("Connection flicker detected.");
+            onError(e);
             disconnect();
           }
         }
       });
       sessionPromiseRef.current = sessionPromise;
     } catch (error: any) { 
-      onError(error.message || "Failed to link frequencies.");
+      onError(error);
       disconnect(); 
     }
-  }, [personality, settings, user, mode, isLive, isConnecting, onConnectionStateChange, onTranscript, onTurnComplete, onCommand, initAudio, disconnect, onError]);
+  }, [personality, settings, user, mode, apiKey, isLive, isConnecting, onConnectionStateChange, onTranscript, onTurnComplete, onCommand, initAudio, disconnect, onError]);
 
   return { connect, disconnect, isLive, isConnecting, volume, outputVolume };
 };
