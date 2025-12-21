@@ -49,6 +49,13 @@ export interface Quiz {
   score?: number;
 }
 
+export interface GroundingChunk {
+  web?: {
+    uri: string;
+    title: string;
+  };
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'model';
@@ -58,6 +65,7 @@ export interface Message {
   isPinned?: boolean;
   timestamp: number;
   reaction?: ReactionType;
+  groundingChunks?: GroundingChunk[];
 }
 
 export interface ChatSession {
