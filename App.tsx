@@ -169,6 +169,15 @@ export default function App() {
   const messages = activeSession?.messages || [];
   const pinnedMessages = useMemo(() => messages.filter(m => m.isPinned), [messages]);
 
+  // Heartbeat Auto-save
+  useEffect(() => {
+    const saveTimer = setInterval(() => {
+      if (sessions.length > 0) localStorage.setItem('mr_vibe_sessions', JSON.stringify(sessions));
+      if (activeSessionId) localStorage.setItem('mr_vibe_active_session_id', activeSessionId);
+    }, 5000);
+    return () => clearInterval(saveTimer);
+  }, [sessions, activeSessionId]);
+
   // License check
   useEffect(() => {
     const checkLicense = async () => {
@@ -360,7 +369,7 @@ export default function App() {
     setSessions([]);
     setActiveSessionId(null);
     setIsProfileModalOpen(false);
-    showToast("Neural Link Terminated.", "info");
+    showToast("Link Terminated.", "info");
   };
 
   const handleSendToAI = async (text: string, isAutoGreet = false) => {
@@ -442,7 +451,7 @@ export default function App() {
       playNotificationSound();
     } catch (e: any) { 
       if (e.message?.includes("Requested entity was not found")) setHasLicense(false);
-      showToast("Link error. Re-link frequencies.", "error"); 
+      showToast("Link error.", "error"); 
     } finally { 
       setIsLoading(false); 
       setAvatarAnimation('idle');
@@ -532,10 +541,9 @@ export default function App() {
       await handleOpenLicenseKey();
     }
     
-    // Check again after license attempt
     const currentlyLicensed = await window.aistudio?.hasSelectedApiKey();
     if (!currentlyLicensed) {
-      showToast("Identity verified, but Neural Link is missing.", "error");
+      showToast("Identity verified, but license link is missing.", "error");
       return;
     }
 
@@ -698,7 +706,7 @@ export default function App() {
         </div>
       </footer>
 
-      {/* Identity Modal */}
+      {/* Profile Modal */}
       {isProfileModalOpen && (
         <div className="fixed inset-0 z-[8000] flex items-center justify-center p-6">
            <div className="absolute inset-0 bg-black/90 backdrop-blur-3xl" onClick={() => setIsProfileModalOpen(false)} />
@@ -708,17 +716,18 @@ export default function App() {
                 <button onClick={() => setIsProfileModalOpen(false)} className="p-3 bg-white/5 rounded-2xl text-zinc-500"><X size={20}/></button>
               </div>
               <div className="space-y-6 pb-6">
+                 {/* License Card Section */}
                  <div className="p-6 rounded-[32px] bg-blue-600/5 border border-blue-500/10 space-y-4">
                     <div className="flex items-center justify-between">
                        <label className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Neural Link</label>
                        <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase ${hasLicense ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>{hasLicense ? 'Synced' : 'Required'}</span>
                     </div>
-                    <button onClick={handleOpenLicenseKey} className="w-full py-4 bg-white/5 border border-white/5 rounded-2xl font-black text-[9px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white/10 transition-colors">Change License Key</button>
-                    {!hasLicense && (
-                       <a href="https://t.me/Mrvibeai" target="_blank" className="flex items-center justify-center gap-1.5 text-[8px] font-black uppercase text-blue-500 hover:text-blue-400 transition-all mt-1">
-                         Get a license from Mr. Vibe AI <ExternalLink size={10} />
-                       </a>
-                    )}
+                    <div className="space-y-2">
+                       <p className="text-[10px] font-bold text-zinc-500 leading-relaxed px-1">Manage your secure API Link here. Tap to paste or update your project's neural key.</p>
+                       <button onClick={handleOpenLicenseKey} className="w-full py-4 bg-white/5 border border-white/5 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white/10 transition-colors">
+                          <Fingerprint size={16} /> Update Neural Key
+                       </button>
+                    </div>
                  </div>
                  
                  <div className="space-y-3">
@@ -730,7 +739,7 @@ export default function App() {
                     <label className="text-[9px] font-black text-zinc-600 uppercase tracking-widest ml-2">Gender Sync</label>
                     <div className="flex flex-wrap gap-2">
                        {['Male', 'Female', 'Other', 'Secret'].map((g) => (
-                          <button key={g} onClick={() => { setUser(u => u ? ({...u, gender: g as Gender}) : null); localStorage.setItem('mr_vibe_active_user', JSON.stringify({...user, gender: g})); }} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${user?.gender === g ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'bg-white/5 text-zinc-500'}`}>{g}</button>
+                          <button key={g} onClick={() => { setUser(u => u ? ({...u, gender: g as Gender}) : null); localStorage.setItem('mr_vibe_active_user', JSON.stringify({...user, gender: g})); }} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${user?.gender === g ? 'bg-blue-600 text-white shadow-lg' : 'bg-white/5 text-zinc-500'}`}>{g}</button>
                        ))}
                     </div>
                  </div>
@@ -739,42 +748,104 @@ export default function App() {
                     <label className="text-[9px] font-black text-zinc-600 uppercase tracking-widest ml-2">Neural Archetype</label>
                     <div className="grid grid-cols-2 gap-3">
                        {Object.values(PERSONALITIES).map(p => (
-                          <button key={p.id} onClick={() => { updateSettings({ personalityId: p.id }); showToast(`Archetype: ${p.name}`, "info"); }} className={`p-4 rounded-[24px] font-black text-[9px] uppercase tracking-widest border-2 transition-all flex items-center gap-3 ${settings.personalityId === p.id ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-600/20' : 'bg-white/5 border-transparent text-zinc-600'}`}><span className="text-xl">{p.emoji}</span><span className="truncate">{p.name}</span></button>
+                          <button key={p.id} onClick={() => { updateSettings({ personalityId: p.id }); showToast(`Archetype: ${p.name}`, "info"); }} className={`p-4 rounded-[24px] font-black text-[9px] uppercase tracking-widest border-2 transition-all flex items-center gap-3 ${settings.personalityId === p.id ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'bg-white/5 border-transparent text-zinc-600'}`}><span className="text-xl">{p.emoji}</span><span className="truncate">{p.name}</span></button>
                        ))}
                     </div>
                  </div>
 
-                 <div className="pt-6 border-t border-white/5 space-y-4">
+                 <div className="pt-6 border-t border-white/5">
                     <button onClick={handleLogout} className="w-full py-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 font-black text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 hover:bg-rose-500/20 transition-all">
-                       <LogOut size={16} /> Terminate Link (Logout)
+                       <LogOut size={16} /> Disconnect Identity (Logout)
                     </button>
-                    <p className="text-[8px] font-bold text-zinc-700 text-center uppercase tracking-widest leading-relaxed">Warning: Terminating link will wipe all session history from this device.</p>
                  </div>
               </div>
            </div>
         </div>
       )}
 
-      {/* Voice Mode Selector Modal */}
-      {isVoiceModeModalOpen && (
-        <div className="fixed inset-0 z-[11000] flex items-center justify-center p-8 animate-fade-in">
-          <div className="absolute inset-0 bg-black/95 backdrop-blur-3xl" onClick={() => setIsVoiceModeModalOpen(false)} />
-          <div className={`relative w-full max-sm rounded-[48px] p-10 space-y-10 border shadow-2xl animate-scale-in ${theme === 'dark' ? 'bg-[#0a0a0a] border-white/10' : 'bg-white border-black/10'}`}>
-            <div className="text-center space-y-3">
-              <div className="w-14 h-14 bg-blue-600/10 rounded-2xl flex items-center justify-center mx-auto text-blue-500"><Mic size={28}/></div>
-              <h2 className="text-lg font-black uppercase italic tracking-tighter">Voice Frequency</h2>
-              <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">Choose link protocol, bestie.</p>
-            </div>
-            <div className="space-y-3">
-              <button onClick={() => startVoiceMode('chat')} className="w-full py-5 bg-blue-600 text-white rounded-[24px] font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl shadow-blue-600/20"><MessageCircle size={18}/> Voice Chat</button>
-              <button onClick={() => startVoiceMode('note')} className="w-full py-5 bg-zinc-800 text-white rounded-[24px] font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-3 transition-all active:scale-95"><StickyNote size={18}/> Note Taker</button>
-            </div>
-            <button onClick={() => setIsVoiceModeModalOpen(false)} className="w-full py-2 text-[9px] font-black uppercase tracking-widest text-zinc-600">Cancel</button>
+      {/* Onboarding */}
+      {isNewUser && (
+        <div className="fixed inset-0 z-[9000] bg-black flex items-center justify-center p-4 md:p-6 overflow-y-auto">
+          <div className="w-full max-w-lg bg-[#080808] rounded-[48px] p-8 md:p-10 text-center border border-white/5 animate-scale-in space-y-8">
+             <Logo className="w-16 h-16 mx-auto mb-2" />
+             <div className="space-y-1">
+               <h1 className="text-3xl md:text-4xl font-black uppercase italic tracking-tighter text-white">Mr. Vibe AI</h1>
+               <p className="text-[9px] font-black uppercase tracking-[0.4em] text-blue-500">Neural Sync Interface</p>
+             </div>
+             
+             <div className="space-y-6 md:space-y-8 text-left">
+               <div className="space-y-3">
+                 <label className="text-[9px] font-black text-blue-500 uppercase tracking-widest ml-3">Identity Label (Name)</label>
+                 <input 
+                   type="text" 
+                   placeholder="e.g. Neo..." 
+                   value={tempProfile.userName} 
+                   onChange={e => setTempProfile({...tempProfile, userName: e.target.value})} 
+                   className="w-full bg-white/5 rounded-2xl py-4 md:py-5 px-6 font-bold text-lg outline-none border border-transparent focus:border-blue-600 transition-all placeholder-zinc-800" 
+                 />
+               </div>
+
+               <div className="space-y-3">
+                 <label className="text-[9px] font-black text-blue-500 uppercase tracking-widest ml-3">Neural License Link</label>
+                 <div 
+                   onClick={handleOpenLicenseKey}
+                   className={`w-full py-5 px-6 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${hasLicense ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-white/5 border-white/5'}`}
+                 >
+                   <span className={`font-bold text-sm ${hasLicense ? 'text-emerald-400' : 'text-zinc-600'}`}>{hasLicense ? 'License Linked ✓' : 'Link Neural License Key...'}</span>
+                   <Fingerprint size={20} className={hasLicense ? 'text-emerald-400' : 'text-zinc-700'} />
+                 </div>
+               </div>
+
+               <div className="space-y-3">
+                 <label className="text-[9px] font-black text-blue-500 uppercase tracking-widest ml-3">Gender Sync</label>
+                 <div className="grid grid-cols-2 gap-3">
+                   {['Male', 'Female', 'Other', 'Secret'].map((g) => (
+                     <button 
+                       key={g} 
+                       onClick={() => setTempProfile({...tempProfile, gender: g as Gender})}
+                       className={`py-3 md:py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border ${tempProfile.gender === g ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'bg-white/5 border-transparent text-zinc-600 hover:bg-white/10'}`}
+                     >
+                       {g}
+                     </button>
+                   ))}
+                 </div>
+               </div>
+
+               <div className="space-y-3">
+                 <label className="text-[9px] font-black text-blue-500 uppercase tracking-widest ml-3">Neural Archetype</label>
+                 <div className="grid grid-cols-2 gap-3">
+                    {Object.values(PERSONALITIES).map(p => (
+                       <button 
+                         key={p.id} 
+                         onClick={() => setTempProfile({...tempProfile, personalityId: p.id})}
+                         className={`p-4 rounded-[24px] font-black text-[9px] uppercase tracking-widest border transition-all flex items-center gap-3 ${tempProfile.personalityId === p.id ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'bg-white/5 border-transparent text-zinc-600 hover:bg-white/10'}`}
+                       >
+                         <span className="text-xl">{p.emoji}</span>
+                         <span className="truncate">{p.name}</span>
+                       </button>
+                    ))}
+                 </div>
+               </div>
+             </div>
+
+             <div className="pt-4">
+                <button 
+                  onClick={handleOnboardingComplete} 
+                  disabled={!tempProfile.userName || !hasLicense}
+                  className={`w-full py-5 md:py-6 rounded-[24px] font-black text-lg uppercase tracking-widest transition-all ${tempProfile.userName && hasLicense ? 'bg-blue-600 shadow-2xl shadow-blue-600/30 text-white hover:scale-[1.02] active:scale-95' : 'bg-zinc-800 text-zinc-600 cursor-not-allowed opacity-50'}`}
+                >
+                  Activate Vibe Link
+                </button>
+                <p className="mt-4 text-[8px] font-black uppercase tracking-widest text-zinc-700 text-center">
+                  Secure frequency encryption via Google Neural Network
+                </p>
+             </div>
           </div>
         </div>
       )}
 
-      {/* History Sidebar */}
+      {/* Existing Library/History Sidebar/Quiz logic remains the same below... */}
+      {/* ... History Sidebar ... */}
       <div className={`fixed inset-y-0 left-0 z-[10000] w-72 md:w-80 transition-transform duration-500 transform ${isHistoryOpen ? 'translate-x-0' : '-translate-x-full'} border-r shadow-2xl ${theme === 'dark' ? 'bg-[#0a0a0a] border-white/5' : 'bg-white border-black/5'}`}>
          <div className="flex flex-col h-full">
             <div className="p-8 flex items-center justify-between border-b border-white/5">
@@ -782,7 +853,7 @@ export default function App() {
                <button onClick={() => setIsHistoryOpen(false)} className="p-2 text-zinc-500"><X size={18}/></button>
             </div>
             <div className="p-6">
-               <button onClick={() => handleNewChat(true)} className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black flex items-center justify-center gap-2 text-[10px] uppercase tracking-widest shadow-xl shadow-blue-600/20"><Plus size={18}/> New Session</button>
+               <button onClick={() => handleNewChat(true)} className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black flex items-center justify-center gap-2 text-[10px] uppercase tracking-widest shadow-xl"><Plus size={18}/> New Session</button>
             </div>
             <div className="flex-1 overflow-y-auto px-4 space-y-2 custom-scrollbar">
                {sessions.length === 0 ? (
@@ -791,7 +862,7 @@ export default function App() {
                  sessions.map(s => (
                    <div key={s.id} onClick={() => { setActiveSessionId(s.id); setIsHistoryOpen(false); }} className={`group w-full p-4 rounded-2xl text-left border transition-all cursor-pointer relative ${activeSessionId === s.id ? 'bg-blue-600/10 border-blue-600/40' : 'bg-transparent border-transparent hover:bg-white/5'}`}>
                      <div className={`font-black text-[11px] truncate pr-10 ${activeSessionId === s.id ? 'text-blue-500' : 'text-zinc-500'}`}>{s.title}</div>
-                     <button onClick={(e) => { e.stopPropagation(); setSessions(prev => prev.filter(x => x.id !== s.id)); if(activeSessionId === s.id) setActiveSessionId(null); }} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-rose-500/40 hover:text-rose-500 transition-all">
+                     <button onClick={(e) => { e.stopPropagation(); setSessions(prev => prev.filter(x => x.id !== s.id)); if(activeSessionId === s.id) setActiveSessionId(null); }} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-rose-500 transition-all opacity-40 hover:opacity-100 flex items-center justify-center">
                         <Trash2 size={16}/>
                      </button>
                    </div>
@@ -829,19 +900,38 @@ export default function App() {
                   if(msg) handleSendToAI(`Give me a summary of this: "${msg.text}"`);
                   setIsLibraryOpen(false);
                 }} className="w-full py-3 bg-zinc-800 text-white rounded-xl font-black text-[9px] uppercase tracking-widest flex items-center justify-center gap-2"><StickyNote size={12}/> Summarize</button>
-                <button onClick={() => generateNeuralQuiz(selectedPinnedId)} className="w-full py-3 bg-blue-600 text-white rounded-xl font-black text-[9px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20"><GraduationCap size={12}/> Assessment</button>
+                <button onClick={() => generateNeuralQuiz(selectedPinnedId)} className="w-full py-3 bg-blue-600 text-white rounded-xl font-black text-[9px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg"><GraduationCap size={12}/> Assessment</button>
               </div>
             )}
          </div>
       </div>
 
-      {/* Quiz UI Overlay */}
+      {/* Voice Selection Modal */}
+      {isVoiceModeModalOpen && (
+        <div className="fixed inset-0 z-[11000] flex items-center justify-center p-8 animate-fade-in">
+          <div className="absolute inset-0 bg-black/95 backdrop-blur-3xl" onClick={() => setIsVoiceModeModalOpen(false)} />
+          <div className={`relative w-full max-sm rounded-[48px] p-10 space-y-10 border shadow-2xl animate-scale-in ${theme === 'dark' ? 'bg-[#0a0a0a] border-white/10' : 'bg-white border-black/10'}`}>
+            <div className="text-center space-y-3">
+              <div className="w-14 h-14 bg-blue-600/10 rounded-2xl flex items-center justify-center mx-auto text-blue-500"><Mic size={28}/></div>
+              <h2 className="text-lg font-black uppercase italic tracking-tighter">Voice Frequency</h2>
+              <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">Choose link protocol, bestie.</p>
+            </div>
+            <div className="space-y-3">
+              <button onClick={() => startVoiceMode('chat')} className="w-full py-5 bg-blue-600 text-white rounded-[24px] font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl"><MessageCircle size={18}/> Voice Chat</button>
+              <button onClick={() => startVoiceMode('note')} className="w-full py-5 bg-zinc-800 text-white rounded-[24px] font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-3 transition-all active:scale-95"><StickyNote size={18}/> Note Taker</button>
+            </div>
+            <button onClick={() => setIsVoiceModeModalOpen(false)} className="w-full py-2 text-[9px] font-black uppercase tracking-widest text-zinc-600">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Quiz logic ... */}
       {activeQuiz && (
         <div className="fixed inset-0 z-[12000] bg-black/98 backdrop-blur-3xl flex flex-col p-6 overflow-y-auto custom-scrollbar animate-fade-in">
            <div className="max-w-2xl mx-auto w-full space-y-10 pb-20 pt-10">
               <div className="flex items-center justify-between">
                  <div className="flex items-center gap-4">
-                    <div className="p-4 bg-blue-600 rounded-2xl text-white shadow-xl shadow-blue-600/20"><GraduationCap size={24}/></div>
+                    <div className="p-4 bg-blue-600 rounded-2xl text-white shadow-xl"><GraduationCap size={24}/></div>
                     <h2 className="text-xl font-black uppercase italic tracking-tighter">{activeQuiz.title}</h2>
                  </div>
                  <button onClick={() => setActiveQuiz(null)} className="p-3 text-zinc-500 bg-white/5 rounded-2xl"><X size={20}/></button>
@@ -852,7 +942,7 @@ export default function App() {
                        <h4 className="font-bold text-sm mb-6">{q.question}</h4>
                        <div className="grid grid-cols-1 gap-2">
                           {q.options.map((opt, oIdx) => (
-                             <button key={oIdx} onClick={() => !isQuizSubmitted && setQuizAnswers(p => ({...p, [idx]: opt}))} className={`p-4 rounded-xl text-left text-xs font-bold border transition-all ${isQuizSubmitted ? (opt === q.correctAnswer ? 'bg-emerald-500 border-emerald-500 text-white' : quizAnswers[idx] === opt ? 'bg-rose-500 border-rose-500 text-white' : 'opacity-40 border-transparent') : (quizAnswers[idx] === opt ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-600/20' : 'bg-white/5 border-transparent hover:bg-white/10')}`}>
+                             <button key={oIdx} onClick={() => !isQuizSubmitted && setQuizAnswers(p => ({...p, [idx]: opt}))} className={`p-4 rounded-xl text-left text-xs font-bold border transition-all ${isQuizSubmitted ? (opt === q.correctAnswer ? 'bg-emerald-500 border-emerald-500 text-white' : quizAnswers[idx] === opt ? 'bg-rose-500 border-rose-500 text-white' : 'opacity-40 border-transparent') : (quizAnswers[idx] === opt ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'bg-white/5 border-transparent hover:bg-white/10')}`}>
                                 {opt}
                              </button>
                           ))}
@@ -861,7 +951,7 @@ export default function App() {
                  ))}
               </div>
               {!isQuizSubmitted ? (
-                 <button onClick={() => { if(Object.keys(quizAnswers).length < activeQuiz.questions.length) return; setIsQuizSubmitted(true); }} className="w-full py-5 bg-blue-600 text-white rounded-[24px] font-black uppercase tracking-widest transition-all shadow-xl shadow-blue-600/30 active:scale-95">Submit Vibe Check</button>
+                 <button onClick={() => { if(Object.keys(quizAnswers).length < activeQuiz.questions.length) return; setIsQuizSubmitted(true); }} className="w-full py-5 bg-blue-600 text-white rounded-[24px] font-black uppercase tracking-widest transition-all shadow-xl active:scale-95">Submit Vibe Check</button>
               ) : (
                  <div className="text-center space-y-6 animate-slide-up">
                     <h3 className="text-5xl font-black text-blue-500 italic">{Math.round((activeQuiz.questions.filter((q, i) => quizAnswers[i] === q.correctAnswer).length / activeQuiz.questions.length) * 100)}%</h3>
@@ -869,75 +959,6 @@ export default function App() {
                  </div>
               )}
            </div>
-        </div>
-      )}
-
-      {/* New User Onboarding */}
-      {isNewUser && (
-        <div className="fixed inset-0 z-[9000] bg-black flex items-center justify-center p-4 md:p-6 overflow-y-auto">
-          <div className="w-full max-w-lg bg-[#080808] rounded-[48px] p-8 md:p-10 text-center border border-white/5 animate-scale-in space-y-8">
-             <Logo className="w-12 h-12 mx-auto mb-2" />
-             <h1 className="text-2xl md:text-3xl font-black uppercase italic tracking-tighter text-white">Neural Protocol</h1>
-             
-             <div className="space-y-8 md:space-y-10 text-left">
-               {/* Name Input */}
-               <div className="space-y-3">
-                 <label className="text-[9px] font-black text-blue-500 uppercase tracking-widest ml-3">Identity Label (Name)</label>
-                 <input 
-                   type="text" 
-                   placeholder="e.g. Neo..." 
-                   value={tempProfile.userName} 
-                   onChange={e => setTempProfile({...tempProfile, userName: e.target.value})} 
-                   className="w-full bg-white/5 rounded-2xl py-4 md:py-5 px-6 font-bold text-lg outline-none border border-transparent focus:border-blue-600 transition-all placeholder-zinc-800" 
-                 />
-               </div>
-
-               {/* Gender Selection */}
-               <div className="space-y-3">
-                 <label className="text-[9px] font-black text-blue-500 uppercase tracking-widest ml-3">Gender Sync</label>
-                 <div className="grid grid-cols-2 gap-3">
-                   {['Male', 'Female', 'Other', 'Secret'].map((g) => (
-                     <button 
-                       key={g} 
-                       onClick={() => setTempProfile({...tempProfile, gender: g as Gender})}
-                       className={`py-3 md:py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border ${tempProfile.gender === g ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-600/20' : 'bg-white/5 border-transparent text-zinc-600 hover:bg-white/10'}`}
-                     >
-                       {g}
-                     </button>
-                   ))}
-                 </div>
-               </div>
-
-               {/* Personality Grid */}
-               <div className="space-y-3">
-                 <label className="text-[9px] font-black text-blue-500 uppercase tracking-widest ml-3">Neural Archetype</label>
-                 <div className="grid grid-cols-2 gap-3">
-                    {Object.values(PERSONALITIES).map(p => (
-                       <button 
-                         key={p.id} 
-                         onClick={() => setTempProfile({...tempProfile, personalityId: p.id})}
-                         className={`p-4 rounded-[24px] font-black text-[9px] uppercase tracking-widest border transition-all flex items-center gap-3 ${tempProfile.personalityId === p.id ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-600/20' : 'bg-white/5 border-transparent text-zinc-600 hover:bg-white/10'}`}
-                       >
-                         <span className="text-xl">{p.emoji}</span>
-                         <span className="truncate">{p.name}</span>
-                       </button>
-                    ))}
-                 </div>
-               </div>
-             </div>
-
-             <div className="pt-4">
-                <button 
-                  onClick={handleOnboardingComplete} 
-                  className={`w-full py-5 md:py-6 rounded-[24px] font-black text-lg uppercase tracking-widest transition-all ${tempProfile.userName ? 'bg-blue-600 shadow-2xl shadow-blue-600/30 text-white hover:scale-[1.02] active:scale-95' : 'bg-zinc-800 text-zinc-600 cursor-not-allowed opacity-50'}`}
-                >
-                  Activate Neural Link
-                </button>
-                <p className="mt-4 text-[8px] font-black uppercase tracking-widest text-zinc-700 text-center">
-                  Encrypted frequency link via Google Neural Network
-                </p>
-             </div>
-          </div>
         </div>
       )}
     </div>
