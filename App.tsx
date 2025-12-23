@@ -18,11 +18,26 @@ import {
   FileSearch,
   PenTool,
   Headset,
-  BookOpenCheck
+  BookOpenCheck,
+  Loader2
 } from 'lucide-react';
 import { PERSONALITIES, BASE_SYSTEM_PROMPT, AVATARS, GEMINI_VOICES, PERSONALITY_STYLES } from './constants';
 import { PersonalityId, Personality, AppSettings, User, ChatSession, Message, ReactionType, Notification, FileAttachment, Quiz, QuizQuestion, GroundingChunk, Gender } from './types';
 import { useGeminiLive } from './hooks/useGeminiLive';
+
+const SUPPORTED_MIME_TYPES = [
+  'image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif',
+  'application/pdf', 
+  'text/plain', 'text/csv', 'text/markdown', 'text/html',
+  'text/css', 'text/javascript', 'application/x-javascript', 'text/x-typescript', 'application/x-typescript'
+];
+
+interface PendingFile extends FileAttachment {
+  id: string;
+  progress: number;
+  isUploading: boolean;
+  reader?: FileReader;
+}
 
 const Logo = ({ className }: { className?: string }) => (
   <div className={`flex items-center justify-center ${className}`}>
@@ -148,12 +163,8 @@ export default function App() {
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [selectedPinnedId, setSelectedPinnedId] = useState<string | null>(null);
 
-  const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
-  const [quizAnswers, setQuizAnswers] = useState<Record<number, string>>({});
-  const [isQuizSubmitted, setIsQuizSubmitted] = useState(false);
-
   const [inputText, setInputText] = useState('');
-  const [selectedFiles, setSelectedFiles] = useState<FileAttachment[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState<{text: string, isModel: boolean}[]>([]);
   const [isAiSpeakingGlobal, setIsAiSpeakingGlobal] = useState(false);
@@ -164,6 +175,7 @@ export default function App() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mainContentRef = useRef<HTMLElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const lastRequestTimeRef = useRef<number>(0);
 
   const currentPersonality = PERSONALITIES[settings.personalityId];
   const activeSession = useMemo(() => sessions.find(s => s.id === activeSessionId), [sessions, activeSessionId]);
@@ -214,28 +226,77 @@ export default function App() {
   }, []);
 
   const handleApiError = useCallback((error: any) => {
-    console.error("API ERROR:", error);
+    console.error("API ERROR DETAILED:", error);
     const errorMsg = error?.message || "";
-    if (errorMsg.includes("API key")) {
-      showToast("Neural passphrase invalid or restricted.", "error");
-      setIsProfileModalOpen(true);
-    } else if (errorMsg.includes("exhausted") || errorMsg.includes("429")) {
-      showToast("Neural network overloaded. Cooling down...", "error");
-    } else {
-      showToast("Sync Interrupted. The text might be too long or complex.", "error");
+    const lowerMsg = errorMsg.toLowerCase();
+    
+    // Check for 429 - Rate Limiting
+    if (lowerMsg.includes("429") || lowerMsg.includes("exhausted") || lowerMsg.includes("quota") || lowerMsg.includes("rate limit")) {
+      showToast("Brain freeze! 🧠 Mr. Cute is cooling down. Neural network overloaded. Action: Wait 60s for re-sync.", "error");
+      return;
     }
+
+    // Check for 400 - Bad Request (often token limit exceeded or too much data)
+    if (lowerMsg.includes("400") || lowerMsg.includes("too large") || lowerMsg.includes("limit") || lowerMsg.includes("token")) {
+      showToast("Input overload! 📏 That message or file is too heavy. Action: Try a shorter message or split your files.", "error");
+      return;
+    }
+
+    // Check for Safety/Blocked content
+    if (lowerMsg.includes("safety") || lowerMsg.includes("candidate was blocked") || lowerMsg.includes("blocked")) {
+      showToast("Vibe Check! 🛡️ Content was blocked by safety filters. Action: Keep it chill and follow community guidelines.", "error");
+      return;
+    }
+
+    // Check for 403 - Permission/Billing
+    if (lowerMsg.includes("403") || lowerMsg.includes("permission")) {
+      showToast("Neural Access Denied! 🚫 Check your project billing or neural pass status at Google AI Studio.", "error");
+      return;
+    }
+
+    // Check for 500/503 - Server Overloaded
+    if (lowerMsg.includes("500") || lowerMsg.includes("503") || lowerMsg.includes("overloaded") || lowerMsg.includes("unavailable")) {
+      showToast("Neural Network Overloaded! ⚡ The server is busy right now. Action: Give it another shot in a moment.", "error");
+      return;
+    }
+
+    // Network Errors
+    if (errorMsg.includes("Rpc failed") || errorMsg.includes("xhr error") || errorMsg.includes("error code: 6")) {
+      showToast("Neural link flickered! 📡 Signal weak. Action: Check your connection or retry sync.", "pulse");
+      return; 
+    }
+
+    // Fallback for generic errors
+    showToast("Sync Interrupted! 📶 Signal weak or neural pass invalid. Action: Verify key and retry.", "error");
   }, [showToast]);
 
-  const callAiWithRetry = async (ai: GoogleGenAI, config: any, retries = 2, delay = 1500): Promise<any> => {
+  const callAiWithRetry = async (ai: GoogleGenAI, config: any, retries = 4, delay = 2500): Promise<any> => {
+    const now = Date.now();
+    const timeSinceLast = now - lastRequestTimeRef.current;
+    if (timeSinceLast < 1000) {
+      await new Promise(resolve => setTimeout(resolve, 1000 - timeSinceLast));
+    }
+    lastRequestTimeRef.current = Date.now();
+
     try {
       const response = await ai.models.generateContent(config);
       return response;
     } catch (error: any) {
       const errorMsg = error?.message || "";
-      if ((errorMsg.includes("exhausted") || errorMsg.includes("429")) && retries > 0) {
-        console.log(`Rate limit hit, retrying in ${delay}ms... (${retries} left)`);
+      
+      const isRetryable = errorMsg.includes("429") || 
+                          errorMsg.includes("500") ||
+                          errorMsg.includes("Rpc failed") ||
+                          errorMsg.includes("xhr error") ||
+                          errorMsg.includes("error code: 6") ||
+                          errorMsg.toLowerCase().includes("limit") || 
+                          errorMsg.toLowerCase().includes("exhausted") ||
+                          errorMsg.toLowerCase().includes("quota");
+      
+      if (isRetryable && retries > 0) {
+        console.warn(`Transient error detected, retrying in ${delay}ms... (${retries} left)`, errorMsg);
         await new Promise(resolve => setTimeout(resolve, delay));
-        return callAiWithRetry(ai, config, retries - 1, delay * 2);
+        return callAiWithRetry(ai, config, retries - 1, delay * 1.5);
       }
       throw error;
     }
@@ -318,12 +379,12 @@ export default function App() {
     setAvatarAnimation('hi');
     try {
       const ai = new GoogleGenAI({ apiKey: currentApiKey });
-      const prompt = `ACT AS Mr. Cute. Say hi to ${user?.userName || 'bestie'}. Introduce yourself as Mr. Cute this once.`;
+      const prompt = `ACT AS Mr. Cute. Say hi to ${user?.userName || 'bestie'}. Introduce yourself briefly as Mr. Cute once.`;
       const response = await callAiWithRetry(ai, {
         model: 'gemini-3-flash-preview',
         contents: [{ text: `${BASE_SYSTEM_PROMPT}\n\n${PERSONALITIES[personalityId].prompt}\n\n${prompt}` }]
       });
-      const aiMessage: Message = { id: `ai-${Date.now()}`, role: 'model', text: response.text || 'Yo! Ready to study?', timestamp: Date.now() };
+      const aiMessage: Message = { id: `ai-${Date.now()}`, role: 'model', text: response.text || 'Yo! Ready to vibe?', timestamp: Date.now() };
       setSessions(prev => {
         const updated = prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, aiMessage] } : s);
         localStorage.setItem('mr_vibe_sessions', JSON.stringify(updated));
@@ -344,13 +405,14 @@ export default function App() {
       setIsProfileModalOpen(true);
       return;
     }
-    if ((!text.trim() && selectedFiles.length === 0) || isLoading) return;
+    const readyFiles = pendingFiles.filter(f => !f.isUploading);
+    if ((!text.trim() && readyFiles.length === 0) || isLoading) return;
     
     let sessionId = activeSessionId || handleNewChat(false);
     const sessionRef = sessions.find(s => s.id === sessionId);
     
-    const currentFiles = [...selectedFiles];
-    setSelectedFiles([]);
+    const currentFiles = readyFiles.map(f => ({ data: f.data, name: f.name, type: f.type }));
+    setPendingFiles([]);
     const textToSend = text;
     setInputText('');
 
@@ -388,7 +450,7 @@ export default function App() {
         });
       });
       
-      const textPart = textToSend.length > 10000 
+      const textPart = textToSend.length > 8000 
         ? `[LONG INPUT DETECTED] Please analyze the following text carefully and break it down: ${textToSend}`
         : textToSend;
 
@@ -425,16 +487,22 @@ export default function App() {
       });
 
       if (!sessionRef || sessionRef.messages.length <= 1) {
-        const titleResp = await callAiWithRetry(ai, {
-           model: 'gemini-3-flash-preview',
-           contents: `Summarize in 2-3 words: ${textToSend || "Visual Analysis"}`
-        });
-        const title = titleResp.text?.trim().replace(/"/g, '') || 'New Sync';
-        setSessions(prev => {
-           const updated = prev.map(s => s.id === sessionId ? { ...s, title } : s);
-           localStorage.setItem('mr_vibe_sessions', JSON.stringify(updated));
-           return updated;
-        });
+        setTimeout(async () => {
+           try {
+             const titleAi = new GoogleGenAI({ apiKey: currentApiKey });
+             const titleResp = await callAiWithRetry(titleAi, {
+                model: 'gemini-3-flash-preview',
+                contents: `Summarize in 2 words: ${textToSend || "Visual Analysis"}`
+             }, 1, 8000); 
+             const title = titleResp.text?.trim().replace(/"/g, '') || 'New Sync';
+             setSessions(prev => {
+                const updated = prev.map(s => s.id === sessionId ? { ...s, title } : s);
+                return updated;
+             });
+           } catch (e) {
+             console.log("Session titling deferred or failed.");
+           }
+        }, 10000); 
       }
       playNotificationSound();
     } catch (e: any) { 
@@ -449,22 +517,65 @@ export default function App() {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
-    files.forEach(file => {
+    const validFiles = files.filter(file => SUPPORTED_MIME_TYPES.includes(file.type));
+    const unsupportedFiles = files.filter(file => !SUPPORTED_MIME_TYPES.includes(file.type));
+
+    if (unsupportedFiles.length > 0) {
+      const fileExtensions = unsupportedFiles.map(f => f.name.split('.').pop()?.toUpperCase()).join(', ');
+      showToast(`Unsupported format: ${fileExtensions}. Mr. Vibe prefers PDF, Images, and Text. Convert Word docs to PDF first!`, 'error');
+    }
+
+    validFiles.forEach(file => {
+      const fileId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const reader = new FileReader();
-      reader.onload = () => {
-        setSelectedFiles(prev => [...prev, { 
-          data: reader.result as string, 
-          name: file.name, 
-          type: file.type 
-        }]);
+      
+      const newPendingFile: PendingFile = {
+        id: fileId,
+        data: '',
+        name: file.name,
+        type: file.type,
+        progress: 0,
+        isUploading: true,
+        reader: reader
       };
+
+      setPendingFiles(prev => [...prev, newPendingFile]);
+
+      reader.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const progress = Math.round((event.loaded / event.total) * 100);
+          setPendingFiles(prev => prev.map(f => f.id === fileId ? { ...f, progress } : f));
+        }
+      };
+
+      reader.onload = () => {
+        setPendingFiles(prev => prev.map(f => f.id === fileId ? { 
+          ...f, 
+          data: reader.result as string, 
+          progress: 100, 
+          isUploading: false 
+        } : f));
+      };
+
+      reader.onerror = () => {
+        showToast(`Failed to read ${file.name}. Sync error.`, 'error');
+        setPendingFiles(prev => prev.filter(f => f.id !== fileId));
+      };
+
       reader.readAsDataURL(file);
     });
+    
     e.target.value = '';
   };
 
-  const removeFileFromSelection = (index: number) => {
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  const removeFileFromSelection = (id: string) => {
+    setPendingFiles(prev => {
+      const file = prev.find(f => f.id === id);
+      if (file?.isUploading && file.reader) {
+        file.reader.abort();
+      }
+      return prev.filter(f => f.id !== id);
+    });
   };
 
   const { connect: connectLive, disconnect: disconnectLive, isLive, isConnecting, volume, outputVolume } = useGeminiLive({
@@ -611,15 +722,42 @@ export default function App() {
       </main>
 
       <footer className={`px-4 pb-8 pt-3 bg-gradient-to-t ${theme === 'dark' ? 'from-black via-black/95' : 'from-zinc-50 via-zinc-50/95'} to-transparent z-40 shrink-0`}>
-        {selectedFiles.length > 0 && (
-          <div className="max-w-4xl mx-auto mb-4 flex flex-wrap gap-2 animate-slide-up">
-            {selectedFiles.map((file, idx) => (
-              <div key={idx} className={`relative inline-flex items-center gap-3 p-2 rounded-xl border ${theme === 'dark' ? 'bg-[#151515] border-white/10' : 'bg-white border-black/10'}`}>
-                <div className="w-8 h-8 rounded-lg overflow-hidden border border-white/10">
-                  {file.type.startsWith('image/') ? <img src={file.data} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-blue-500/10 flex items-center justify-center text-blue-500"><FileText size={14} /></div>}
+        {pendingFiles.length > 0 && (
+          <div className="max-w-4xl mx-auto mb-4 flex flex-wrap gap-3 animate-slide-up">
+            {pendingFiles.map((file) => (
+              <div key={file.id} className={`group relative inline-flex items-center gap-3 p-3 rounded-2xl border transition-all ${theme === 'dark' ? 'bg-[#151515] border-white/10' : 'bg-white border-black/10 shadow-lg'}`}>
+                <div className="relative w-10 h-10 rounded-xl overflow-hidden border border-white/10 bg-blue-500/5 flex-shrink-0">
+                  {file.isUploading ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                      <Loader2 size={16} className="text-blue-500 animate-spin" />
+                    </div>
+                  ) : file.type.startsWith('image/') ? (
+                    <img src={file.data} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-blue-500">
+                      <FileText size={18} />
+                    </div>
+                  )}
+                  {file.isUploading && (
+                    <div 
+                      className="absolute bottom-0 left-0 h-1 bg-blue-500 transition-all duration-300" 
+                      style={{ width: `${file.progress}%` }} 
+                    />
+                  )}
                 </div>
-                <span className="text-[9px] font-bold truncate max-w-[80px] text-zinc-500">{file.name}</span>
-                <button onClick={() => removeFileFromSelection(idx)} className="ml-1 p-0.5 hover:text-rose-500 transition-colors"><X size={12} /></button>
+                <div className="flex flex-col min-w-0 pr-6">
+                  <span className="text-[10px] font-black truncate max-w-[120px] text-zinc-300">{file.name}</span>
+                  <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest">
+                    {file.isUploading ? `Syncing ${file.progress}%` : (file.type.split('/')[1] || 'FILE')}
+                  </span>
+                </div>
+                <button 
+                  onClick={() => removeFileFromSelection(file.id)} 
+                  className={`absolute -top-2 -right-2 p-1.5 rounded-full shadow-xl transition-all scale-0 group-hover:scale-100 ${theme === 'dark' ? 'bg-zinc-800 text-rose-500 hover:bg-rose-500 hover:text-white' : 'bg-white text-rose-500 hover:bg-rose-500 hover:text-white border border-black/5'}`}
+                  title="Remove from sync"
+                >
+                  <X size={12} strokeWidth={3} />
+                </button>
               </div>
             ))}
           </div>
@@ -632,10 +770,11 @@ export default function App() {
           </div>
 
           <div className={`flex items-center gap-1 p-1 border rounded-[32px] shadow-2xl backdrop-blur-3xl transition-all ${theme === 'dark' ? 'bg-[#0a0a0a]/90 border-white/10' : 'bg-white/90 border-black/10'} w-full overflow-hidden`}>
-            <button onClick={() => fileInputRef.current?.click()} className="p-3 text-zinc-500 hover:text-blue-500 transition-colors" title="Upload files (Images, PDFs)"><Paperclip size={20}/><input type="file" ref={fileInputRef} className="hidden" multiple onChange={handleFilesUpload} /></button>
-            <input type="text" placeholder="Drop a thought or upload your notes..." value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} className="flex-1 bg-transparent py-3 px-2 font-bold text-[14px] outline-none placeholder-zinc-800 min-w-0" />
-            <button onClick={() => handleSendToAI(inputText)} className={`p-3 rounded-full transition-all active:scale-95 ${(inputText.trim() || selectedFiles.length > 0) ? 'bg-blue-600 text-white shadow-2xl shadow-blue-600/40' : 'text-zinc-700'}`}><Send size={20}/></button>
+            <button onClick={() => fileInputRef.current?.click()} className="p-3 text-zinc-500 hover:text-blue-500 transition-colors" title="Sync Files (PDF, Images, Text)"><Paperclip size={20}/><input type="file" ref={fileInputRef} className="hidden" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.csv,.md" onChange={handleFilesUpload} /></button>
+            <input type="text" placeholder="Drop a thought or sync some files..." value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} className="flex-1 bg-transparent py-3 px-2 font-bold text-[14px] outline-none placeholder-zinc-800 min-w-0" />
+            <button onClick={() => handleSendToAI(inputText)} className={`p-3 rounded-full transition-all active:scale-95 ${(inputText.trim() || pendingFiles.some(f => !f.isUploading)) ? 'bg-blue-600 text-white shadow-2xl shadow-blue-600/40' : 'text-zinc-700'}`}><Send size={20}/></button>
           </div>
+          <p className="px-6 text-[8px] font-black uppercase tracking-widest text-zinc-600 text-center">Supported: PDF • PNG • JPG • TXT (Convert Word to PDF for best vibe sync)</p>
         </div>
       </footer>
 

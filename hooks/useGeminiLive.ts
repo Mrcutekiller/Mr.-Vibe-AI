@@ -77,7 +77,8 @@ export const useGeminiLive = ({
   useEffect(() => {
     let animationFrame: number;
     const updateOutputVolume = () => {
-      if (outputAnalyserRef.current && isLive) {
+      // Only track output volume (avatar animation) if we're actually playing audio
+      if (outputAnalyserRef.current && isLive && mode !== 'note') {
         const dataArray = new Uint8Array(outputAnalyserRef.current.frequencyBinCount);
         outputAnalyserRef.current.getByteTimeDomainData(dataArray);
         let sum = 0;
@@ -94,7 +95,7 @@ export const useGeminiLive = ({
     };
     updateOutputVolume();
     return () => cancelAnimationFrame(animationFrame);
-  }, [isLive]);
+  }, [isLive, mode]);
 
   const disconnect = useCallback(() => {
     if (processorRef.current) { 
@@ -171,10 +172,11 @@ export const useGeminiLive = ({
       const voicesList = GEMINI_VOICES.map(v => `${v.name} (id: ${v.id})`).join(', ');
       
       const modeInstruction = mode === 'note' 
-        ? "STRICT NOTE TAKER: Your ONLY job is to listen and create a bulleted summary of everything the user says. Be concise and smart."
-        : `BESTIE CHAT: You are Mr. Cute, a warm, expressive AI best friend. Your personality is ${personality.name}.`;
+        ? "SILENT NOTE TAKER MODE: You are Mr. Cute. Your job is to listen carefully and provide intelligent notes and summaries in real-time. YOU MUST NOT SPEAK. Keep your responses textual. Even if audio chunks are generated, they will be silenced on the client. Focus purely on the transcription and helpful note-taking."
+        : `BESTIE CHAT MODE: You are Mr. Cute, a warm, expressive AI best friend. Your personality is ${personality.name}. Speak naturally, engage, and vibe with the user.`;
 
       const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}
+      - CURRENT IDENTITY: Mr. Cute
       - MODE PROTOCOL: ${modeInstruction}
       - USER: ${user.userName} (Gender: ${user.gender})
       - ARCHETYPE: ${personality.name} (${personality.prompt})
@@ -182,7 +184,7 @@ export const useGeminiLive = ({
       AVAILABLE TOOLS:
       - change_voice: Change voice to one of: ${voicesList}.
       
-      Rules: Always refer to yourself as Mr. Cute. No robot talk.`;
+      Rules: Always refer to yourself as Mr. Cute. In Note Taker mode, focus on creating high-value notes and answering via text.`;
 
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
@@ -240,8 +242,9 @@ export const useGeminiLive = ({
                 }
              }
 
+             // AUDIO PLAYBACK: Silenced in 'note' mode
              const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-             if (base64Audio && audioContextRef.current) {
+             if (base64Audio && audioContextRef.current && mode !== 'note') {
                 const ctx = audioContextRef.current;
                 nextStartTimeRef.current = Math.max(nextStartTimeRef.current, ctx.currentTime);
                 try {
