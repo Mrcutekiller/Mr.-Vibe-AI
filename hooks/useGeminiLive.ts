@@ -10,7 +10,6 @@ interface UseGeminiLiveProps {
   settings: AppSettings;
   user: User;
   mode: 'note' | 'chat';
-  apiKey: string;
   onTranscript: (text: string, isInterim: boolean, isModel: boolean) => void;
   onTurnComplete: (userText: string, modelText: string) => void;
   onConnectionStateChange: (isConnected: boolean) => void;
@@ -23,7 +22,6 @@ export const useGeminiLive = ({
   settings,
   user,
   mode,
-  apiKey,
   onTranscript,
   onTurnComplete,
   onConnectionStateChange,
@@ -131,7 +129,7 @@ export const useGeminiLive = ({
   }, [onConnectionStateChange]);
 
   const connect = useCallback(async () => {
-    if (isLive || isConnecting || !apiKey) {
+    if (isLive || isConnecting) {
       return;
     }
 
@@ -150,7 +148,8 @@ export const useGeminiLive = ({
       });
       streamRef.current = stream;
 
-      const ai = new GoogleGenAI({ apiKey: apiKey });
+      // Obtain API key exclusively from process.env.API_KEY
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
       const voiceControlFunctions: FunctionDeclaration[] = [
         {
@@ -292,7 +291,7 @@ export const useGeminiLive = ({
       onError(error);
       disconnect(); 
     }
-  }, [personality, settings, user, mode, apiKey, isLive, isConnecting, onConnectionStateChange, onTranscript, onTurnComplete, onCommand, initAudio, disconnect, onError]);
+  }, [personality, settings, user, mode, isLive, isConnecting, onConnectionStateChange, onTranscript, onTurnComplete, onCommand, initAudio, disconnect, onError]);
 
   return { connect, disconnect, isLive, isConnecting, volume, outputVolume };
 };

@@ -60,7 +60,7 @@ export interface Message {
   id: string;
   role: 'user' | 'model';
   text: string;
-  file?: FileAttachment;
+  files?: FileAttachment[];
   isNote?: boolean;
   isPinned?: boolean;
   timestamp: number;
