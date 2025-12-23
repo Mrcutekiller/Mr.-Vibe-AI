@@ -25,7 +25,6 @@ import { PERSONALITIES, BASE_SYSTEM_PROMPT, AVATARS, GEMINI_VOICES, PERSONALITY_
 import { PersonalityId, Personality, AppSettings, User, ChatSession, Message, ReactionType, Notification, FileAttachment, Quiz, QuizQuestion, GroundingChunk, Gender } from './types';
 import { useGeminiLive } from './hooks/useGeminiLive';
 
-// Expanded list, but the app now allows ANY file
 const SUPPORTED_MIME_TYPES = [
   'image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif',
   'application/pdf', 
@@ -160,7 +159,6 @@ export default function App() {
   const [inputText, setInputText] = useState('');
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [liveTranscript, setLiveTranscript] = useState<{text: string, isModel: boolean}[]>([]);
   const [isAiSpeakingGlobal, setIsAiSpeakingGlobal] = useState(false);
   const [selectedVoiceMode, setSelectedVoiceMode] = useState<'chat' | 'note'>('chat');
   const [avatarAnimation, setAvatarAnimation] = useState<OrbAnimationState>('idle');
@@ -176,7 +174,8 @@ export default function App() {
   const messages = activeSession?.messages || [];
   const pinnedMessages = useMemo(() => messages.filter(m => m.isPinned), [messages]);
 
-  const currentApiKey = (neuralPass || process.env.API_KEY || '').trim();
+  // CRITICAL: Force trim of API key to remove potential hidden spaces/newlines
+  const currentApiKey = useMemo(() => (neuralPass || process.env.API_KEY || '').trim().replace(/[\n\r]/g, ""), [neuralPass]);
 
   const playNotificationSound = useCallback(() => {
     try {
@@ -224,32 +223,33 @@ export default function App() {
     const errorMsg = error?.message || "Unknown neural glitch";
     const lowerMsg = errorMsg.toLowerCase();
     
+    // Check specifically for key issues first
+    if (lowerMsg.includes("403") || lowerMsg.includes("permission") || lowerMsg.includes("unauthorized") || lowerMsg.includes("api key not found") || lowerMsg.includes("invalid api key")) {
+      showToast("Access Denied! 🚫 Your key is invalid or from a non-paid project. Action: Check ai.google.dev", "error", () => setIsProfileModalOpen(true));
+      return;
+    }
+
     if (lowerMsg.includes("429") || lowerMsg.includes("exhausted") || lowerMsg.includes("quota") || lowerMsg.includes("rate limit")) {
-      showToast("Brain freeze! 🧠 Mr. Cute is cooling down. Action: Wait 60s for re-sync.", "error");
+      showToast("Quota Full! 🧠 Free tier reached. Action: Check your Google Cloud billing or wait.", "error");
       return;
     }
+
     if (lowerMsg.includes("400") || lowerMsg.includes("too large") || lowerMsg.includes("limit") || lowerMsg.includes("token")) {
-      showToast("Input overload! 📏 That sync is too heavy. Action: Try a shorter message or split files.", "error");
+      showToast("Sync too heavy! 📏 Action: Try a shorter message or fewer files.", "error");
       return;
     }
+
     if (lowerMsg.includes("safety") || lowerMsg.includes("candidate was blocked") || lowerMsg.includes("blocked")) {
-      showToast("Vibe Check! 🛡️ Content filter triggered. Action: Let's keep the study session clean.", "error");
+      showToast("Vibe Check! 🛡️ Safety filter. Action: Keep it clean.", "error");
       return;
     }
-    if (lowerMsg.includes("403") || lowerMsg.includes("permission") || lowerMsg.includes("unauthorized") || lowerMsg.includes("api key not found")) {
-      showToast(`Neural Access Denied! 🚫 ${errorMsg}. Action: Check your key at ai.google.dev`, "error");
-      return;
-    }
+
     if (lowerMsg.includes("500") || lowerMsg.includes("503") || lowerMsg.includes("overloaded") || lowerMsg.includes("unavailable")) {
-      showToast("Neural Network Overloaded! ⚡ Busy brain. Action: Retry in a moment.", "error");
+      showToast("Brain Overload! ⚡ Google's servers are busy. Action: Retry in a moment.", "error");
       return;
     }
-    if (errorMsg.includes("Rpc failed") || errorMsg.includes("xhr error") || errorMsg.includes("error code: 6")) {
-      showToast("Neural link flickered! 📡 Signal weak. Action: Check connection.", "pulse");
-      return; 
-    }
-    // Final fallback showing the actual error to help user debug
-    showToast(`Sync Error: ${errorMsg}`, "error");
+
+    showToast(`Neural Link Error: ${errorMsg.slice(0, 100)}`, "error");
   }, [showToast]);
 
   const updateSettings = useCallback((newSettings: Partial<AppSettings>) => {
@@ -275,7 +275,7 @@ export default function App() {
     showToast("Neural link terminated. Memory purged.", "info");
   }, [showToast]);
 
-  const callAiWithRetry = async (ai: GoogleGenAI, config: any, retries = 4, delay = 2500): Promise<any> => {
+  const callAiWithRetry = async (ai: GoogleGenAI, config: any, retries = 3, delay = 2000): Promise<any> => {
     const now = Date.now();
     const timeSinceLast = now - lastRequestTimeRef.current;
     if (timeSinceLast < 1000) {
@@ -288,10 +288,15 @@ export default function App() {
       return response;
     } catch (error: any) {
       const errorMsg = error?.message || "";
-      const isRetryable = errorMsg.includes("429") || errorMsg.includes("500") || errorMsg.includes("Rpc failed") || errorMsg.includes("xhr error");
-      if (isRetryable && retries > 0) {
+      const lowerMsg = errorMsg.toLowerCase();
+      
+      // DO NOT RETRY on permission or quota errors - it wastes time and makes the UI feel stuck
+      const isAuthError = lowerMsg.includes("403") || lowerMsg.includes("unauthorized") || lowerMsg.includes("api key") || lowerMsg.includes("400");
+      const isQuotaError = lowerMsg.includes("429");
+      
+      if (!isAuthError && !isQuotaError && retries > 0) {
         await new Promise(resolve => setTimeout(resolve, delay));
-        return callAiWithRetry(ai, config, retries - 1, delay * 1.5);
+        return callAiWithRetry(ai, config, retries - 1, delay * 2);
       }
       throw error;
     }
@@ -326,10 +331,11 @@ export default function App() {
   }, [settings.personalityId, user, currentApiKey]);
 
   const generateInitialGreeting = async (sessionId: string, personalityId: PersonalityId) => {
-    if (!currentApiKey) return;
+    const apiKey = (localStorage.getItem('mr_vibe_neural_pass') || '').trim();
+    if (!apiKey) return;
     setIsLoading(true); setAvatarAnimation('hi');
     try {
-      const ai = new GoogleGenAI({ apiKey: currentApiKey });
+      const ai = new GoogleGenAI({ apiKey });
       const prompt = `ACT AS Mr. Cute. Say hi to ${user?.userName || 'bestie'}. Introduce yourself briefly as Mr. Cute once.`;
       const response = await callAiWithRetry(ai, {
         model: 'gemini-3-flash-preview',
@@ -341,7 +347,10 @@ export default function App() {
   };
 
   const handleSendToAI = async (text: string, isAutoGreet = false) => {
-    if (!currentApiKey) { showToast("Access key required.", "error"); setIsProfileModalOpen(true); return; }
+    // CRITICAL: Pull key directly from storage here to ensure we have the freshest one
+    const apiKey = (localStorage.getItem('mr_vibe_neural_pass') || '').trim().replace(/[\n\r]/g, "");
+    if (!apiKey) { showToast("Key required. Tap profile.", "error"); setIsProfileModalOpen(true); return; }
+    
     const readyFiles = pendingFiles.filter(f => !f.isUploading);
     if ((!text.trim() && readyFiles.length === 0) || isLoading) return;
     
@@ -367,15 +376,13 @@ export default function App() {
     setIsLoading(true); setAvatarAnimation('thoughtful');
 
     try {
-      const ai = new GoogleGenAI({ apiKey: currentApiKey });
+      const ai = new GoogleGenAI({ apiKey });
       const parts: any[] = [];
       currentFiles.forEach(file => { 
-        // Only send inline data if it's likely an image or recognized doc
         if (SUPPORTED_MIME_TYPES.includes(file.type)) {
           parts.push({ inlineData: { data: file.data.split(',')[1], mimeType: file.type } }); 
         } else {
-          // Send as a descriptive text hint for unknown file types
-          parts.push({ text: `[FILE ATTACHED: ${file.name} (${file.type})]` });
+          parts.push({ text: `[FILE: ${file.name}]` });
         }
       });
       
@@ -383,7 +390,7 @@ export default function App() {
       if (settings.personalityId === PersonalityId.STUDENT) {
         const isPinRequest = textToSend.toLowerCase().match(/summarize|test me|revise|quiz me|study tips/);
         if (isPinRequest && pinnedMessages.length > 0) {
-          contextPrefix = `[NEURAL LIBRARY CONTEXT]: The user is asking about their pinned study notes. Use the following pinned items as the primary source of truth for this specific request:\n${pinnedMessages.map(m => `- ${m.text}`).join('\n')}\n\n`;
+          contextPrefix = `[NEURAL LIBRARY CONTEXT]:\n${pinnedMessages.map(m => `- ${m.text}`).join('\n')}\n\n`;
         }
       }
 
@@ -415,15 +422,15 @@ export default function App() {
       });
 
       if (shouldAutoPin) {
-        showToast("New Sync card pinned to Neural Library! 🧠✨", "success");
+        showToast("Auto-pinned to Brain! 🧠", "success");
       }
 
       if (!sessionRef || sessionRef.messages.length <= 1) {
         setTimeout(async () => {
            try {
-             const titleAi = new GoogleGenAI({ apiKey: currentApiKey });
-             const titleResp = await callAiWithRetry(titleAi, { model: 'gemini-3-flash-preview', contents: `Summarize in 2 words: ${textToSend || "Visual Analysis"}` }); 
-             const title = titleResp.text?.trim().replace(/"/g, '') || 'New Sync';
+             const titleAi = new GoogleGenAI({ apiKey });
+             const titleResp = await callAiWithRetry(titleAi, { model: 'gemini-3-flash-preview', contents: `Summarize: ${textToSend || "Visual analysis"}` }); 
+             const title = titleResp.text?.trim().replace(/"/g, '').slice(0, 20) || 'New Sync';
              setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, title } : s));
            } catch (e) {}
         }, 10000); 
@@ -490,16 +497,18 @@ export default function App() {
   });
 
   const startVoiceMode = (mode: 'chat' | 'note') => {
-    if (!currentApiKey) { showToast("Access passphrase missing.", "error"); setIsProfileModalOpen(true); return; }
+    const apiKey = (localStorage.getItem('mr_vibe_neural_pass') || '').trim();
+    if (!apiKey) { showToast("Key missing. Tap profile.", "error"); setIsProfileModalOpen(true); return; }
     setSelectedVoiceMode(mode); connectLive();
   };
 
   const handleOnboardingComplete = () => {
     if (tempProfile.userName && tempProfile.neuralPass) {
+      const sanitizedKey = tempProfile.neuralPass.trim().replace(/[\n\r]/g, "");
       const newUser = { ...tempProfile, avatarUrl: AVATARS[Math.floor(Math.random() * AVATARS.length)] } as User;
       localStorage.setItem('mr_vibe_active_user', JSON.stringify(newUser));
-      localStorage.setItem('mr_vibe_neural_pass', tempProfile.neuralPass || '');
-      setNeuralPass(tempProfile.neuralPass || '');
+      localStorage.setItem('mr_vibe_neural_pass', sanitizedKey);
+      setNeuralPass(sanitizedKey);
       setUser(newUser); setIsNewUser(false); handleNewChat(true);
     }
   };
@@ -565,7 +574,7 @@ export default function App() {
                 <div className={`px-5 py-4 rounded-[24px] text-[14px] md:text-[15px] font-medium shadow-2xl border transition-all duration-300 ${msg.role === 'user' ? 'bg-blue-600 text-white border-blue-500/20 rounded-br-none' : theme === 'dark' ? 'bg-[#121212] text-zinc-100 border-white/5 rounded-bl-none' : 'bg-white text-zinc-900 border-black/5 rounded-bl-none'}`}>
                   {msg.isNote && <div className="flex items-center gap-1.5 mb-2 text-[9px] font-black uppercase tracking-[0.2em] text-blue-400"><StickyNote size={10} /> Neural Note</div>}
                   <MarkdownText text={msg.text} />
-                  {msg.groundingChunks?.map((chunk, idx) => chunk.web && <a key={idx} href={chunk.web.uri} target="_blank" className="mt-4 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-[9px] font-bold text-blue-400 hover:bg-blue-600 hover:text-white transition-all flex items-center gap-2 w-fit"><ExternalLink size={10} /> {chunk.web.title || "Study Ref"}</a>)}
+                  {msg.groundingChunks?.map((chunk, idx) => chunk.web && <a key={idx} href={chunk.web.uri} target="_blank" className="mt-4 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-[9px] font-bold text-blue-400 hover:bg-blue-600 hover:text-white transition-all flex items-center gap-2 w-fit"><ExternalLink size={10} /> {chunk.web.title || "Ref"}</a>)}
                 </div>
                 {msg.role === 'model' && <button onClick={() => togglePin(msg.id)} className={`p-2 rounded-xl transition-all ${msg.isPinned ? 'text-blue-500 bg-blue-500/10' : 'text-zinc-600 opacity-0 group-hover:opacity-100'}`}><Pin size={14} fill={msg.isPinned ? 'currentColor' : 'none'} /></button>}
               </div>
@@ -583,7 +592,6 @@ export default function App() {
               <div key={file.id} className={`group relative inline-flex items-center gap-3 p-3 rounded-2xl border transition-all ${theme === 'dark' ? 'bg-[#151515] border-white/10' : 'bg-white border-black/10 shadow-lg'}`}>
                 <div className="relative w-10 h-10 rounded-xl overflow-hidden border border-white/10 bg-blue-50/5 flex-shrink-0">
                   {file.isUploading ? <div className="absolute inset-0 flex items-center justify-center bg-black/40"><Loader2 size={16} className="text-blue-500 animate-spin" /></div> : file.type.startsWith('image/') ? <img src={file.data} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-blue-500"><FileText size={18} /></div>}
-                  {file.isUploading && <div className="absolute bottom-0 left-0 h-1 bg-blue-500 transition-all duration-300" style={{ width: `${file.progress}%` }} />}
                 </div>
                 <div className="flex flex-col min-w-0 pr-6">
                   <span className="text-[10px] font-black truncate max-w-[120px] text-zinc-300">{file.name}</span>
@@ -606,7 +614,7 @@ export default function App() {
             <input type="text" placeholder="Drop a thought or sync any file type..." value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} className="flex-1 bg-transparent py-3 px-2 font-bold text-[14px] outline-none placeholder-zinc-800 min-w-0" />
             <button onClick={() => handleSendToAI(inputText)} className={`p-3 rounded-full transition-all active:scale-95 ${(inputText.trim() || pendingFiles.some(f => !f.isUploading)) ? 'bg-blue-600 text-white shadow-2xl shadow-blue-600/40' : 'text-zinc-700'}`}><Send size={20}/></button>
           </div>
-          <p className="px-6 text-[8px] font-black uppercase tracking-widest text-zinc-600 text-center">Sync any file — Word, PDF, Excel, Code, etc.</p>
+          <p className="px-6 text-[8px] font-black uppercase tracking-widest text-zinc-600 text-center">Neural link active for all file types.</p>
         </div>
       </footer>
 
@@ -620,8 +628,12 @@ export default function App() {
               </div>
               <div className="space-y-4">
                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest ml-1">Vibe Passphrase</label>
-                    <input type="password" value={neuralPass} placeholder="Neural sync key..." onChange={e => { setNeuralPass(e.target.value); localStorage.setItem('mr_vibe_neural_pass', e.target.value); }} className="w-full py-3 px-5 rounded-2xl bg-white/5 border border-white/5 focus:border-blue-500 outline-none font-mono text-[11px] transition-all" />
+                    <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest ml-1">Vibe Passphrase (API Key)</label>
+                    <input type="password" value={neuralPass} placeholder="Enter Key..." onChange={e => { 
+                      const val = e.target.value.trim().replace(/[\n\r]/g, "");
+                      setNeuralPass(val); 
+                      localStorage.setItem('mr_vibe_neural_pass', val); 
+                    }} className="w-full py-3 px-5 rounded-2xl bg-white/5 border border-white/5 focus:border-blue-500 outline-none font-mono text-[11px] transition-all" />
                  </div>
                  <div className="space-y-2">
                     <label className="text-[10px] font-black text-zinc-600 uppercase tracking-widest ml-1">Current Archetype</label>
@@ -640,7 +652,7 @@ export default function App() {
           <div className="w-full max-w-md bg-[#080808] rounded-[48px] p-8 md:p-12 text-center border border-white/5 animate-scale-in space-y-8 my-auto shadow-2xl shadow-blue-900/10">
              <div className="space-y-2"><h1 className="text-3xl font-black uppercase italic tracking-tighter text-white">Mr. Vibe AI</h1><p className="text-[9px] font-black uppercase tracking-[0.4em] text-blue-500">Initialize Sync</p></div>
              <div className="space-y-6 text-left">
-               <div className="space-y-3"><label className="text-[10px] font-black text-blue-500 uppercase tracking-widest ml-4">Neural Passphrase</label><input type="password" placeholder="Passphrase required..." value={tempProfile.neuralPass} onChange={e => setTempProfile({...tempProfile, neuralPass: e.target.value})} className="w-full bg-white/5 rounded-[24px] py-4 px-6 font-mono text-[12px] outline-none border border-transparent focus:border-blue-600 transition-all placeholder-zinc-800" /></div>
+               <div className="space-y-3"><label className="text-[10px] font-black text-blue-500 uppercase tracking-widest ml-4">Neural Passphrase</label><input type="password" placeholder="API Key..." value={tempProfile.neuralPass} onChange={e => setTempProfile({...tempProfile, neuralPass: e.target.value.trim()})} className="w-full bg-white/5 rounded-[24px] py-4 px-6 font-mono text-[12px] outline-none border border-transparent focus:border-blue-600 transition-all placeholder-zinc-800" /></div>
                <div className="space-y-3"><label className="text-[10px] font-black text-blue-500 uppercase tracking-widest ml-4">Vibe Alias</label><input type="text" placeholder="Your name..." value={tempProfile.userName} onChange={e => setTempProfile({...tempProfile, userName: e.target.value})} className="w-full bg-white/5 rounded-[24px] py-4 px-6 font-black outline-none border border-transparent focus:border-blue-600 transition-all placeholder-zinc-800" /></div>
                <div className="grid grid-cols-2 gap-2">{Object.values(PERSONALITIES).map((p) => <button key={p.id} onClick={() => setTempProfile({...tempProfile, personalityId: p.id})} className={`p-3 rounded-[20px] border transition-all text-[9px] font-black uppercase flex flex-col items-center gap-1 ${tempProfile.personalityId === p.id ? 'bg-blue-600 border-blue-500 text-white shadow-xl' : 'bg-white/5 border-transparent text-zinc-600'}`}>{p.emoji} {p.name}</button>)}</div>
              </div>
