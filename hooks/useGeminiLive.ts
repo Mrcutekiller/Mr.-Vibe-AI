@@ -129,7 +129,11 @@ export const useGeminiLive = ({
   }, [onConnectionStateChange]);
 
   const connect = useCallback(async () => {
-    if (isLive || isConnecting) {
+    if (isLive || isConnecting) return;
+
+    const apiKey = localStorage.getItem('mr_vibe_neural_pass') || process.env.API_KEY || '';
+    if (!apiKey) {
+      onError(new Error("No API key available."));
       return;
     }
 
@@ -148,8 +152,7 @@ export const useGeminiLive = ({
       });
       streamRef.current = stream;
 
-      // Obtain API key exclusively from process.env.API_KEY
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey });
 
       const voiceControlFunctions: FunctionDeclaration[] = [
         {
@@ -168,7 +171,7 @@ export const useGeminiLive = ({
       const voicesList = GEMINI_VOICES.map(v => `${v.name} (id: ${v.id})`).join(', ');
       
       const modeInstruction = mode === 'note' 
-        ? "STRICT NOTE TAKER: Your ONLY job is to take notes, summarize data, or answer direct questions. Be extremely brief."
+        ? "STRICT NOTE TAKER: Your ONLY job is to listen and create a bulleted summary of everything the user says. Be concise and smart."
         : `BESTIE CHAT: You are Mr. Cute, a warm, expressive AI best friend. Your personality is ${personality.name}.`;
 
       const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}
@@ -179,7 +182,7 @@ export const useGeminiLive = ({
       AVAILABLE TOOLS:
       - change_voice: Change voice to one of: ${voicesList}.
       
-      Rules: Always refer to yourself as Mr. Cute.`;
+      Rules: Always refer to yourself as Mr. Cute. No robot talk.`;
 
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
@@ -200,8 +203,7 @@ export const useGeminiLive = ({
             onConnectionStateChange(true);
             
             sessionPromise.then(session => {
-              let startMsg = "Hey! Mr. Cute is here.";
-              session.sendRealtimeInput({ text: startMsg });
+              session.sendRealtimeInput({ text: "establishing neural link..." });
             });
 
             if (!inputAudioContextRef.current) return;
