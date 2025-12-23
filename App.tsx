@@ -29,7 +29,9 @@ const SUPPORTED_MIME_TYPES = [
   'image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif',
   'application/pdf', 
   'text/plain', 'text/csv', 'text/markdown', 'text/html',
-  'text/css', 'text/javascript', 'application/x-javascript', 'text/x-typescript', 'application/x-typescript'
+  'text/css', 'text/javascript', 'application/x-javascript', 'text/x-typescript', 'application/x-typescript',
+  'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 ];
 
 interface PendingFile extends FileAttachment {
@@ -214,7 +216,7 @@ export default function App() {
   const showToast = useCallback((message: string, type: string = 'info', onClick?: () => void) => {
     const id = Date.now().toString();
     setToast({ id, message, type, onClick });
-    const newNotif: Notification = { id, message, type: type as any, timestamp: Date.now() };
+    const newNotif: Notification = { id, message: message.replace('[AUTO_PIN]', '').trim(), type: type as any, timestamp: Date.now() };
     setNotifications(prev => {
       const updated = [newNotif, ...prev].slice(0, 50);
       localStorage.setItem('mr_vibe_notif_history', JSON.stringify(updated));
@@ -230,44 +232,56 @@ export default function App() {
     const errorMsg = error?.message || "";
     const lowerMsg = errorMsg.toLowerCase();
     
-    // Check for 429 - Rate Limiting
     if (lowerMsg.includes("429") || lowerMsg.includes("exhausted") || lowerMsg.includes("quota") || lowerMsg.includes("rate limit")) {
-      showToast("Brain freeze! 🧠 Mr. Cute is cooling down. Neural network overloaded. Action: Wait 60s for re-sync.", "error");
+      showToast("Brain freeze! 🧠 Mr. Cute is cooling down. Action: Wait 60s for re-sync.", "error");
       return;
     }
-
-    // Check for 400 - Bad Request (often token limit exceeded or too much data)
     if (lowerMsg.includes("400") || lowerMsg.includes("too large") || lowerMsg.includes("limit") || lowerMsg.includes("token")) {
-      showToast("Input overload! 📏 That message or file is too heavy. Action: Try a shorter message or split your files.", "error");
+      showToast("Input overload! 📏 That sync is too heavy. Action: Try a shorter message or split files.", "error");
       return;
     }
-
-    // Check for Safety/Blocked content
     if (lowerMsg.includes("safety") || lowerMsg.includes("candidate was blocked") || lowerMsg.includes("blocked")) {
-      showToast("Vibe Check! 🛡️ Content was blocked by safety filters. Action: Keep it chill and follow community guidelines.", "error");
+      showToast("Vibe Check! 🛡️ Content filter triggered. Action: Let's keep the study session clean.", "error");
       return;
     }
-
-    // Check for 403 - Permission/Billing
     if (lowerMsg.includes("403") || lowerMsg.includes("permission")) {
-      showToast("Neural Access Denied! 🚫 Check your project billing or neural pass status at Google AI Studio.", "error");
+      showToast("Neural Access Denied! 🚫 Check your neural pass billing or status.", "error");
       return;
     }
-
-    // Check for 500/503 - Server Overloaded
     if (lowerMsg.includes("500") || lowerMsg.includes("503") || lowerMsg.includes("overloaded") || lowerMsg.includes("unavailable")) {
-      showToast("Neural Network Overloaded! ⚡ The server is busy right now. Action: Give it another shot in a moment.", "error");
+      showToast("Neural Network Overloaded! ⚡ Busy brain. Action: Retry in a moment.", "error");
       return;
     }
-
-    // Network Errors
     if (errorMsg.includes("Rpc failed") || errorMsg.includes("xhr error") || errorMsg.includes("error code: 6")) {
-      showToast("Neural link flickered! 📡 Signal weak. Action: Check your connection or retry sync.", "pulse");
+      showToast("Neural link flickered! 📡 Signal weak. Action: Check connection.", "pulse");
       return; 
     }
+    showToast("Sync Interrupted! 📶 Verify key and retry.", "error");
+  }, [showToast]);
 
-    // Fallback for generic errors
-    showToast("Sync Interrupted! 📶 Signal weak or neural pass invalid. Action: Verify key and retry.", "error");
+  // Fix: Added updateSettings function
+  const updateSettings = useCallback((newSettings: Partial<AppSettings>) => {
+    setSettings(prev => {
+      const updated = { ...prev, ...newSettings };
+      localStorage.setItem('mr_vibe_settings', JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  // Fix: Added handleLogout function
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem('mr_vibe_active_user');
+    localStorage.removeItem('mr_vibe_neural_pass');
+    localStorage.removeItem('mr_vibe_active_session_id');
+    localStorage.removeItem('mr_vibe_sessions');
+    localStorage.removeItem('mr_vibe_notif_history');
+    setUser(null);
+    setNeuralPass('');
+    setSessions([]);
+    setActiveSessionId(null);
+    setIsNewUser(true);
+    setIsProfileModalOpen(false);
+    showToast("Neural link terminated. Memory purged.", "info");
   }, [showToast]);
 
   const callAiWithRetry = async (ai: GoogleGenAI, config: any, retries = 4, delay = 2500): Promise<any> => {
@@ -283,61 +297,13 @@ export default function App() {
       return response;
     } catch (error: any) {
       const errorMsg = error?.message || "";
-      
-      const isRetryable = errorMsg.includes("429") || 
-                          errorMsg.includes("500") ||
-                          errorMsg.includes("Rpc failed") ||
-                          errorMsg.includes("xhr error") ||
-                          errorMsg.includes("error code: 6") ||
-                          errorMsg.toLowerCase().includes("limit") || 
-                          errorMsg.toLowerCase().includes("exhausted") ||
-                          errorMsg.toLowerCase().includes("quota");
-      
+      const isRetryable = errorMsg.includes("429") || errorMsg.includes("500") || errorMsg.includes("Rpc failed") || errorMsg.includes("xhr error");
       if (isRetryable && retries > 0) {
-        console.warn(`Transient error detected, retrying in ${delay}ms... (${retries} left)`, errorMsg);
         await new Promise(resolve => setTimeout(resolve, delay));
         return callAiWithRetry(ai, config, retries - 1, delay * 1.5);
       }
       throw error;
     }
-  };
-
-  const handleLogout = () => {
-    localStorage.clear();
-    window.location.reload();
-  };
-
-  useEffect(() => {
-    const saveTimer = setInterval(() => {
-      if (sessions.length > 0) localStorage.setItem('mr_vibe_sessions', JSON.stringify(sessions));
-      if (activeSessionId) localStorage.setItem('mr_vibe_active_session_id', activeSessionId);
-    }, 5000);
-    return () => clearInterval(saveTimer);
-  }, [sessions, activeSessionId]);
-
-  const scrollToBottom = useCallback(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    }
-  }, []);
-
-  useEffect(() => {
-    scrollToBottom();
-    const timer = setTimeout(scrollToBottom, 150);
-    return () => clearTimeout(timer);
-  }, [messages.length, isLoading, liveTranscript, scrollToBottom]);
-
-  useEffect(() => {
-    document.documentElement.className = theme;
-    updateSettings({ theme });
-  }, [theme]);
-
-  const updateSettings = (newSettings: Partial<AppSettings>) => {
-    setSettings(prev => {
-      const updated = { ...prev, ...newSettings };
-      localStorage.setItem('mr_vibe_settings', JSON.stringify(updated));
-      return updated;
-    });
   };
 
   const togglePin = useCallback((messageId: string) => {
@@ -354,9 +320,7 @@ export default function App() {
 
   const handleNewChat = useCallback((autoGreet = true) => {
     const newId = Date.now().toString();
-    const newSession: ChatSession = { 
-      id: newId, title: 'Syncing...', messages: [], lastTimestamp: Date.now(), personalityId: settings.personalityId 
-    };
+    const newSession: ChatSession = { id: newId, title: 'Syncing...', messages: [], lastTimestamp: Date.now(), personalityId: settings.personalityId };
     setSessions(prev => {
       const updated = [newSession, ...prev];
       localStorage.setItem('mr_vibe_sessions', JSON.stringify(updated));
@@ -367,16 +331,13 @@ export default function App() {
     setIsHistoryOpen(false);
     setIsLibraryOpen(false);
     setSelectedPinnedId(null);
-    if (autoGreet && currentApiKey) {
-      generateInitialGreeting(newId, settings.personalityId);
-    }
+    if (autoGreet && currentApiKey) generateInitialGreeting(newId, settings.personalityId);
     return newId;
   }, [settings.personalityId, user, currentApiKey]);
 
   const generateInitialGreeting = async (sessionId: string, personalityId: PersonalityId) => {
     if (!currentApiKey) return;
-    setIsLoading(true);
-    setAvatarAnimation('hi');
+    setIsLoading(true); setAvatarAnimation('hi');
     try {
       const ai = new GoogleGenAI({ apiKey: currentApiKey });
       const prompt = `ACT AS Mr. Cute. Say hi to ${user?.userName || 'bestie'}. Introduce yourself briefly as Mr. Cute once.`;
@@ -385,32 +346,17 @@ export default function App() {
         contents: [{ text: `${BASE_SYSTEM_PROMPT}\n\n${PERSONALITIES[personalityId].prompt}\n\n${prompt}` }]
       });
       const aiMessage: Message = { id: `ai-${Date.now()}`, role: 'model', text: response.text || 'Yo! Ready to vibe?', timestamp: Date.now() };
-      setSessions(prev => {
-        const updated = prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, aiMessage] } : s);
-        localStorage.setItem('mr_vibe_sessions', JSON.stringify(updated));
-        return updated;
-      });
-      playNotificationSound();
-    } catch (e: any) {
-      handleApiError(e);
-    } finally {
-      setIsLoading(false);
-      setAvatarAnimation('idle');
-    }
+      setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, aiMessage] } : s));
+    } catch (e: any) { handleApiError(e); } finally { setIsLoading(false); setAvatarAnimation('idle'); }
   };
 
   const handleSendToAI = async (text: string, isAutoGreet = false) => {
-    if (!currentApiKey) {
-      showToast("Access key required.", "error");
-      setIsProfileModalOpen(true);
-      return;
-    }
+    if (!currentApiKey) { showToast("Access key required.", "error"); setIsProfileModalOpen(true); return; }
     const readyFiles = pendingFiles.filter(f => !f.isUploading);
     if ((!text.trim() && readyFiles.length === 0) || isLoading) return;
     
     let sessionId = activeSessionId || handleNewChat(false);
     const sessionRef = sessions.find(s => s.id === sessionId);
-    
     const currentFiles = readyFiles.map(f => ({ data: f.data, name: f.name, type: f.type }));
     setPendingFiles([]);
     const textToSend = text;
@@ -420,13 +366,7 @@ export default function App() {
       setSessions(prev => {
         const updated = prev.map(s => s.id === sessionId ? { 
           ...s, 
-          messages: [...s.messages, { 
-            id: `u-${Date.now()}`, 
-            role: 'user' as const, 
-            text: textToSend, 
-            files: currentFiles.length > 0 ? currentFiles : undefined, 
-            timestamp: Date.now() 
-          }], 
+          messages: [...s.messages, { id: `u-${Date.now()}`, role: 'user' as const, text: textToSend, files: currentFiles.length > 0 ? currentFiles : undefined, timestamp: Date.now() }], 
           lastTimestamp: Date.now() 
         } : s);
         localStorage.setItem('mr_vibe_sessions', JSON.stringify(updated));
@@ -434,49 +374,39 @@ export default function App() {
       });
     }
     
-    setIsLoading(true);
-    setAvatarAnimation('thoughtful');
+    setIsLoading(true); setAvatarAnimation('thoughtful');
 
     try {
       const ai = new GoogleGenAI({ apiKey: currentApiKey });
       const parts: any[] = [];
+      currentFiles.forEach(file => { parts.push({ inlineData: { data: file.data.split(',')[1], mimeType: file.type } }); });
       
-      currentFiles.forEach(file => {
-        parts.push({
-          inlineData: { 
-            data: file.data.split(',')[1], 
-            mimeType: file.type 
-          }
-        });
-      });
-      
-      const textPart = textToSend.length > 8000 
-        ? `[LONG INPUT DETECTED] Please analyze the following text carefully and break it down: ${textToSend}`
-        : textToSend;
+      let contextPrefix = "";
+      if (settings.personalityId === PersonalityId.STUDENT) {
+        const isPinRequest = textToSend.toLowerCase().match(/summarize|test me|revise|quiz me|study tips/);
+        if (isPinRequest && pinnedMessages.length > 0) {
+          contextPrefix = `[NEURAL LIBRARY CONTEXT]: The user is asking about their pinned study notes. Use the following pinned items as the primary source of truth for this specific request:\n${pinnedMessages.map(m => `- ${m.text}`).join('\n')}\n\n`;
+        }
+      }
 
-      parts.push({ text: `${BASE_SYSTEM_PROMPT}\n\n${currentPersonality.prompt}\n\nUSER INPUT: ${textPart}` });
+      parts.push({ text: `${BASE_SYSTEM_PROMPT}\n\n${currentPersonality.prompt}\n\n${contextPrefix}USER INPUT: ${textToSend}` });
 
       const response = await callAiWithRetry(ai, { 
-        model: 'gemini-3-flash-preview', 
-        contents: { parts },
-        config: { 
-          tools: [{ googleSearch: {} }],
-          temperature: 0.8,
-        } 
+        model: 'gemini-3-flash-preview', contents: { parts },
+        config: { tools: [{ googleSearch: {} }], temperature: 0.8 } 
       });
       
       let rawText = response.text || '...';
       const shouldAutoPin = rawText.includes('[AUTO_PIN]');
       const cleanText = rawText.replace('[AUTO_PIN]', '').trim();
 
-      const grounding = response.candidates?.[0]?.groundingMetadata?.groundingChunks as GroundingChunk[];
       const aiMessage: Message = { 
         id: `ai-${Date.now()}`, 
         role: 'model', 
         text: cleanText, 
         timestamp: Date.now(), 
         isNote: cleanText.length > 800,
-        groundingChunks: grounding,
+        groundingChunks: response.candidates?.[0]?.groundingMetadata?.groundingChunks as GroundingChunk[],
         isPinned: shouldAutoPin
       };
 
@@ -486,106 +416,59 @@ export default function App() {
         return updated;
       });
 
+      if (shouldAutoPin) {
+        showToast("New Sync card pinned to Neural Library! 🧠✨", "success");
+      }
+
       if (!sessionRef || sessionRef.messages.length <= 1) {
         setTimeout(async () => {
            try {
              const titleAi = new GoogleGenAI({ apiKey: currentApiKey });
-             const titleResp = await callAiWithRetry(titleAi, {
-                model: 'gemini-3-flash-preview',
-                contents: `Summarize in 2 words: ${textToSend || "Visual Analysis"}`
-             }, 1, 8000); 
+             const titleResp = await callAiWithRetry(titleAi, { model: 'gemini-3-flash-preview', contents: `Summarize in 2 words: ${textToSend || "Visual Analysis"}` }); 
              const title = titleResp.text?.trim().replace(/"/g, '') || 'New Sync';
-             setSessions(prev => {
-                const updated = prev.map(s => s.id === sessionId ? { ...s, title } : s);
-                return updated;
-             });
-           } catch (e) {
-             console.log("Session titling deferred or failed.");
-           }
+             setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, title } : s));
+           } catch (e) {}
         }, 10000); 
       }
       playNotificationSound();
-    } catch (e: any) { 
-      handleApiError(e);
-    } finally { 
-      setIsLoading(false); 
-      setAvatarAnimation('idle');
-    }
+    } catch (e: any) { handleApiError(e); } finally { setIsLoading(false); setAvatarAnimation('idle'); }
   };
 
   const handleFilesUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
-
     const validFiles = files.filter(file => SUPPORTED_MIME_TYPES.includes(file.type));
-    const unsupportedFiles = files.filter(file => !SUPPORTED_MIME_TYPES.includes(file.type));
-
-    if (unsupportedFiles.length > 0) {
-      const fileExtensions = unsupportedFiles.map(f => f.name.split('.').pop()?.toUpperCase()).join(', ');
-      showToast(`Unsupported format: ${fileExtensions}. Mr. Vibe prefers PDF, Images, and Text. Convert Word docs to PDF first!`, 'error');
-    }
-
     validFiles.forEach(file => {
       const fileId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const reader = new FileReader();
-      
-      const newPendingFile: PendingFile = {
-        id: fileId,
-        data: '',
-        name: file.name,
-        type: file.type,
-        progress: 0,
-        isUploading: true,
-        reader: reader
-      };
-
-      setPendingFiles(prev => [...prev, newPendingFile]);
-
+      setPendingFiles(prev => [...prev, { id: fileId, data: '', name: file.name, type: file.type, progress: 0, isUploading: true, reader }]);
       reader.onprogress = (event) => {
         if (event.lengthComputable) {
           const progress = Math.round((event.loaded / event.total) * 100);
           setPendingFiles(prev => prev.map(f => f.id === fileId ? { ...f, progress } : f));
         }
       };
-
       reader.onload = () => {
-        setPendingFiles(prev => prev.map(f => f.id === fileId ? { 
-          ...f, 
-          data: reader.result as string, 
-          progress: 100, 
-          isUploading: false 
-        } : f));
+        setPendingFiles(prev => prev.map(f => f.id === fileId ? { ...f, data: reader.result as string, progress: 100, isUploading: false } : f));
       };
-
-      reader.onerror = () => {
-        showToast(`Failed to read ${file.name}. Sync error.`, 'error');
-        setPendingFiles(prev => prev.filter(f => f.id !== fileId));
-      };
-
       reader.readAsDataURL(file);
     });
-    
     e.target.value = '';
   };
 
   const removeFileFromSelection = (id: string) => {
     setPendingFiles(prev => {
       const file = prev.find(f => f.id === id);
-      if (file?.isUploading && file.reader) {
-        file.reader.abort();
-      }
+      if (file?.isUploading && file.reader) file.reader.abort();
       return prev.filter(f => f.id !== id);
     });
   };
 
   const { connect: connectLive, disconnect: disconnectLive, isLive, isConnecting, volume, outputVolume } = useGeminiLive({
     personality: currentPersonality, settings, user: user as User, mode: selectedVoiceMode,
-    onTranscript: (t, iM, isModel) => {
-        setLiveTranscript(prev => [...prev, { text: t, isModel }]);
-        if (isModel) setIsAiSpeakingGlobal(true);
-    },
+    onTranscript: (t, iM, isModel) => { if (isModel) setIsAiSpeakingGlobal(true); },
     onTurnComplete: (u, m) => { 
-      setLiveTranscript([]); setIsAiSpeakingGlobal(false);
+      setIsAiSpeakingGlobal(false);
       const sId = activeSessionId || handleNewChat(false); 
       setSessions(prev => {
         const updated = prev.map(s => s.id === sId ? { ...s, messages: [...s.messages, 
@@ -597,7 +480,7 @@ export default function App() {
       });
       playNotificationSound();
     },
-    onConnectionStateChange: (c) => { if(!c) setLiveTranscript([]); },
+    onConnectionStateChange: (c) => {},
     onCommand: (cmd, args) => {
       if (cmd === 'change_voice') {
         const found = GEMINI_VOICES.find(v => v.id.toLowerCase() === args.voice_id?.toLowerCase());
@@ -608,28 +491,17 @@ export default function App() {
   });
 
   const startVoiceMode = (mode: 'chat' | 'note') => {
-    if (!currentApiKey) {
-      showToast("Access passphrase missing.", "error");
-      setIsProfileModalOpen(true);
-      return;
-    }
-    setSelectedVoiceMode(mode);
-    setIsVoiceModeModalOpen(false);
-    connectLive();
+    if (!currentApiKey) { showToast("Access passphrase missing.", "error"); setIsProfileModalOpen(true); return; }
+    setSelectedVoiceMode(mode); connectLive();
   };
 
   const handleOnboardingComplete = () => {
-    if (tempProfile.userName && tempProfile.gender && tempProfile.personalityId && tempProfile.neuralPass) {
+    if (tempProfile.userName && tempProfile.neuralPass) {
       const newUser = { ...tempProfile, avatarUrl: AVATARS[Math.floor(Math.random() * AVATARS.length)] } as User;
       localStorage.setItem('mr_vibe_active_user', JSON.stringify(newUser));
-      localStorage.setItem('mr_vibe_neural_pass', tempProfile.neuralPass);
-      setNeuralPass(tempProfile.neuralPass);
-      setUser(newUser);
-      updateSettings({ personalityId: tempProfile.personalityId });
-      setIsNewUser(false);
-      handleNewChat(true);
-    } else {
-      showToast("Sync initialization failed. Check fields.", "info");
+      localStorage.setItem('mr_vibe_neural_pass', tempProfile.neuralPass || '');
+      setNeuralPass(tempProfile.neuralPass || '');
+      setUser(newUser); setIsNewUser(false); handleNewChat(true);
     }
   };
 
@@ -637,22 +509,20 @@ export default function App() {
     <div className={`fixed inset-0 flex flex-col transition-colors duration-700 ${theme === 'dark' ? 'bg-[#050505] text-white' : 'bg-zinc-50 text-black'} overflow-hidden ios-safe-top ios-safe-bottom font-sans w-screen h-screen`}>
       {toast && <NotificationToast {...toast} onClose={() => setToast(null)} />}
 
-      <header className={`h-20 px-4 md:px-8 flex items-center justify-between border-b ${theme === 'dark' ? 'border-white/5 bg-black/50' : 'border-black/5 bg-white/50'} backdrop-blur-3xl z-50 w-full shrink-0 overflow-hidden`}>
+      <header className={`h-20 px-4 md:px-8 flex items-center justify-between border-b ${theme === 'dark' ? 'border-white/5 bg-black/50' : 'border-black/5 bg-white/50'} backdrop-blur-3xl z-50 w-full shrink-0`}>
         <div className="flex items-center gap-1 md:gap-3 shrink-0">
-          <button onClick={() => setIsHistoryOpen(true)} className={`p-3 rounded-2xl active:scale-90 transition-all ${theme === 'dark' ? 'hover:bg-white/5 text-zinc-400' : 'hover:bg-black/5 text-zinc-500'}`} title="Archive"><Menu size={20} /></button>
+          <button onClick={() => setIsHistoryOpen(true)} className={`p-3 rounded-2xl active:scale-90 transition-all ${theme === 'dark' ? 'hover:bg-white/5 text-zinc-400' : 'hover:bg-black/5 text-zinc-500'}`}><Menu size={20} /></button>
           <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className={`p-3 rounded-2xl active:scale-90 transition-all ${theme === 'dark' ? 'text-yellow-400' : 'text-blue-600'}`}><Sun size={20} /></button>
         </div>
-        
-        <div className="flex flex-col items-center gap-1 overflow-hidden mx-2">
+        <div className="flex flex-col items-center gap-1 mx-2">
           <span className="font-black text-[12px] md:text-[14px] uppercase tracking-[0.4em] text-blue-500 animate-pulse whitespace-nowrap">Mr. Vibe AI</span>
         </div>
-
         <div className="flex items-center gap-1 md:gap-3 shrink-0">
           <button onClick={() => setIsLibraryOpen(true)} className={`p-3 rounded-2xl relative active:scale-90 transition-all ${theme === 'dark' ? 'text-blue-400 bg-blue-500/10' : 'text-blue-600 bg-blue-500/5'}`} title="Neural Library">
             <Brain size={20} />
-            {pinnedMessages.length > 0 && <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 bg-blue-500 rounded-full" />}
+            {pinnedMessages.length > 0 && <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping" />}
           </button>
-          <button onClick={() => setIsProfileModalOpen(true)} className="w-10 h-10 md:w-11 md:h-11 rounded-2xl overflow-hidden border-2 border-white/10 active:scale-90 transition-all shrink-0">
+          <button onClick={() => setIsProfileModalOpen(true)} className="w-10 h-10 md:w-11 md:h-11 rounded-2xl overflow-hidden border-2 border-white/10 active:scale-90 transition-all">
              {user?.avatarUrl ? <img src={user.avatarUrl} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-zinc-800 flex items-center justify-center"><UserIcon size={18} /></div>}
           </button>
         </div>
@@ -665,17 +535,16 @@ export default function App() {
             <div className="space-y-6 max-w-sm">
               <div className="space-y-2">
                 <h3 className="text-[10px] font-black uppercase tracking-[0.6em] text-blue-500 opacity-80">Frequency Matched</h3>
-                <p className="text-[11px] font-bold italic text-zinc-600 uppercase tracking-[0.2em] leading-loose">"Yo! Mr. Cute is here. Drop those files, bro. I'm ready to vibe."</p>
+                <p className="text-[11px] font-bold italic text-zinc-600 uppercase tracking-[0.2em] leading-loose">"Yo! Mr. Cute is here. Drop those study files, bro. I'm ready to vibe."</p>
               </div>
-              
               <div className="grid grid-cols-2 gap-3 pt-6">
-                 <button onClick={() => startVoiceMode('chat')} className="flex flex-col items-center gap-3 p-6 rounded-[32px] bg-blue-600/10 border border-blue-600/20 hover:bg-blue-600 hover:text-white transition-all group shadow-lg">
+                 <button onClick={() => startVoiceMode('chat')} className="flex flex-col items-center gap-3 p-6 rounded-[32px] bg-blue-600/10 border border-blue-600/20 hover:bg-blue-600 hover:text-white transition-all shadow-lg group">
                    <Headset size={24} className="text-blue-500 group-hover:text-white" />
-                   <span className="text-[9px] font-black uppercase tracking-widest">Voice Chat</span>
+                   <span className="text-[9px] font-black uppercase tracking-widest">Voice Study</span>
                  </button>
-                 <button onClick={() => startVoiceMode('note')} className="flex flex-col items-center gap-3 p-6 rounded-[32px] bg-zinc-900 border border-white/5 hover:bg-white/5 transition-all group shadow-lg">
+                 <button onClick={() => startVoiceMode('note')} className="flex flex-col items-center gap-3 p-6 rounded-[32px] bg-zinc-900 border border-white/5 hover:bg-white/5 transition-all shadow-lg group">
                    <BookOpenCheck size={24} className="text-zinc-500 group-hover:text-blue-400" />
-                   <span className="text-[9px] font-black uppercase tracking-widest">Note Taker</span>
+                   <span className="text-[9px] font-black uppercase tracking-widest">Silent Notes</span>
                  </button>
               </div>
             </div>
@@ -683,34 +552,21 @@ export default function App() {
         ) : (
           messages.map((msg, index) => (
             <div key={msg.id} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} animate-vibe-in group w-full`}>
-              {msg.files && msg.files.length > 0 && (
+              {msg.files && (
                 <div className="flex flex-wrap gap-2 mb-3 justify-end max-w-[85%]">
                   {msg.files.map((file, fIdx) => (
                     <div key={fIdx} className={`rounded-[20px] overflow-hidden border shadow-xl ${theme === 'dark' ? 'border-white/10 bg-zinc-900' : 'border-black/5 bg-white'}`}>
-                      {file.type.startsWith('image/') ? (
-                        <img src={file.data} className="w-40 h-auto object-cover max-h-[200px]" />
-                      ) : (
-                        <div className="flex items-center gap-2 p-3 min-w-[140px]">
-                          <FileIcon size={16} className="text-blue-500" />
-                          <div className="flex-1 truncate font-bold text-[9px]">{file.name}</div>
-                        </div>
-                      )}
+                      {file.type.startsWith('image/') ? <img src={file.data} className="w-40 h-auto object-cover max-h-[200px]" /> : <div className="flex items-center gap-2 p-3 min-w-[140px]"><FileIcon size={16} className="text-blue-500" /><div className="flex-1 truncate font-bold text-[9px]">{file.name}</div></div>}
                     </div>
                   ))}
                 </div>
               )}
-              <div className={`relative flex items-end gap-3 max-w-[92%]`}>
+              <div className="relative flex items-end gap-3 max-w-[92%]">
                 {msg.role === 'model' && <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 mb-1 border border-white/10 shadow-lg"><img src={AVATARS[index % AVATARS.length]} className="w-full h-full object-cover" /></div>}
                 <div className={`px-5 py-4 rounded-[24px] text-[14px] md:text-[15px] font-medium shadow-2xl border transition-all duration-300 ${msg.role === 'user' ? 'bg-blue-600 text-white border-blue-500/20 rounded-br-none' : theme === 'dark' ? 'bg-[#121212] text-zinc-100 border-white/5 rounded-bl-none' : 'bg-white text-zinc-900 border-black/5 rounded-bl-none'}`}>
-                  {msg.isNote && <div className="flex items-center gap-1.5 mb-2 text-[9px] font-black uppercase tracking-[0.2em] text-blue-400"><StickyNote size={10} /> Neural Summary</div>}
+                  {msg.isNote && <div className="flex items-center gap-1.5 mb-2 text-[9px] font-black uppercase tracking-[0.2em] text-blue-400"><StickyNote size={10} /> Neural Note</div>}
                   <MarkdownText text={msg.text} />
-                  {msg.groundingChunks && msg.groundingChunks.length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-white/5 space-y-2">
-                       <div className="flex flex-wrap gap-2">
-                          {msg.groundingChunks.map((chunk, idx) => chunk.web && <a key={idx} href={chunk.web.uri} target="_blank" className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-[9px] font-bold text-blue-400 hover:bg-blue-600 hover:text-white transition-all flex items-center gap-2"><ExternalLink size={10} /> {chunk.web.title || "Ref"}</a>)}
-                       </div>
-                    </div>
-                  )}
+                  {msg.groundingChunks?.map((chunk, idx) => chunk.web && <a key={idx} href={chunk.web.uri} target="_blank" className="mt-4 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-[9px] font-bold text-blue-400 hover:bg-blue-600 hover:text-white transition-all flex items-center gap-2 w-fit"><ExternalLink size={10} /> {chunk.web.title || "Study Ref"}</a>)}
                 </div>
                 {msg.role === 'model' && <button onClick={() => togglePin(msg.id)} className={`p-2 rounded-xl transition-all ${msg.isPinned ? 'text-blue-500 bg-blue-500/10' : 'text-zinc-600 opacity-0 group-hover:opacity-100'}`}><Pin size={14} fill={msg.isPinned ? 'currentColor' : 'none'} /></button>}
               </div>
@@ -726,55 +582,32 @@ export default function App() {
           <div className="max-w-4xl mx-auto mb-4 flex flex-wrap gap-3 animate-slide-up">
             {pendingFiles.map((file) => (
               <div key={file.id} className={`group relative inline-flex items-center gap-3 p-3 rounded-2xl border transition-all ${theme === 'dark' ? 'bg-[#151515] border-white/10' : 'bg-white border-black/10 shadow-lg'}`}>
-                <div className="relative w-10 h-10 rounded-xl overflow-hidden border border-white/10 bg-blue-500/5 flex-shrink-0">
-                  {file.isUploading ? (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                      <Loader2 size={16} className="text-blue-500 animate-spin" />
-                    </div>
-                  ) : file.type.startsWith('image/') ? (
-                    <img src={file.data} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-blue-500">
-                      <FileText size={18} />
-                    </div>
-                  )}
-                  {file.isUploading && (
-                    <div 
-                      className="absolute bottom-0 left-0 h-1 bg-blue-500 transition-all duration-300" 
-                      style={{ width: `${file.progress}%` }} 
-                    />
-                  )}
+                <div className="relative w-10 h-10 rounded-xl overflow-hidden border border-white/10 bg-blue-50/5 flex-shrink-0">
+                  {file.isUploading ? <div className="absolute inset-0 flex items-center justify-center bg-black/40"><Loader2 size={16} className="text-blue-500 animate-spin" /></div> : file.type.startsWith('image/') ? <img src={file.data} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-blue-500"><FileText size={18} /></div>}
+                  {file.isUploading && <div className="absolute bottom-0 left-0 h-1 bg-blue-500 transition-all duration-300" style={{ width: `${file.progress}%` }} />}
                 </div>
                 <div className="flex flex-col min-w-0 pr-6">
                   <span className="text-[10px] font-black truncate max-w-[120px] text-zinc-300">{file.name}</span>
-                  <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest">
-                    {file.isUploading ? `Syncing ${file.progress}%` : (file.type.split('/')[1] || 'FILE')}
-                  </span>
+                  <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest">{file.isUploading ? `Syncing ${file.progress}%` : (file.type.split('/')[1] || 'DOC')}</span>
                 </div>
-                <button 
-                  onClick={() => removeFileFromSelection(file.id)} 
-                  className={`absolute -top-2 -right-2 p-1.5 rounded-full shadow-xl transition-all scale-0 group-hover:scale-100 ${theme === 'dark' ? 'bg-zinc-800 text-rose-500 hover:bg-rose-500 hover:text-white' : 'bg-white text-rose-500 hover:bg-rose-500 hover:text-white border border-black/5'}`}
-                  title="Remove from sync"
-                >
-                  <X size={12} strokeWidth={3} />
-                </button>
+                <button onClick={() => removeFileFromSelection(file.id)} className="absolute -top-2 -right-2 p-1.5 rounded-full shadow-xl transition-all scale-0 group-hover:scale-100 bg-zinc-800 text-rose-500 hover:bg-rose-500 hover:text-white"><X size={12} strokeWidth={3} /></button>
               </div>
             ))}
           </div>
         )}
         <div className="max-w-5xl mx-auto flex flex-col gap-3">
           <div className="flex items-center gap-2 px-4">
-             <button onClick={() => startVoiceMode('chat')} className={`flex items-center gap-2 px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${isLive && selectedVoiceMode === 'chat' ? 'bg-blue-600 text-white shadow-xl scale-105' : 'bg-white/5 text-zinc-500 hover:bg-white/10 hover:text-blue-400'}`}><Mic size={14}/> Voice Chat</button>
-             <button onClick={() => startVoiceMode('note')} className={`flex items-center gap-2 px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${isLive && selectedVoiceMode === 'note' ? 'bg-blue-600 text-white shadow-xl scale-105' : 'bg-white/5 text-zinc-500 hover:bg-white/10 hover:text-blue-400'}`}><StickyNote size={14}/> Note Taker</button>
-             {isLive && <button onClick={disconnectLive} className="px-4 py-2 rounded-full bg-rose-600/10 text-rose-500 text-[9px] font-black uppercase tracking-widest border border-rose-500/20 active:scale-95 transition-all">Disconnect</button>}
+             <button onClick={() => startVoiceMode('chat')} className={`flex items-center gap-2 px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${isLive && selectedVoiceMode === 'chat' ? 'bg-blue-600 text-white shadow-xl scale-105' : 'bg-white/5 text-zinc-500 hover:bg-white/10 hover:text-blue-400'}`}><Mic size={14}/> Voice Study</button>
+             <button onClick={() => startVoiceMode('note')} className={`flex items-center gap-2 px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${isLive && selectedVoiceMode === 'note' ? 'bg-blue-600 text-white shadow-xl scale-105' : 'bg-white/5 text-zinc-500 hover:bg-white/10 hover:text-blue-400'}`}><StickyNote size={14}/> Silent Notes</button>
+             {isLive && <button onClick={disconnectLive} className="px-4 py-2 rounded-full bg-rose-600/10 text-rose-500 text-[9px] font-black uppercase tracking-widest border border-rose-500/20 active:scale-95 transition-all">End Session</button>}
           </div>
 
           <div className={`flex items-center gap-1 p-1 border rounded-[32px] shadow-2xl backdrop-blur-3xl transition-all ${theme === 'dark' ? 'bg-[#0a0a0a]/90 border-white/10' : 'bg-white/90 border-black/10'} w-full overflow-hidden`}>
-            <button onClick={() => fileInputRef.current?.click()} className="p-3 text-zinc-500 hover:text-blue-500 transition-colors" title="Sync Files (PDF, Images, Text)"><Paperclip size={20}/><input type="file" ref={fileInputRef} className="hidden" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.csv,.md" onChange={handleFilesUpload} /></button>
-            <input type="text" placeholder="Drop a thought or sync some files..." value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} className="flex-1 bg-transparent py-3 px-2 font-bold text-[14px] outline-none placeholder-zinc-800 min-w-0" />
+            <button onClick={() => fileInputRef.current?.click()} className="p-3 text-zinc-500 hover:text-blue-500 transition-colors" title="Sync Study Material"><Paperclip size={20}/><input type="file" ref={fileInputRef} className="hidden" multiple accept="*" onChange={handleFilesUpload} /></button>
+            <input type="text" placeholder="Drop a thought or sync some study materials..." value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} className="flex-1 bg-transparent py-3 px-2 font-bold text-[14px] outline-none placeholder-zinc-800 min-w-0" />
             <button onClick={() => handleSendToAI(inputText)} className={`p-3 rounded-full transition-all active:scale-95 ${(inputText.trim() || pendingFiles.some(f => !f.isUploading)) ? 'bg-blue-600 text-white shadow-2xl shadow-blue-600/40' : 'text-zinc-700'}`}><Send size={20}/></button>
           </div>
-          <p className="px-6 text-[8px] font-black uppercase tracking-widest text-zinc-600 text-center">Supported: PDF • PNG • JPG • TXT (Convert Word to PDF for best vibe sync)</p>
+          <p className="px-6 text-[8px] font-black uppercase tracking-widest text-zinc-600 text-center">Sync any file — Word, Excel, PDF, Images, or Code.</p>
         </div>
       </footer>
 
