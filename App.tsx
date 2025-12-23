@@ -25,13 +25,15 @@ import { PERSONALITIES, BASE_SYSTEM_PROMPT, AVATARS, GEMINI_VOICES, PERSONALITY_
 import { PersonalityId, Personality, AppSettings, User, ChatSession, Message, ReactionType, Notification, FileAttachment, Quiz, QuizQuestion, GroundingChunk, Gender } from './types';
 import { useGeminiLive } from './hooks/useGeminiLive';
 
+// Expanded list, but the app now allows ANY file
 const SUPPORTED_MIME_TYPES = [
   'image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif',
   'application/pdf', 
   'text/plain', 'text/csv', 'text/markdown', 'text/html',
   'text/css', 'text/javascript', 'application/x-javascript', 'text/x-typescript', 'application/x-typescript',
   'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/json', 'application/xml', 'text/xml'
 ];
 
 interface PendingFile extends FileAttachment {
@@ -40,15 +42,6 @@ interface PendingFile extends FileAttachment {
   isUploading: boolean;
   reader?: FileReader;
 }
-
-const Logo = ({ className }: { className?: string }) => (
-  <div className={`flex items-center justify-center ${className}`}>
-    <div className="relative">
-      <div className="absolute inset-0 bg-blue-600/30 blur-2xl rounded-full animate-pulse" />
-      <Zap size={48} className="text-blue-500 relative z-10 fill-blue-500/20" />
-    </div>
-  </div>
-);
 
 const VibeOrb = ({ active, isThinking, volume, outputVolume, animationState, personalityId }: { 
   active: boolean, 
@@ -161,7 +154,6 @@ export default function App() {
   
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [isVoiceModeModalOpen, setIsVoiceModeModalOpen] = useState(false);
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [selectedPinnedId, setSelectedPinnedId] = useState<string | null>(null);
 
@@ -229,7 +221,7 @@ export default function App() {
 
   const handleApiError = useCallback((error: any) => {
     console.error("API ERROR DETAILED:", error);
-    const errorMsg = error?.message || "";
+    const errorMsg = error?.message || "Unknown neural glitch";
     const lowerMsg = errorMsg.toLowerCase();
     
     if (lowerMsg.includes("429") || lowerMsg.includes("exhausted") || lowerMsg.includes("quota") || lowerMsg.includes("rate limit")) {
@@ -244,8 +236,8 @@ export default function App() {
       showToast("Vibe Check! 🛡️ Content filter triggered. Action: Let's keep the study session clean.", "error");
       return;
     }
-    if (lowerMsg.includes("403") || lowerMsg.includes("permission")) {
-      showToast("Neural Access Denied! 🚫 Check your neural pass billing or status.", "error");
+    if (lowerMsg.includes("403") || lowerMsg.includes("permission") || lowerMsg.includes("unauthorized") || lowerMsg.includes("api key not found")) {
+      showToast(`Neural Access Denied! 🚫 ${errorMsg}. Action: Check your key at ai.google.dev`, "error");
       return;
     }
     if (lowerMsg.includes("500") || lowerMsg.includes("503") || lowerMsg.includes("overloaded") || lowerMsg.includes("unavailable")) {
@@ -256,10 +248,10 @@ export default function App() {
       showToast("Neural link flickered! 📡 Signal weak. Action: Check connection.", "pulse");
       return; 
     }
-    showToast("Sync Interrupted! 📶 Verify key and retry.", "error");
+    // Final fallback showing the actual error to help user debug
+    showToast(`Sync Error: ${errorMsg}`, "error");
   }, [showToast]);
 
-  // Fix: Added updateSettings function
   const updateSettings = useCallback((newSettings: Partial<AppSettings>) => {
     setSettings(prev => {
       const updated = { ...prev, ...newSettings };
@@ -268,7 +260,6 @@ export default function App() {
     });
   }, []);
 
-  // Fix: Added handleLogout function
   const handleLogout = useCallback(() => {
     localStorage.removeItem('mr_vibe_active_user');
     localStorage.removeItem('mr_vibe_neural_pass');
@@ -328,7 +319,6 @@ export default function App() {
     });
     setActiveSessionId(newId);
     localStorage.setItem('mr_vibe_active_session_id', newId);
-    setIsHistoryOpen(false);
     setIsLibraryOpen(false);
     setSelectedPinnedId(null);
     if (autoGreet && currentApiKey) generateInitialGreeting(newId, settings.personalityId);
@@ -379,7 +369,15 @@ export default function App() {
     try {
       const ai = new GoogleGenAI({ apiKey: currentApiKey });
       const parts: any[] = [];
-      currentFiles.forEach(file => { parts.push({ inlineData: { data: file.data.split(',')[1], mimeType: file.type } }); });
+      currentFiles.forEach(file => { 
+        // Only send inline data if it's likely an image or recognized doc
+        if (SUPPORTED_MIME_TYPES.includes(file.type)) {
+          parts.push({ inlineData: { data: file.data.split(',')[1], mimeType: file.type } }); 
+        } else {
+          // Send as a descriptive text hint for unknown file types
+          parts.push({ text: `[FILE ATTACHED: ${file.name} (${file.type})]` });
+        }
+      });
       
       let contextPrefix = "";
       if (settings.personalityId === PersonalityId.STUDENT) {
@@ -437,11 +435,12 @@ export default function App() {
   const handleFilesUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
-    const validFiles = files.filter(file => SUPPORTED_MIME_TYPES.includes(file.type));
-    validFiles.forEach(file => {
+    
+    files.forEach(file => {
       const fileId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const reader = new FileReader();
-      setPendingFiles(prev => [...prev, { id: fileId, data: '', name: file.name, type: file.type, progress: 0, isUploading: true, reader }]);
+      setPendingFiles(prev => [...prev, { id: fileId, data: '', name: file.name, type: file.type || 'application/octet-stream', progress: 0, isUploading: true, reader }]);
+      
       reader.onprogress = (event) => {
         if (event.lengthComputable) {
           const progress = Math.round((event.loaded / event.total) * 100);
@@ -535,7 +534,7 @@ export default function App() {
             <div className="space-y-6 max-w-sm">
               <div className="space-y-2">
                 <h3 className="text-[10px] font-black uppercase tracking-[0.6em] text-blue-500 opacity-80">Frequency Matched</h3>
-                <p className="text-[11px] font-bold italic text-zinc-600 uppercase tracking-[0.2em] leading-loose">"Yo! Mr. Cute is here. Drop those study files, bro. I'm ready to vibe."</p>
+                <p className="text-[11px] font-bold italic text-zinc-600 uppercase tracking-[0.2em] leading-loose">"Yo! Mr. Cute is here. Drop any study material, bro. I'm ready to vibe."</p>
               </div>
               <div className="grid grid-cols-2 gap-3 pt-6">
                  <button onClick={() => startVoiceMode('chat')} className="flex flex-col items-center gap-3 p-6 rounded-[32px] bg-blue-600/10 border border-blue-600/20 hover:bg-blue-600 hover:text-white transition-all shadow-lg group">
@@ -604,10 +603,10 @@ export default function App() {
 
           <div className={`flex items-center gap-1 p-1 border rounded-[32px] shadow-2xl backdrop-blur-3xl transition-all ${theme === 'dark' ? 'bg-[#0a0a0a]/90 border-white/10' : 'bg-white/90 border-black/10'} w-full overflow-hidden`}>
             <button onClick={() => fileInputRef.current?.click()} className="p-3 text-zinc-500 hover:text-blue-500 transition-colors" title="Sync Study Material"><Paperclip size={20}/><input type="file" ref={fileInputRef} className="hidden" multiple accept="*" onChange={handleFilesUpload} /></button>
-            <input type="text" placeholder="Drop a thought or sync some study materials..." value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} className="flex-1 bg-transparent py-3 px-2 font-bold text-[14px] outline-none placeholder-zinc-800 min-w-0" />
+            <input type="text" placeholder="Drop a thought or sync any file type..." value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} className="flex-1 bg-transparent py-3 px-2 font-bold text-[14px] outline-none placeholder-zinc-800 min-w-0" />
             <button onClick={() => handleSendToAI(inputText)} className={`p-3 rounded-full transition-all active:scale-95 ${(inputText.trim() || pendingFiles.some(f => !f.isUploading)) ? 'bg-blue-600 text-white shadow-2xl shadow-blue-600/40' : 'text-zinc-700'}`}><Send size={20}/></button>
           </div>
-          <p className="px-6 text-[8px] font-black uppercase tracking-widest text-zinc-600 text-center">Sync any file — Word, Excel, PDF, Images, or Code.</p>
+          <p className="px-6 text-[8px] font-black uppercase tracking-widest text-zinc-600 text-center">Sync any file — Word, PDF, Excel, Code, etc.</p>
         </div>
       </footer>
 
@@ -639,7 +638,6 @@ export default function App() {
       {isNewUser && (
         <div className="fixed inset-0 z-[12000] bg-black flex items-center justify-center p-4">
           <div className="w-full max-w-md bg-[#080808] rounded-[48px] p-8 md:p-12 text-center border border-white/5 animate-scale-in space-y-8 my-auto shadow-2xl shadow-blue-900/10">
-             <Logo className="w-10 h-10 mx-auto" />
              <div className="space-y-2"><h1 className="text-3xl font-black uppercase italic tracking-tighter text-white">Mr. Vibe AI</h1><p className="text-[9px] font-black uppercase tracking-[0.4em] text-blue-500">Initialize Sync</p></div>
              <div className="space-y-6 text-left">
                <div className="space-y-3"><label className="text-[10px] font-black text-blue-500 uppercase tracking-widest ml-4">Neural Passphrase</label><input type="password" placeholder="Passphrase required..." value={tempProfile.neuralPass} onChange={e => setTempProfile({...tempProfile, neuralPass: e.target.value})} className="w-full bg-white/5 rounded-[24px] py-4 px-6 font-mono text-[12px] outline-none border border-transparent focus:border-blue-600 transition-all placeholder-zinc-800" /></div>

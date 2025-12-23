@@ -77,7 +77,6 @@ export const useGeminiLive = ({
   useEffect(() => {
     let animationFrame: number;
     const updateOutputVolume = () => {
-      // Only track output volume (avatar animation) if we're actually playing audio
       if (outputAnalyserRef.current && isLive && mode !== 'note') {
         const dataArray = new Uint8Array(outputAnalyserRef.current.frequencyBinCount);
         outputAnalyserRef.current.getByteTimeDomainData(dataArray);
@@ -132,9 +131,10 @@ export const useGeminiLive = ({
   const connect = useCallback(async () => {
     if (isLive || isConnecting) return;
 
+    // Get fresh API key from storage
     const apiKey = localStorage.getItem('mr_vibe_neural_pass') || process.env.API_KEY || '';
     if (!apiKey) {
-      onError(new Error("No API key available."));
+      onError(new Error("Passphrase missing. Sync restricted."));
       return;
     }
 
@@ -242,7 +242,6 @@ export const useGeminiLive = ({
                 }
              }
 
-             // AUDIO PLAYBACK: Silenced in 'note' mode
              const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
              if (base64Audio && audioContextRef.current && mode !== 'note') {
                 const ctx = audioContextRef.current;
