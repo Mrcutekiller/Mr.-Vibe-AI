@@ -220,11 +220,26 @@ export default function App() {
       showToast("Neural passphrase invalid or restricted.", "error");
       setIsProfileModalOpen(true);
     } else if (errorMsg.includes("exhausted") || errorMsg.includes("429")) {
-      showToast("Model is cooling down. Wait a minute.", "error");
+      showToast("Neural network overloaded. Cooling down...", "error");
     } else {
       showToast("Sync Interrupted. The text might be too long or complex.", "error");
     }
   }, [showToast]);
+
+  const callAiWithRetry = async (ai: GoogleGenAI, config: any, retries = 2, delay = 1500): Promise<any> => {
+    try {
+      const response = await ai.models.generateContent(config);
+      return response;
+    } catch (error: any) {
+      const errorMsg = error?.message || "";
+      if ((errorMsg.includes("exhausted") || errorMsg.includes("429")) && retries > 0) {
+        console.log(`Rate limit hit, retrying in ${delay}ms... (${retries} left)`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return callAiWithRetry(ai, config, retries - 1, delay * 2);
+      }
+      throw error;
+    }
+  };
 
   const handleLogout = () => {
     localStorage.clear();
@@ -304,7 +319,7 @@ export default function App() {
     try {
       const ai = new GoogleGenAI({ apiKey: currentApiKey });
       const prompt = `ACT AS Mr. Cute. Say hi to ${user?.userName || 'bestie'}. Introduce yourself as Mr. Cute this once.`;
-      const response = await ai.models.generateContent({
+      const response = await callAiWithRetry(ai, {
         model: 'gemini-3-flash-preview',
         contents: [{ text: `${BASE_SYSTEM_PROMPT}\n\n${PERSONALITIES[personalityId].prompt}\n\n${prompt}` }]
       });
@@ -364,7 +379,6 @@ export default function App() {
       const ai = new GoogleGenAI({ apiKey: currentApiKey });
       const parts: any[] = [];
       
-      // Better multi-file analysis prompt injection
       currentFiles.forEach(file => {
         parts.push({
           inlineData: { 
@@ -374,20 +388,18 @@ export default function App() {
         });
       });
       
-      // Handling extremely long text by prompting model to handle it specifically
       const textPart = textToSend.length > 10000 
         ? `[LONG INPUT DETECTED] Please analyze the following text carefully and break it down: ${textToSend}`
         : textToSend;
 
       parts.push({ text: `${BASE_SYSTEM_PROMPT}\n\n${currentPersonality.prompt}\n\nUSER INPUT: ${textPart}` });
 
-      const response = await ai.models.generateContent({ 
+      const response = await callAiWithRetry(ai, { 
         model: 'gemini-3-flash-preview', 
         contents: { parts },
         config: { 
           tools: [{ googleSearch: {} }],
           temperature: 0.8,
-          // Optimization for long contexts: do not set maxOutputTokens unless necessary
         } 
       });
       
@@ -401,7 +413,7 @@ export default function App() {
         role: 'model', 
         text: cleanText, 
         timestamp: Date.now(), 
-        isNote: cleanText.length > 800, // Longer threshold for auto-note
+        isNote: cleanText.length > 800,
         groundingChunks: grounding,
         isPinned: shouldAutoPin
       };
@@ -413,7 +425,7 @@ export default function App() {
       });
 
       if (!sessionRef || sessionRef.messages.length <= 1) {
-        const titleResp = await ai.models.generateContent({
+        const titleResp = await callAiWithRetry(ai, {
            model: 'gemini-3-flash-preview',
            contents: `Summarize in 2-3 words: ${textToSend || "Visual Analysis"}`
         });
@@ -546,11 +558,11 @@ export default function App() {
               </div>
               
               <div className="grid grid-cols-2 gap-3 pt-6">
-                 <button onClick={() => startVoiceMode('chat')} className="flex flex-col items-center gap-3 p-6 rounded-[32px] bg-blue-600/10 border border-blue-600/20 hover:bg-blue-600 hover:text-white transition-all group">
+                 <button onClick={() => startVoiceMode('chat')} className="flex flex-col items-center gap-3 p-6 rounded-[32px] bg-blue-600/10 border border-blue-600/20 hover:bg-blue-600 hover:text-white transition-all group shadow-lg">
                    <Headset size={24} className="text-blue-500 group-hover:text-white" />
                    <span className="text-[9px] font-black uppercase tracking-widest">Voice Chat</span>
                  </button>
-                 <button onClick={() => startVoiceMode('note')} className="flex flex-col items-center gap-3 p-6 rounded-[32px] bg-zinc-900 border border-white/5 hover:bg-white/5 transition-all group">
+                 <button onClick={() => startVoiceMode('note')} className="flex flex-col items-center gap-3 p-6 rounded-[32px] bg-zinc-900 border border-white/5 hover:bg-white/5 transition-all group shadow-lg">
                    <BookOpenCheck size={24} className="text-zinc-500 group-hover:text-blue-400" />
                    <span className="text-[9px] font-black uppercase tracking-widest">Note Taker</span>
                  </button>
@@ -613,7 +625,6 @@ export default function App() {
           </div>
         )}
         <div className="max-w-5xl mx-auto flex flex-col gap-3">
-          {/* Enhanced Feature Shortcuts */}
           <div className="flex items-center gap-2 px-4">
              <button onClick={() => startVoiceMode('chat')} className={`flex items-center gap-2 px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${isLive && selectedVoiceMode === 'chat' ? 'bg-blue-600 text-white shadow-xl scale-105' : 'bg-white/5 text-zinc-500 hover:bg-white/10 hover:text-blue-400'}`}><Mic size={14}/> Voice Chat</button>
              <button onClick={() => startVoiceMode('note')} className={`flex items-center gap-2 px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${isLive && selectedVoiceMode === 'note' ? 'bg-blue-600 text-white shadow-xl scale-105' : 'bg-white/5 text-zinc-500 hover:bg-white/10 hover:text-blue-400'}`}><StickyNote size={14}/> Note Taker</button>
