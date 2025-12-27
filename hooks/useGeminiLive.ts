@@ -131,7 +131,6 @@ export const useGeminiLive = ({
   const connect = useCallback(async () => {
     if (isLive || isConnecting) return;
 
-    // Use environment API key exclusively as per guidelines
     const apiKey = process.env.API_KEY;
     if (!apiKey) {
       onError(new Error("Neural Link Error: System License missing. Check engine core settings."));
@@ -259,12 +258,15 @@ export const useGeminiLive = ({
              }
 
              if (message.serverContent?.inputTranscription) {
-                onTranscript(message.serverContent.inputTranscription.text, false, false);
-                currentInputText.current += message.serverContent.inputTranscription.text;
+                const text = message.serverContent.inputTranscription.text;
+                // Treat as interim unless turnComplete comes
+                onTranscript(text, true, false);
+                currentInputText.current += text;
              }
              if (message.serverContent?.outputTranscription) {
-                onTranscript(message.serverContent.outputTranscription.text, false, true);
-                currentOutputText.current += message.serverContent.outputTranscription.text;
+                const text = message.serverContent.outputTranscription.text;
+                onTranscript(text, true, true);
+                currentOutputText.current += text;
              }
              if (message.serverContent?.turnComplete) {
                 if (currentInputText.current.trim() || currentOutputText.current.trim()) {

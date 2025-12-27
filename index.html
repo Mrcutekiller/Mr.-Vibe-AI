@@ -25,6 +25,9 @@
               'hi-pulse': 'hi-pulse 1s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
               'thoughtful-wobble': 'thoughtful-wobble 4s ease-in-out infinite',
               'excited-bounce': 'excited-bounce 0.6s ease-in-out infinite',
+              'reveal-shake': 'reveal-shake 0.5s cubic-bezier(.36,.07,.19,.97) both',
+              'blast-in': 'blast-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+              'sparkle-spin': 'sparkle-spin 10s linear infinite',
             },
             keyframes: {
               'pulse-orb': {
@@ -49,6 +52,20 @@
               'excited-bounce': {
                 '0%, 100%': { transform: 'translateY(0) scale(1)' },
                 '50%': { transform: 'translateY(-30px) scale(0.9, 1.1)' },
+              },
+              'reveal-shake': {
+                '10%, 90%': { transform: 'translate3d(-1px, 0, 0)' },
+                '20%, 80%': { transform: 'translate3d(2px, 0, 0)' },
+                '30%, 50%, 70%': { transform: 'translate3d(-4px, 0, 0)' },
+                '40%, 60%': { transform: 'translate3d(4px, 0, 0)' },
+              },
+              'blast-in': {
+                '0%': { transform: 'scale(0) rotate(-45deg)', opacity: '0' },
+                '100%': { transform: 'scale(1) rotate(0deg)', opacity: '1' },
+              },
+              'sparkle-spin': {
+                '0%': { transform: 'rotate(0deg)' },
+                '100%': { transform: 'rotate(360deg)' },
               },
               scaleIn: {
                 '0%': { transform: 'scale(0.95) translateY(10px)', opacity: '0' },
@@ -108,6 +125,28 @@
       }
       .ios-safe-top {
         padding-top: env(safe-area-inset-top);
+      }
+      .markdown-container h3 {
+        margin-top: 1.5rem;
+        margin-bottom: 0.75rem;
+        font-weight: 800;
+        color: #3b82f6;
+      }
+      .markdown-container ul {
+        list-style-type: none;
+        padding-left: 0;
+      }
+      .markdown-container li {
+        position: relative;
+        padding-left: 1.5rem;
+        margin-bottom: 0.5rem;
+      }
+      .markdown-container li::before {
+        content: "•";
+        position: absolute;
+        left: 0;
+        color: #3b82f6;
+        font-weight: bold;
       }
     </style>
     <script type="importmap">
