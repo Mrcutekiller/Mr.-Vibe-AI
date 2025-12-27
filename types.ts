@@ -3,20 +3,25 @@ export enum PersonalityId {
   ROAST = 'ROAST',
   RIZZ = 'RIZZ',
   TRADE = 'TRADE',
-  STUDENT = 'STUDENT'
+  STUDENT = 'STUDENT',
+  EXECUTIVE = 'EXECUTIVE'
 }
 
 export type Theme = 'dark' | 'light';
 export type Gender = 'Male' | 'Female' | 'Other' | 'Secret';
+export type AIProvider = 'google' | 'openai';
 
 export interface User {
-  email?: string;
-  password?: string;
   userName: string;
   gender: Gender;
   avatarUrl: string;
   personalityId: PersonalityId;
-  mood?: string;
+  googleApiKey?: string;
+  openaiApiKey?: string;
+  preferredProvider: AIProvider;
+  xp: number;
+  level: number;
+  badges: string[];
 }
 
 export interface Personality {
@@ -36,19 +41,6 @@ export interface FileAttachment {
   type: string;
 }
 
-export interface QuizQuestion {
-  question: string;
-  options: string[];
-  correctAnswer: string;
-  explanation: string;
-}
-
-export interface Quiz {
-  title: string;
-  questions: QuizQuestion[];
-  score?: number;
-}
-
 export interface GroundingChunk {
   web?: {
     uri: string;
@@ -66,6 +58,8 @@ export interface Message {
   timestamp: number;
   reaction?: ReactionType;
   groundingChunks?: GroundingChunk[];
+  provider?: AIProvider;
+  xpGained?: number;
 }
 
 export interface ChatSession {
@@ -91,4 +85,5 @@ export interface AppSettings {
   speakingRate: number;
   speakingPitch: number;
   customCommands: any[];
+  preferredProvider: AIProvider;
 }

@@ -131,10 +131,10 @@ export const useGeminiLive = ({
   const connect = useCallback(async () => {
     if (isLive || isConnecting) return;
 
-    // Get fresh API key from storage
-    const apiKey = localStorage.getItem('mr_vibe_neural_pass') || process.env.API_KEY || '';
+    // Use stored license first, then environment fallback
+    const apiKey = localStorage.getItem('mr_vibe_google_pass') || process.env.API_KEY;
     if (!apiKey) {
-      onError(new Error("Passphrase missing. Sync restricted."));
+      onError(new Error("Neural Link Error: System License missing. Check engine core settings."));
       return;
     }
 
