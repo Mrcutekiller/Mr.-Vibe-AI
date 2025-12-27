@@ -11,10 +11,10 @@ import {
   History, Activity, Key, CheckCircle2, Mic, StickyNote,
   UserCircle, Lock, Zap, Shield, Trophy, Star, Medal, Target,
   Users, Crown, Flame, ArrowRight, ArrowLeft, Copy, Share2,
-  Sun, Moon
+  Sun, Moon, List, Swords, Dices
 } from 'lucide-react';
 import { PERSONALITIES, BASE_SYSTEM_PROMPT, AVATARS, PERSONALITY_STYLES } from './constants';
-import { PersonalityId, AppSettings, User, ChatSession, Message, FileAttachment, GroundingChunk } from './types';
+import { PersonalityId, AppSettings, User, ChatSession, Message, FileAttachment, GroundingChunk, GameResult, GameDifficulty } from './types';
 import { useGeminiLive } from './hooks/useGeminiLive';
 
 interface PendingFile extends FileAttachment {
@@ -25,6 +25,14 @@ interface PendingFile extends FileAttachment {
 }
 
 const XP_PER_LEVEL = 500;
+
+const Logo = ({ className = "w-10 h-10" }: { className?: string }) => (
+  <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    <path d="M20 35C20 35 25 75 50 75C75 75 80 35 80 35" stroke="currentColor" strokeWidth="12" strokeLinecap="round" />
+    <path d="M40 60C45 65 55 65 60 60" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+    <circle cx="82" cy="20" r="8" fill="currentColor" opacity="0.6" />
+  </svg>
+);
 
 const Tooltip = ({ children, text }: { children: React.ReactNode, text: string }) => (
   <div className="group relative flex items-center justify-center">
@@ -49,28 +57,30 @@ const BadgeItem = ({ name, icon: Icon, unlocked, description }: { name: string, 
   </Tooltip>
 );
 
-const VibeOrb = ({ active, isThinking, volume, outputVolume, personalityId }: { 
+const VibeOrb = ({ active, isThinking, volume, outputVolume, personalityId, isGaming }: { 
   active: boolean, 
   isThinking: boolean, 
   volume: number,
   outputVolume: number,
-  personalityId: PersonalityId
+  personalityId: PersonalityId,
+  isGaming?: boolean
 }) => {
   const currentVol = active ? outputVolume || volume : 0;
   const scale = active ? 1 + currentVol * 1.8 : 1;
   const style = PERSONALITY_STYLES[personalityId] || PERSONALITY_STYLES[PersonalityId.STUDENT];
   
   return (
-    <div className={`relative flex items-center justify-center w-40 h-40 md:w-64 md:h-64 transition-all duration-300 ${isThinking ? 'animate-pulse-orb' : ''}`}>
+    <div className={`relative flex items-center justify-center w-40 h-40 md:w-64 md:h-64 transition-all duration-300 ${isThinking ? 'animate-pulse-orb' : ''} ${isGaming ? 'animate-hi-pulse' : ''}`}>
       <div 
         className={`absolute inset-0 rounded-full blur-3xl transition-opacity duration-700 ${active || isThinking ? 'opacity-60' : 'opacity-20'}`} 
         style={{ backgroundColor: style.glow }}
       />
       <div 
-        className={`relative w-24 h-24 md:w-40 md:h-40 rounded-full transition-all duration-75 ease-out flex items-center justify-center shadow-2xl ${active ? `bg-gradient-to-br ${style.gradient}` : 'bg-zinc-200 dark:bg-zinc-800'}`}
+        className={`relative w-24 h-24 md:w-40 md:h-40 rounded-full transition-all duration-75 ease-out flex items-center justify-center shadow-2xl ${active ? `bg-gradient-to-br ${style.gradient} text-white` : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-600'}`}
         style={{ transform: `scale(${scale})`, boxShadow: active ? `0 0 50px ${style.glow}` : 'none' }}
       >
-        <div className={`w-full h-full rounded-full bg-white/10 ${active ? 'animate-orb-float' : ''}`} />
+        {isGaming ? <Swords className="w-1/2 h-1/2 animate-bounce" /> : <Logo className="w-1/2 h-1/2" />}
+        <div className={`absolute inset-0 rounded-full bg-white/10 ${active ? 'animate-orb-float' : ''}`} />
       </div>
     </div>
   );
@@ -115,35 +125,58 @@ const MarkdownText = ({ text }: { text: string }) => {
   return <div className="leading-relaxed whitespace-pre-wrap">{text.split('\n').map((l, i) => renderLine(l, i))}</div>;
 };
 
-const MOCK_LEADERBOARD = [
-  { name: 'VibeLord', level: 42, avatar: AVATARS[1], rank: 1 },
-  { name: 'SyncQueen', level: 38, avatar: AVATARS[2], rank: 2 },
-  { name: 'NeuralNomad', level: 31, avatar: AVATARS[3], rank: 3 },
-  { name: 'GeminiGod', level: 25, avatar: AVATARS[4], rank: 4 },
-];
+// Component to list URLs from grounding metadata as required by guidelines
+const GroundingLinks = ({ chunks }: { chunks?: GroundingChunk[] }) => {
+  if (!chunks || chunks.length === 0) return null;
+  const links = chunks.filter(c => c.web?.uri);
+  if (links.length === 0) return null;
+
+  return (
+    <div className="mt-4 pt-4 border-t border-black/5 dark:border-white/5 space-y-2">
+      <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 flex items-center gap-2">
+        <Database size={12} /> Source Grounding
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {links.map((link, idx) => (
+          <a
+            key={idx}
+            href={link.web!.uri}
+            target="_blank"
+            rel="noreferrer"
+            className="text-[11px] font-bold bg-blue-600/5 dark:bg-blue-600/10 hover:bg-blue-600/10 dark:hover:bg-blue-600/20 text-blue-600 dark:text-blue-400 px-3 py-1.5 rounded-full border border-blue-500/10 transition-all flex items-center gap-1.5"
+          >
+            <ShieldCheck size={10} /> {link.web!.title || 'Source'}
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 export default function App() {
   const [isNewUser, setIsNewUser] = useState<boolean>(() => !localStorage.getItem('mr_vibe_active_user'));
   const [onboardingStep, setOnboardingStep] = useState(0);
-  const [googleLicense, setGoogleLicense] = useState<string>(() => localStorage.getItem('mr_vibe_google_pass') || '');
-  const [openaiLicense, setOpenaiLicense] = useState<string>(() => localStorage.getItem('mr_vibe_openai_pass') || '');
   
   const [toast, setToast] = useState<{id: string, message: string, type: string} | null>(null);
-  const [user, setUser] = useState<User | null>(() => JSON.parse(localStorage.getItem('mr_vibe_active_user') || 'null'));
+  const [user, setUser] = useState<User | null>(() => {
+    const saved = localStorage.getItem('mr_vibe_active_user');
+    if (!saved) return null;
+    const parsed = JSON.parse(saved);
+    if (!parsed.gameHistory) parsed.gameHistory = [];
+    return parsed;
+  });
   
-  const [tempProfile, setTempProfile] = useState<Partial<User> & { googleKey?: string, openaiKey?: string }>({ 
+  const [tempProfile, setTempProfile] = useState<Partial<User>>({ 
     userName: '', 
     avatarUrl: AVATARS[0], 
     personalityId: PersonalityId.STUDENT,
-    preferredProvider: 'google',
-    googleKey: '',
-    openaiKey: ''
+    preferredProvider: 'google'
   });
 
   const [settings, setSettings] = useState<AppSettings>(() => {
     const saved = localStorage.getItem('mr_vibe_settings');
     if (saved) return JSON.parse(saved);
-    return { language: "English", theme: "dark", personalityId: PersonalityId.STUDENT, voiceName: "Aoede", speakingRate: 1.0, speakingPitch: 1.0, customCommands: [], preferredProvider: 'google' };
+    return { language: "English", theme: "dark", personalityId: PersonalityId.STUDENT, voiceName: "Aoede", speakingRate: 1.0, speakingPitch: 1.0, customCommands: [], preferredProvider: 'google', gameDifficulty: 'medium' };
   });
 
   const [activeSessionId, setActiveSessionId] = useState<string | null>(localStorage.getItem('mr_vibe_active_session_id'));
@@ -152,6 +185,7 @@ export default function App() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+  const [libraryTab, setLibraryTab] = useState<'badges' | 'history'>('badges');
 
   const [inputText, setInputText] = useState('');
   const [interimUserText, setInterimUserText] = useState('');
@@ -160,6 +194,8 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedVoiceMode, setSelectedVoiceMode] = useState<'chat' | 'note'>('chat');
   
+  const [rpsAnimating, setRpsAnimating] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
@@ -178,7 +214,6 @@ export default function App() {
     return (user.xp % XP_PER_LEVEL) / XP_PER_LEVEL * 100;
   }, [user]);
 
-  // Handle Theme Synchronization
   useEffect(() => {
     if (settings.theme === 'dark') {
       document.documentElement.classList.add('dark');
@@ -203,39 +238,66 @@ export default function App() {
     });
   }, [showToast]);
 
+  const recordGame = useCallback((gameName: string, resultText: string, userChoice?: string) => {
+    let result: GameResult['result'] = 'completed';
+    const text = resultText.toLowerCase();
+    if (text.includes('win') || text.includes('won') || text.includes('congratulations')) result = 'win';
+    else if (text.includes('lose') || text.includes('lost') || text.includes('defeated')) result = 'loss';
+    else if (text.includes('draw') || text.includes('tie')) result = 'draw';
+
+    const xpGained = result === 'win' ? 50 : 10;
+    
+    // Extract AI choice if RPS
+    let aiChoice: string | undefined;
+    if (gameName === 'Rock Paper Scissors') {
+      if (text.includes('rock')) aiChoice = 'rock';
+      else if (text.includes('paper')) aiChoice = 'paper';
+      else if (text.includes('scissors')) aiChoice = 'scissors';
+    }
+
+    const newResult: GameResult = {
+      id: Date.now().toString(),
+      gameName,
+      result,
+      userChoice,
+      aiChoice,
+      xpGained,
+      timestamp: Date.now()
+    };
+
+    setUser(prev => {
+      if (!prev) return null;
+      const updated = { ...prev, gameHistory: [newResult, ...(prev.gameHistory || [])].slice(0, 50) };
+      localStorage.setItem('mr_vibe_active_user', JSON.stringify(updated));
+      return updated;
+    });
+
+    if (result === 'win') {
+      unlockBadge('game_master', 'Game Master');
+    }
+  }, [unlockBadge]);
+
   const gainXP = useCallback((amount: number) => {
     setUser(prev => {
       if (!prev) return null;
       const newXP = prev.xp + amount;
       const newLevel = Math.floor(newXP / XP_PER_LEVEL) + 1;
-      
       const updatedUser = { ...prev, xp: newXP, level: newLevel };
-      
       if (newLevel > prev.level) {
         showToast(`LEVEL UP! You are now Level ${newLevel}! 🔥`, "success");
         if (newLevel === 5) unlockBadge('sync_pro', 'Sync Pro');
       }
-      
       if (newXP >= 1000) unlockBadge('high_vibe', 'High Vibe');
-
       localStorage.setItem('mr_vibe_active_user', JSON.stringify(updatedUser));
       return updatedUser;
     });
   }, [showToast, unlockBadge]);
 
-  const checkMilestones = useCallback(() => {
-    if (!user) return;
-    const totalMessages = sessions.reduce((acc, s) => acc + s.messages.length, 0);
-    if (totalMessages >= 50) unlockBadge('chat_champion', 'Chat Champion');
-    if (allPinnedMessages.length >= 10) unlockBadge('librarian', 'Neural Librarian');
-  }, [user, sessions, allPinnedMessages.length, unlockBadge]);
-
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-    checkMilestones();
-  }, [messages, isLoading, interimUserText, interimModelText, checkMilestones]);
+  }, [messages, isLoading, interimUserText, interimModelText]);
 
   const handleApiError = useCallback((error: any) => {
     console.error("Neural Error:", error);
@@ -248,14 +310,6 @@ export default function App() {
       localStorage.setItem('mr_vibe_settings', JSON.stringify(updated));
       return updated;
     });
-    if (newSettings.personalityId) {
-      setUser(prev => {
-        if (!prev) return null;
-        const updated = { ...prev, personalityId: newSettings.personalityId as PersonalityId };
-        localStorage.setItem('mr_vibe_active_user', JSON.stringify(updated));
-        return updated;
-      });
-    }
   }, []);
 
   const handleLogout = useCallback(() => {
@@ -307,13 +361,13 @@ export default function App() {
   const generateInitialGreeting = async (sessionId: string, personalityId: PersonalityId) => {
     setIsLoading(true);
     try {
-      const currentGooglePass = localStorage.getItem('mr_vibe_google_pass');
-      if (activeProvider === 'google' && currentGooglePass) {
-        const ai = new GoogleGenAI({ apiKey: currentGooglePass });
+      const apiKey = process.env.API_KEY;
+      if (activeProvider === 'google' && apiKey) {
+        const ai = new GoogleGenAI({ apiKey });
         const response = await ai.models.generateContent({
           model: 'gemini-3-flash-preview',
-          contents: [{ text: `GREETING PROTOCOL: Just say a short hi to ${user?.userName || 'bestie'}. Offer to play a game if they are bored.` }],
-          config: { systemInstruction: `${BASE_SYSTEM_PROMPT}\n\n${PERSONALITIES[personalityId].prompt}` }
+          contents: `GREETING PROTOCOL: Say a short hi to ${user?.userName || 'bestie'}. Offer to play Rock Paper Scissors or Guess the Number.`,
+          config: { systemInstruction: `${BASE_SYSTEM_PROMPT.replace('[DIFFICULTY]', settings.gameDifficulty)}\n\n${PERSONALITIES[personalityId].prompt}` }
         });
         const aiMessage: Message = { id: `ai-${Date.now()}`, role: 'model', text: response.text || 'Yo!', timestamp: Date.now(), provider: 'google' };
         setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, aiMessage] } : s));
@@ -321,20 +375,17 @@ export default function App() {
     } catch (e: any) { handleApiError(e); } finally { setIsLoading(false); }
   };
 
-  const handleSendToAI = async (text: string, customSystemInstruction?: string) => {
-    const currentGooglePass = localStorage.getItem('mr_vibe_google_pass');
-    const currentOpenaiPass = localStorage.getItem('mr_vibe_openai_pass');
-
-    if (!currentGooglePass && !currentOpenaiPass) { 
+  const handleSendToAI = async (text: string, userChoice?: string) => {
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) { 
       showToast("Neural License Required.", "error"); 
-      setIsProfileModalOpen(true); 
       return; 
     }
     
-    const readyFiles = pendingFiles.filter(f => !f.isUploading);
-    if ((!text.trim() && readyFiles.length === 0) || isLoading) return;
+    if (!text.trim() && pendingFiles.length === 0 || isLoading) return;
     
     let sessionId = activeSessionId || handleNewChat(false);
+    const readyFiles = pendingFiles.filter(f => !f.isUploading);
     const currentFiles: FileAttachment[] = readyFiles.map(f => ({ data: f.data, name: f.name, type: f.type }));
     setPendingFiles([]);
     const textToSend = text;
@@ -352,58 +403,38 @@ export default function App() {
       return updated;
     });
 
-    const instruction = customSystemInstruction || `${BASE_SYSTEM_PROMPT}\n\n${currentPersonality.prompt}`;
+    const instruction = `${BASE_SYSTEM_PROMPT.replace('[DIFFICULTY]', settings.gameDifficulty)}\n\n${currentPersonality.prompt}`;
     setIsLoading(true);
 
     try {
-      if (activeProvider === 'google' && currentGooglePass) {
-        const ai = new GoogleGenAI({ apiKey: currentGooglePass });
-        const parts: any[] = [];
-        currentFiles.forEach(f => parts.push(f.type.includes('image') ? { inlineData: { data: f.data.split(',')[1], mimeType: f.type } } : { text: `[FILE: ${f.name}]` }));
-        parts.push({ text: textToSend });
-        const response = await ai.models.generateContent({ 
-          model: 'gemini-3-flash-preview', 
-          contents: { parts },
-          config: { systemInstruction: instruction, tools: [{ googleSearch: {} }] } 
-        });
-        const aiMessage: Message = { id: `ai-${Date.now()}`, role: 'model', text: response.text || '...', timestamp: Date.now(), groundingChunks: response.candidates?.[0]?.groundingMetadata?.groundingChunks as GroundingChunk[], provider: 'google' };
-        
-        // Reward game winners explicitly based on text
-        const winSignals = ['you won', 'you win', 'congrats', 'perfect guess', 'you got it', 'correct word', 'winner', 'you defeated me'];
-        if (winSignals.some(sig => response.text?.toLowerCase().includes(sig))) {
-          gainXP(50);
-          showToast("+50 XP! Neural Win Detected! 🏆", "success");
-          unlockBadge('game_master', 'Game Master');
-        }
-
-        setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, aiMessage] } : s));
-      } else if (activeProvider === 'openai' && currentOpenaiPass) {
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentOpenaiPass}` },
-          body: JSON.stringify({
-            model: 'gpt-4o',
-            messages: [
-              { role: 'system', content: instruction },
-              { role: 'user', content: textToSend }
-            ]
-          })
-        });
-        const data = await response.json();
-        const aiMessage: Message = { id: `ai-${Date.now()}`, role: 'model', text: data.choices[0].message.content || '...', timestamp: Date.now(), provider: 'openai' };
-        setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, aiMessage] } : s));
+      const ai = new GoogleGenAI({ apiKey });
+      const parts: any[] = [];
+      currentFiles.forEach(f => parts.push(f.type.includes('image') ? { inlineData: { data: f.data.split(',')[1], mimeType: f.type } } : { text: `[FILE: ${f.name}]` }));
+      parts.push({ text: textToSend });
+      const response = await ai.models.generateContent({ 
+        model: 'gemini-3-flash-preview', 
+        contents: { parts },
+        config: { systemInstruction: instruction, tools: [{ googleSearch: {} }] } 
+      });
+      const aiMessage: Message = { id: `ai-${Date.now()}`, role: 'model', text: response.text || '...', timestamp: Date.now(), groundingChunks: response.candidates?.[0]?.groundingMetadata?.groundingChunks as GroundingChunk[], provider: 'google' };
+      
+      // Game Result Logic
+      const lowText = response.text?.toLowerCase() || '';
+      if (userChoice && (lowText.includes('rock') || lowText.includes('paper') || lowText.includes('scissors'))) {
+        recordGame('Rock Paper Scissors', response.text || '', userChoice);
+      } else if (lowText.includes('won the game') || lowText.includes('correct number') || lowText.includes('guessed the concept')) {
+        recordGame('AI Challenge', response.text || '');
       }
+
+      setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, aiMessage] } : s));
     } catch (e: any) { handleApiError(e); } finally { setIsLoading(false); }
   };
 
   const { connect: connectLive, isLive, volume, outputVolume } = useGeminiLive({
     personality: currentPersonality, settings, user: user as User, mode: selectedVoiceMode,
     onTranscript: (text, isInterim, isModel) => {
-      if (isModel) {
-        setInterimModelText(prev => prev + text);
-      } else {
-        setInterimUserText(prev => prev + text);
-      }
+      if (isModel) setInterimModelText(prev => prev + text);
+      else setInterimUserText(prev => prev + text);
     },
     onTurnComplete: (u, m) => { 
       const sId = activeSessionId || handleNewChat(false); 
@@ -430,19 +461,11 @@ export default function App() {
   };
 
   const handleOnboardingComplete = () => {
-    if (tempProfile.userName && (tempProfile.googleKey || tempProfile.openaiKey)) {
-      const newUser = { ...tempProfile, googleApiKey: tempProfile.googleKey, openaiApiKey: tempProfile.openaiKey, xp: 100, level: 1, badges: ['sync_initiate'] } as User;
+    if (tempProfile.userName) {
+      const newUser = { ...tempProfile, xp: 100, level: 1, badges: ['sync_initiate'], gameHistory: [] } as User;
       localStorage.setItem('mr_vibe_active_user', JSON.stringify(newUser));
-      if (tempProfile.googleKey) { 
-        localStorage.setItem('mr_vibe_google_pass', tempProfile.googleKey); 
-        setGoogleLicense(tempProfile.googleKey); 
-      }
-      if (tempProfile.openaiKey) { 
-        localStorage.setItem('mr_vibe_openai_pass', tempProfile.openaiKey); 
-        setOpenaiLicense(tempProfile.openaiKey); 
-      }
       setUser(newUser); setIsNewUser(false); handleNewChat(true);
-      showToast("Sync Established. Welcome to the neural network.", "success");
+      showToast("Sync Established. Welcome.", "success");
     }
   };
 
@@ -450,19 +473,18 @@ export default function App() {
     if (messages.length === 0) return false;
     const lastMsg = messages[messages.length - 1];
     if (lastMsg.role !== 'model') return false;
-    
     const text = lastMsg.text.toLowerCase();
-    const gameContext = text.includes('rock paper scissors') || text.includes('rock, paper, scissors') || text.includes('choose rock');
-    
-    const alreadyResponded = messages.slice(-1)[0].role === 'user' && (
-      ['rock', 'paper', 'scissors'].includes(messages.slice(-1)[0].text.toLowerCase())
-    );
-
+    const gameContext = text.includes('rock paper scissors') || text.includes('choose rock');
+    const alreadyResponded = messages.slice(-1)[0].role === 'user' && ['rock', 'paper', 'scissors'].includes(messages.slice(-1)[0].text.toLowerCase());
     return gameContext && !alreadyResponded;
   }, [messages]);
 
   const handleRPSChoice = (choice: string) => {
-    handleSendToAI(choice);
+    setRpsAnimating(true);
+    setTimeout(() => {
+      setRpsAnimating(false);
+      handleSendToAI(choice, choice);
+    }, 1200);
   };
 
   return (
@@ -476,6 +498,7 @@ export default function App() {
         
         <div className="flex flex-col items-center flex-1 max-w-[240px] mx-auto px-4">
           <div className="flex items-center gap-2 mb-1">
+             <Logo className="w-5 h-5 text-blue-600 dark:text-blue-500" />
              <h1 className="font-black text-[11px] md:text-[13px] uppercase tracking-[0.4em] text-blue-600 dark:text-blue-500">MR. VIBE AI</h1>
              {user && user.level >= 10 && <Crown size={12} className="text-amber-500" />}
           </div>
@@ -495,11 +518,11 @@ export default function App() {
 
         <div className="flex items-center gap-2">
           <Tooltip text="Neural Library & Achievements">
-            <button onClick={() => setIsLibraryOpen(true)} className="p-3 rounded-2xl relative text-blue-600 dark:text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 transition-all shadow-lg group">
+            <button onClick={() => { setLibraryTab('badges'); setIsLibraryOpen(true); }} className="p-3 rounded-2xl relative text-blue-600 dark:text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 transition-all shadow-lg group">
               <Brain size={24} className="group-hover:scale-110 transition-transform" />
-              {user && user.badges.length > 1 && (
+              {user && (user.badges.length > 1 || user.gameHistory.length > 0) && (
                 <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] font-black border-2 border-white dark:border-black">
-                   {user.badges.length}
+                   {user.badges.length + (user.gameHistory.length > 0 ? 1 : 0)}
                 </span>
               )}
             </button>
@@ -515,35 +538,21 @@ export default function App() {
       <main className="flex-1 overflow-y-auto px-4 md:px-12 py-10 space-y-12 custom-scrollbar relative">
         {messages.length === 0 && !interimUserText && !interimModelText ? (
           <div className="flex flex-col items-center justify-center h-full text-center space-y-12 max-w-lg mx-auto">
-            <VibeOrb active={isLive} isThinking={isLoading} volume={volume} outputVolume={outputVolume} personalityId={settings.personalityId} />
+            <VibeOrb active={isLive} isThinking={isLoading} volume={volume} outputVolume={outputVolume} personalityId={settings.personalityId} isGaming={rpsAnimating} />
             <div className="space-y-4">
               <h3 className="text-[10px] font-black uppercase tracking-[0.6em] text-blue-600 dark:text-blue-500">IDENTITY ESTABLISHED: {user?.userName}</h3>
-              <p className="text-[14px] font-bold text-zinc-500">"The Engine is ready. What's the move today, bestie?"</p>
-              <div className="flex justify-center gap-3 mt-4">
-                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-600/10 border border-blue-600/20 text-[9px] font-black uppercase tracking-widest text-blue-500">
-                    <Medal size={12} /> Sync Initiate
-                 </div>
-                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-600/10 border border-amber-600/20 text-[9px] font-black uppercase tracking-widest text-amber-500">
-                    <Trophy size={12} /> {user?.badges.includes('game_master') ? 'Game Master' : 'Game Initiate'}
-                 </div>
-              </div>
+              <p className="text-[14px] font-bold text-zinc-500">"Engine is synced. Want to play a game, bestie?"</p>
             </div>
             
             <div className="grid grid-cols-2 gap-4 w-full">
-              <Tooltip text="Direct Voice Sync (Voice Chat)">
-                <button onClick={() => { setSelectedVoiceMode('chat'); connectLive(); }} className="w-full flex flex-col items-center gap-4 p-10 rounded-[48px] bg-blue-600/5 dark:bg-blue-600/10 border border-blue-600/10 dark:border-blue-600/20 hover:bg-blue-600 hover:text-white transition-all group shadow-2xl relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-3"><Zap size={14} className="text-blue-500/30" /></div>
-                  <Headset size={48} className="text-blue-600 group-hover:text-white transition-all" />
-                  <span className="text-[10px] font-black uppercase tracking-widest mt-2">VOICE LINK</span>
-                </button>
-              </Tooltip>
-              <Tooltip text="Engage Game Session (Earn XP)">
-                <button onClick={() => handleSendToAI("let's play a game")} className="w-full flex flex-col items-center gap-4 p-10 rounded-[48px] bg-amber-600/5 dark:bg-amber-600/10 border border-amber-600/10 dark:border-amber-600/20 hover:bg-amber-600 hover:text-white transition-all group shadow-2xl relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-3"><Star size={14} className="text-amber-500/30" /></div>
-                  <Trophy size={48} className="text-amber-500 group-hover:text-white transition-all" />
-                  <span className="text-[10px] font-black uppercase tracking-widest mt-2">GAME MODE</span>
-                </button>
-              </Tooltip>
+              <button onClick={() => handleSendToAI("let's play rock paper scissors")} className="w-full flex flex-col items-center gap-4 p-8 rounded-[48px] bg-blue-600/5 dark:bg-blue-600/10 border border-blue-600/10 hover:bg-blue-600 hover:text-white transition-all group shadow-2xl relative overflow-hidden">
+                < Swords size={32} className="text-blue-500 group-hover:text-white transition-all" />
+                <span className="text-[9px] font-black uppercase tracking-widest mt-2 text-center">Rock Paper<br/>Scissors</span>
+              </button>
+              <button onClick={() => handleSendToAI("let's play guess the number")} className="w-full flex flex-col items-center gap-4 p-8 rounded-[48px] bg-emerald-600/5 dark:bg-emerald-600/10 border border-emerald-600/10 hover:bg-emerald-600 hover:text-white transition-all group shadow-2xl relative overflow-hidden">
+                < Dices size={32} className="text-emerald-500 group-hover:text-white transition-all" />
+                <span className="text-[9px] font-black uppercase tracking-widest mt-2 text-center">Guess the<br/>Number</span>
+              </button>
             </div>
           </div>
         ) : (
@@ -554,13 +563,12 @@ export default function App() {
                   {msg.role === 'model' && <div className="w-8 h-8 rounded-full overflow-hidden border border-black/5 dark:border-white/10 shrink-0"><img src={AVATARS[index % AVATARS.length]} className="w-full h-full object-cover" alt="avatar" /></div>}
                   <div className={`px-6 py-5 rounded-[28px] text-[15px] border transition-all ${msg.role === 'user' ? 'bg-blue-600 text-white border-blue-500/20 rounded-br-none shadow-md' : 'bg-white dark:bg-[#111111] text-zinc-900 dark:text-zinc-100 border-black/5 dark:border-white/5 rounded-bl-none shadow-lg relative group'}`}>
                     <MarkdownText text={msg.text} />
-                    
+                    {msg.groundingChunks && <GroundingLinks chunks={msg.groundingChunks} />}
                     <div className="mt-4 flex items-center justify-between opacity-30 group-hover:opacity-100 transition-opacity">
                       <span className="text-[8px] font-black uppercase tracking-widest">{msg.provider || 'Neural'} Node</span>
                       {msg.role === 'model' && (
                         <div className="flex items-center gap-3">
                           <button onClick={() => handleCopy(msg.text)} className="p-1 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"><Copy size={12} /></button>
-                          <button onClick={() => handleShare(msg.text)} className="p-1 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"><Share2 size={12} /></button>
                           <button onClick={() => togglePin(msg.id)} className={`p-1 hover:text-blue-600 dark:hover:text-blue-400 ${msg.isPinned ? 'text-blue-600 dark:text-blue-500' : ''}`}><Pin size={12} /></button>
                         </div>
                       )}
@@ -570,7 +578,7 @@ export default function App() {
               </div>
             ))}
             
-            {isRPSActive && !isLoading && (
+            {isRPSActive && !isLoading && !rpsAnimating && (
               <div className="flex flex-col items-center gap-6 py-10 animate-slide-up w-full">
                 <div className="flex flex-col items-center gap-1">
                   <p className="text-[10px] font-black uppercase tracking-[0.5em] text-blue-600 dark:text-blue-500">Establish Choice</p>
@@ -594,56 +602,21 @@ export default function App() {
                 </div>
               </div>
             )}
-            
-            {interimUserText && (
-              <div className="flex flex-col items-end animate-pulse max-w-full">
-                <div className="px-6 py-5 rounded-[28px] rounded-br-none text-[15px] bg-blue-600/40 text-white border border-blue-500/10 shadow-lg italic">
-                  {interimUserText}
-                  <div className="mt-2 text-[8px] font-black uppercase tracking-widest opacity-50 flex items-center gap-2">
-                    <Mic size={10} /> Neural Syncing...
-                  </div>
-                </div>
-              </div>
-            )}
 
-            {interimModelText && (
-              <div className="flex flex-col items-start animate-pulse max-w-full">
-                <div className="relative flex items-end gap-3 max-w-[95%]">
-                  <div className="w-8 h-8 rounded-full overflow-hidden border border-black/5 dark:border-white/10 shrink-0 bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center">
-                    <Sparkles size={14} className="text-blue-600 dark:text-blue-500" />
-                  </div>
-                  <div className="px-6 py-5 rounded-[28px] rounded-bl-none text-[15px] bg-white dark:bg-[#111111]/60 text-zinc-900 dark:text-zinc-300 border border-black/5 dark:border-white/5 shadow-lg italic">
-                    {interimModelText}
-                  </div>
-                </div>
+            {rpsAnimating && (
+              <div className="flex flex-col items-center justify-center py-20 space-y-6 animate-pulse">
+                <Swords size={64} className="text-blue-600 dark:text-blue-500 animate-hi-pulse" />
+                <p className="text-xl font-black uppercase italic tracking-tighter text-blue-600 dark:text-blue-500">"VIBE CHECK..."</p>
               </div>
             )}
           </>
         )}
-        {isLoading && !interimModelText && <div className="flex gap-2 p-6"><div className="w-2 h-2 bg-blue-600 dark:bg-blue-500 rounded-full animate-bounce" /><div className="w-2 h-2 bg-blue-600 dark:bg-blue-500 rounded-full animate-bounce [animation-delay:-0.15s]" /><div className="w-2 h-2 bg-blue-600 dark:bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]" /></div>}
         <div ref={messagesEndRef} className="h-20 w-full" />
       </main>
 
       <footer className="px-4 pb-10 pt-4 bg-gradient-to-t from-zinc-50 dark:from-black via-zinc-50/90 dark:via-black/90 to-transparent z-40">
         <div className="max-w-5xl mx-auto space-y-4">
-          <div className="flex items-center gap-3">
-             <div className="flex bg-white dark:bg-white/5 rounded-[20px] p-1 border border-black/5 dark:border-white/10 backdrop-blur-3xl shadow-sm">
-               <Tooltip text="Activate Gemini Engine">
-                 <button onClick={() => updateSettings({ preferredProvider: 'google' })} className={`px-5 py-2.5 rounded-[16px] text-[10px] font-black uppercase tracking-widest transition-all ${activeProvider === 'google' ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}>GEMINI</button>
-               </Tooltip>
-               <Tooltip text="Activate GPT Engine">
-                 <button onClick={() => updateSettings({ preferredProvider: 'openai' })} className={`px-5 py-2.5 rounded-[16px] text-[10px] font-black uppercase tracking-widest transition-all ${activeProvider === 'openai' ? 'bg-zinc-800 text-zinc-300 shadow-lg' : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'}`}>GPT-4O</button>
-               </Tooltip>
-             </div>
-             <div className="flex-1 flex justify-center gap-2">
-                <button onClick={() => { setSelectedVoiceMode('chat'); connectLive(); }} className={`p-4 rounded-2xl border transition-all shadow-lg ${isLive ? 'bg-rose-500 text-white border-rose-400 animate-pulse' : 'bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white'}`}>{isLive ? <X size={20}/> : <Mic size={20}/>}</button>
-                <button onClick={() => handleSendToAI("let's play a game")} className="p-4 bg-amber-500/10 rounded-2xl border border-amber-500/20 text-amber-600 dark:text-amber-500 hover:bg-amber-500 hover:text-white transition-all shadow-lg"><Trophy size={20}/></button>
-                <button onClick={() => { setSelectedVoiceMode('note'); connectLive(); }} className="p-4 bg-white dark:bg-zinc-900 rounded-2xl border border-black/5 dark:border-white/10 text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-all shadow-lg"><StickyNote size={20}/></button>
-             </div>
-             <button onClick={() => handleNewChat()} className="p-4 bg-white dark:bg-white/5 rounded-2xl border border-black/5 dark:border-white/10 text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-all shadow-xl"><Plus size={24}/></button>
-          </div>
-
-          <div className={`flex items-center gap-2 p-2 border border-black/5 dark:border-white/10 rounded-[40px] shadow-2xl bg-white/90 dark:bg-black/80 backdrop-blur-3xl transition-all`}>
+          <div className="flex items-center gap-2 p-2 border border-black/5 dark:border-white/10 rounded-[40px] shadow-2xl bg-white/90 dark:bg-black/80 backdrop-blur-3xl transition-all">
             <button onClick={() => fileInputRef.current?.click()} className="p-5 text-zinc-400 dark:text-zinc-500 hover:text-blue-600 transition-colors"><Paperclip size={24}/><input type="file" ref={fileInputRef} className="hidden" multiple onChange={handleFilesUpload} /></button>
             <input type="text" placeholder="Transmit thoughts..." value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} className="flex-1 bg-transparent py-4 px-2 font-bold text-[15px] outline-none text-zinc-900 dark:text-white placeholder-zinc-300 dark:placeholder-zinc-700" />
             <button onClick={() => handleSendToAI(inputText)} className={`p-5 rounded-full transition-all active:scale-95 ${inputText.trim() ? 'bg-blue-600 text-white shadow-2xl' : 'text-zinc-200 dark:text-zinc-800'}`}><Send size={24}/></button>
@@ -651,64 +624,90 @@ export default function App() {
         </div>
       </footer>
 
-      {/* History Sidebar */}
-      {isHistoryOpen && (
-        <div className="fixed inset-0 z-[13000] flex animate-fade-in">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsHistoryOpen(false)} />
-          <div className="relative w-80 h-full p-8 bg-white dark:bg-[#080808] border-r border-black/5 dark:border-white/10 animate-slide-in-right">
-            <div className="flex items-center justify-between mb-10">
-              <h2 className="text-xl font-black uppercase italic tracking-tighter flex items-center gap-2"><History size={20} className="text-blue-600 dark:text-blue-500"/> Sync History</h2>
-              <button onClick={() => setIsHistoryOpen(false)} className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-xl"><X size={20}/></button>
-            </div>
-            <div className="space-y-3 overflow-y-auto h-[calc(100%-120px)] custom-scrollbar">
-              {sessions.map(s => (
-                <button key={s.id} onClick={() => { setActiveSessionId(s.id); setIsHistoryOpen(false); }} className={`w-full p-4 rounded-2xl text-left border transition-all ${activeSessionId === s.id ? 'bg-blue-600/10 border-blue-500/50' : 'bg-black/5 dark:bg-white/5 border-transparent hover:bg-black/10 dark:hover:bg-white/10'}`}>
-                  <div className="font-black text-[12px] truncate text-zinc-900 dark:text-zinc-100">{s.messages[0]?.text || 'Untitled Sync'}</div>
-                  <div className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 uppercase mt-1 tracking-widest">{new Date(s.lastTimestamp).toLocaleDateString()}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Neural Library Sidebar */}
       {isLibraryOpen && (
         <div className="fixed inset-0 z-[13000] flex justify-end animate-fade-in">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsLibraryOpen(false)} />
           <div className={`relative w-full max-md:max-w-full max-w-md h-full p-8 animate-slide-in-right border-l bg-white dark:bg-[#080808] border-black/5 dark:border-white/10 overflow-y-auto custom-scrollbar`}>
-            <div className="flex items-center justify-between mb-10">
+            <div className="flex items-center justify-between mb-8">
               <div className="flex flex-col">
                 <h2 className="text-2xl font-black uppercase italic tracking-tighter text-zinc-900 dark:text-white">Neural Library</h2>
-                <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-500">SYNC PERFORMANCE & ACHIEVEMENTS</span>
+                <div className="flex gap-4 mt-2">
+                  <button onClick={() => setLibraryTab('badges')} className={`text-[10px] font-black uppercase tracking-widest pb-2 border-b-2 transition-all ${libraryTab === 'badges' ? 'text-blue-600 dark:text-blue-500 border-blue-600 dark:border-blue-500' : 'text-zinc-400 border-transparent'}`}>Achievements</button>
+                  <button onClick={() => setLibraryTab('history')} className={`text-[10px] font-black uppercase tracking-widest pb-2 border-b-2 transition-all ${libraryTab === 'history' ? 'text-blue-600 dark:text-blue-500 border-blue-600 dark:border-blue-500' : 'text-zinc-400 border-transparent'}`}>Game Log</button>
+                </div>
               </div>
               <button onClick={() => setIsLibraryOpen(false)} className="p-3 bg-black/5 dark:bg-white/5 rounded-2xl hover:bg-black/10 dark:hover:bg-white/10 transition-all text-zinc-900 dark:text-white"><X size={24}/></button>
             </div>
-            <div className="grid grid-cols-2 gap-4 mb-10">
-               <div className="p-6 rounded-[32px] bg-blue-600/5 border border-blue-500/10 flex flex-col items-center gap-2">
-                  <Flame size={20} className="text-orange-500" />
-                  <span className="text-xl font-black text-zinc-900 dark:text-white">{user?.xp}</span>
-                  <span className="text-[9px] font-black uppercase text-zinc-400 dark:text-zinc-500">Total XP</span>
-               </div>
-               <div className="p-6 rounded-[32px] bg-emerald-600/5 border border-emerald-500/10 flex flex-col items-center gap-2">
-                  <Target size={20} className="text-emerald-500" />
-                  <span className="text-xl font-black text-zinc-900 dark:text-white">{sessions.length}</span>
-                  <span className="text-[9px] font-black uppercase text-zinc-400 dark:text-zinc-500">Total Sessions</span>
-               </div>
-            </div>
-            <section className="mb-12">
-               <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400 dark:text-zinc-500 mb-6 flex items-center gap-2 px-2">
-                 <Medal size={14} className="text-blue-600 dark:text-blue-500" /> Global Achievements
-               </h3>
-               <div className="grid grid-cols-3 gap-3">
-                 <BadgeItem name="Sync Initiate" icon={ShieldCheck} description="Completed the engine onboarding process." unlocked={true} />
-                 <BadgeItem name="Sync Pro" icon={Medal} description="Achieve Level 5 to unlock." unlocked={user ? user.level >= 5 : false} />
-                 <BadgeItem name="High Vibe" icon={Zap} description="Cross 1,000 XP milestone." unlocked={user ? user.xp >= 1000 : false} />
-                 <BadgeItem name="Game Master" icon={Trophy} description="Defeat Mr. Cute in a game." unlocked={user ? user.badges.includes('game_master') : false} />
-                 <BadgeItem name="Librarian" icon={BookOpenCheck} description="Pin at least 10 knowledge nodes." unlocked={user ? user.badges.includes('librarian') : false} />
-                 <BadgeItem name="Voice Viber" icon={Headset} description="Used Voice Link for the first time." unlocked={user ? user.badges.includes('voice_viber') : false} />
-               </div>
-            </section>
+
+            {libraryTab === 'badges' ? (
+              <section className="space-y-10">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-6 rounded-[32px] bg-blue-600/5 border border-blue-500/10 flex flex-col items-center gap-2">
+                      <Flame size={20} className="text-orange-500" />
+                      <span className="text-xl font-black text-zinc-900 dark:text-white">{user?.xp}</span>
+                      <span className="text-[9px] font-black uppercase text-zinc-400 dark:text-zinc-500">Total XP</span>
+                  </div>
+                  <div className="p-6 rounded-[32px] bg-emerald-600/5 border border-emerald-500/10 flex flex-col items-center gap-2">
+                      <Swords size={20} className="text-emerald-500" />
+                      <span className="text-xl font-black text-zinc-900 dark:text-white">{user?.gameHistory.length}</span>
+                      <span className="text-[9px] font-black uppercase text-zinc-400 dark:text-zinc-500">Total Games</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <BadgeItem name="Sync Initiate" icon={ShieldCheck} description="Completed the engine onboarding process." unlocked={true} />
+                  <BadgeItem name="Sync Pro" icon={Medal} description="Achieve Level 5 to unlock." unlocked={user ? user.level >= 5 : false} />
+                  <BadgeItem name="High Vibe" icon={Zap} description="Cross 1,000 XP milestone." unlocked={user ? user.xp >= 1000 : false} />
+                  <BadgeItem name="Game Master" icon={Trophy} description="Defeat Mr. Cute in a game." unlocked={user ? user.badges.includes('game_master') : false} />
+                  <BadgeItem name="Librarian" icon={BookOpenCheck} description="Pin at least 10 knowledge nodes." unlocked={user ? user.badges.includes('librarian') : false} />
+                  <BadgeItem name="Voice Viber" icon={Headset} description="Used Voice Link for the first time." unlocked={user ? user.badges.includes('voice_viber') : false} />
+                </div>
+              </section>
+            ) : (
+              <section className="space-y-4">
+                {user?.gameHistory.length === 0 ? (
+                  <div className="text-center py-20 opacity-20">
+                    <History size={48} className="mx-auto mb-4" />
+                    <p className="text-[10px] font-black uppercase tracking-widest">No game data establishes yet.</p>
+                  </div>
+                ) : (
+                  user?.gameHistory.map(game => (
+                    <div key={game.id} className="p-5 rounded-[28px] bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/10">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <p className="text-[11px] font-black text-zinc-900 dark:text-white uppercase tracking-tighter">{game.gameName}</p>
+                          <p className="text-[8px] font-bold text-zinc-400 uppercase mt-0.5">{new Date(game.timestamp).toLocaleString()}</p>
+                        </div>
+                        <div className={`px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${
+                          game.result === 'win' ? 'bg-emerald-500/20 text-emerald-600' : 
+                          game.result === 'loss' ? 'bg-rose-500/20 text-rose-600' : 
+                          'bg-zinc-500/20 text-zinc-600'
+                        }`}>
+                          {game.result}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4 py-3 border-y border-black/5 dark:border-white/5 my-2">
+                        <div className="flex-1 text-center">
+                          <p className="text-[7px] font-black text-zinc-400 uppercase">You</p>
+                          <p className="text-lg uppercase">{game.userChoice || '❓'}</p>
+                        </div>
+                        <Swords size={12} className="text-zinc-300" />
+                        <div className="flex-1 text-center">
+                          <p className="text-[7px] font-black text-zinc-400 uppercase">Mr. Cute</p>
+                          <p className="text-lg uppercase">{game.aiChoice || '❓'}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="text-[9px] font-black text-blue-600 dark:text-blue-500">+{game.xpGained} XP</span>
+                        <Tooltip text="Neural Sync Verified">
+                          <CheckCircle2 size={12} className="text-emerald-500 opacity-50" />
+                        </Tooltip>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </section>
+            )}
           </div>
         </div>
       )}
@@ -728,6 +727,7 @@ export default function App() {
                 </div>
                 <button onClick={() => setIsProfileModalOpen(false)} className="p-3 bg-black/5 dark:bg-white/5 rounded-2xl hover:bg-black/10 dark:hover:bg-white/10 transition-all text-zinc-900 dark:text-white"><X size={22}/></button>
               </div>
+              
               <div className="space-y-10">
                 <section className="bg-gradient-to-br from-blue-600/10 to-indigo-600/10 rounded-[40px] p-8 border border-blue-500/20 shadow-xl">
                    <div className="flex flex-col sm:flex-row items-center gap-8">
@@ -735,37 +735,47 @@ export default function App() {
                          <div className="w-32 h-32 rounded-full border-4 border-blue-500/30 p-1.5 transition-transform group-hover:scale-105">
                             <img src={user?.avatarUrl} className="w-full h-full object-cover rounded-full" alt="avatar" />
                          </div>
-                         <div className="absolute -bottom-2 -right-2 bg-blue-600 text-white w-12 h-12 rounded-full flex items-center justify-center font-black text-lg border-4 border-white dark:border-black shadow-xl">{user?.level}</div>
+                         <div className="absolute -bottom-2 -right-2 bg-blue-600 text-white w-12 h-12 rounded-full flex items-center justify-center font-black text-lg border-4 border-black shadow-xl">{user?.level}</div>
                       </div>
                       <div className="flex-1 space-y-4 w-full text-center sm:text-left">
-                         <div>
-                            <h3 className="text-3xl font-black text-zinc-900 dark:text-white">{user?.userName}</h3>
-                            <p className="text-[10px] font-black uppercase text-blue-600 dark:text-blue-500 tracking-[0.3em] mt-1">Status: Level {user?.level} Syncer</p>
-                         </div>
-                         <div className="space-y-2">
-                            <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest px-1">
-                               <span className="text-zinc-400 dark:text-zinc-500">{user?.xp} TOTAL XP</span>
-                               <span className="text-blue-600 dark:text-blue-500">{(user?.level || 1) * XP_PER_LEVEL - (user?.xp || 0)} XP TO NEXT</span>
-                            </div>
-                            <div className="w-full h-3 bg-black/5 dark:bg-white/5 rounded-full overflow-hidden shadow-inner">
-                               <div className="h-full bg-gradient-to-r from-blue-600 to-indigo-400 transition-all duration-1000" style={{ width: `${currentLevelProgress}%` }} />
-                            </div>
+                         <h3 className="text-3xl font-black text-zinc-900 dark:text-white">{user?.userName}</h3>
+                         <div className="w-full h-3 bg-black/5 dark:bg-white/5 rounded-full overflow-hidden shadow-inner">
+                            <div className="h-full bg-gradient-to-r from-blue-600 to-indigo-400 transition-all duration-1000" style={{ width: `${currentLevelProgress}%` }} />
                          </div>
                       </div>
                    </div>
                 </section>
 
+                <section className="space-y-6">
+                  <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400 dark:text-zinc-500 px-2 flex items-center gap-2">
+                    {/* Fixed typo: changed lowercase swords to capitalized Swords */}
+                    <Swords size={14} className="text-amber-500" /> Neural Challenges
+                  </h3>
+                  <div className="p-6 bg-black/5 dark:bg-white/5 rounded-[32px] border border-black/5 dark:border-white/5 space-y-4">
+                    <p className="text-[11px] font-bold text-zinc-900 dark:text-white uppercase">Game Difficulty</p>
+                    <div className="flex bg-zinc-200 dark:bg-zinc-800 p-1 rounded-2xl">
+                      {(['easy', 'medium', 'hard'] as GameDifficulty[]).map((d) => (
+                        <button 
+                          key={d}
+                          onClick={() => updateSettings({ gameDifficulty: d })}
+                          className={`flex-1 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${settings.gameDifficulty === d ? 'bg-blue-600 text-white shadow-lg' : 'text-zinc-500'}`}
+                        >
+                          {d}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </section>
+
                 <section className="space-y-4">
                   <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400 dark:text-zinc-500 px-2 flex items-center gap-2">
-                    <Zap size={14} className="text-amber-500" /> Interface Preferences
+                    <Zap size={14} className="text-amber-500" /> Interface
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="p-6 bg-black/5 dark:bg-white/5 rounded-[32px] border border-black/5 dark:border-white/5 flex items-center justify-between">
+                  <div className="p-6 bg-black/5 dark:bg-white/5 rounded-[32px] border border-black/5 dark:border-white/5 flex items-center justify-between">
                        <div className="flex items-center gap-3">
                           <div className="p-2 bg-blue-500/10 rounded-xl text-blue-600 dark:text-blue-500"><Moon size={18} /></div>
                           <div>
                              <p className="text-[11px] font-bold text-zinc-900 dark:text-white leading-none">Dark Mode</p>
-                             <p className="text-[9px] font-medium text-zinc-400 dark:text-zinc-500 uppercase mt-1">Neural Deep View</p>
                           </div>
                        </div>
                        <button 
@@ -776,14 +786,10 @@ export default function App() {
                            {settings.theme === 'dark' ? <Moon size={12} className="text-blue-600" /> : <Sun size={12} className="text-amber-500" />}
                          </div>
                        </button>
-                    </div>
                   </div>
                 </section>
 
-                <div className="pt-10 border-t border-black/5 dark:border-white/5 flex flex-col items-center gap-8">
-                  <button onClick={handleLogout} className="w-full py-6 rounded-[36px] bg-rose-500/10 text-rose-600 dark:text-rose-500 font-black text-[12px] uppercase flex items-center justify-center gap-4 hover:bg-rose-500 hover:text-white transition-all group shadow-lg"><LogOut size={20} className="group-hover:rotate-12 transition-transform" /> TERMINATE ALL NEURAL PATHWAYS</button>
-                  <p className="text-[10px] font-black uppercase text-center text-zinc-300 dark:text-zinc-800 tracking-[0.5em]">MR. VIBE ENGINE v2.5 PRO</p>
-                </div>
+                <button onClick={handleLogout} className="w-full py-6 rounded-[36px] bg-rose-500/10 text-rose-600 dark:text-rose-500 font-black text-[12px] uppercase flex items-center justify-center gap-4 hover:bg-rose-500 hover:text-white transition-all shadow-lg"><LogOut size={20} /> TERMINATE ALL NEURAL PATHWAYS</button>
               </div>
            </div>
         </div>
@@ -793,36 +799,24 @@ export default function App() {
         <div className="fixed inset-0 z-[20000] bg-white dark:bg-[#020202] flex items-center justify-center overflow-hidden p-0 sm:p-6">
           <div className="flex w-full max-w-[480px] h-full sm:h-[85vh] relative animate-scale-in">
             <div className="flex-1 bg-zinc-50 dark:bg-[#0a0a0a] rounded-none sm:rounded-[60px] border-0 sm:border border-black/5 dark:border-white/5 shadow-2xl flex flex-col relative overflow-hidden">
-               <div className="absolute top-0 left-0 w-full flex h-1.5 bg-black/5 dark:bg-white/5 z-50">
-                  {[0, 1, 2, 3].map((step) => (
+               <div className="absolute top-0 left-0 w-full flex h-1.5 bg-white/5 z-50">
+                  {/* Updated onboarding steps count to exclude API key collection */}
+                  {[0, 1, 2].map((step) => (
                     <div key={step} className={`flex-1 transition-all duration-500 ${onboardingStep >= step ? 'bg-blue-600' : 'bg-transparent'}`} />
                   ))}
                </div>
                <div className="flex flex-col items-center pt-16 pb-8 shrink-0">
                   <div className={`w-14 h-14 bg-blue-600/10 rounded-full flex items-center justify-center border border-blue-500/20 shadow-[0_0_30px_rgba(59,130,246,0.2)] mb-4 transition-transform duration-700 ${onboardingStep === 0 ? 'scale-125' : 'scale-100'}`}>
-                    <Zap size={28} className="text-blue-600 dark:text-blue-500 fill-blue-500/10" />
+                    <Logo className="w-10 h-10 text-blue-600 dark:text-blue-500" />
                   </div>
                   <h1 className="text-3xl font-black italic uppercase tracking-tighter text-zinc-900 dark:text-white leading-none">MR. VIBE AI</h1>
                </div>
                <div className="flex-1 overflow-y-auto px-10 pb-10 flex flex-col justify-center animate-fade-in custom-scrollbar" key={onboardingStep}>
                   {onboardingStep === 0 && (
                     <div className="space-y-8 text-center animate-slide-up">
+                       <Logo className="w-24 h-24 mx-auto text-blue-600 dark:text-blue-500 opacity-20" />
                        <h2 className="text-4xl font-black text-zinc-900 dark:text-white leading-tight">Welcome to the<br/><span className="text-blue-600 dark:text-blue-500">Neural Network</span></h2>
-                       <p className="text-zinc-500 font-medium leading-relaxed">Establish a high-fidelity sync with Mr. Cute, your intelligent archetype. Experience real-time engagement like never before.</p>
-                       <div className="flex justify-center gap-4">
-                          <div className="flex flex-col items-center gap-2">
-                             <div className="p-4 bg-blue-600/10 rounded-3xl text-blue-600 dark:text-blue-500"><Headset size={24}/></div>
-                             <span className="text-[8px] font-black uppercase text-zinc-400 dark:text-zinc-600 tracking-widest">Voice Link</span>
-                          </div>
-                          <div className="flex flex-col items-center gap-2">
-                             <div className="p-4 bg-emerald-600/10 rounded-3xl text-emerald-600 dark:text-emerald-500"><ShieldCheck size={24}/></div>
-                             <span className="text-[8px] font-black uppercase text-zinc-400 dark:text-zinc-600 tracking-widest">Encrypted</span>
-                          </div>
-                          <div className="flex flex-col items-center gap-2">
-                             <div className="p-4 bg-amber-600/10 rounded-3xl text-amber-600 dark:text-amber-500"><Trophy size={24}/></div>
-                             <span className="text-[8px] font-black uppercase text-zinc-400 dark:text-zinc-600 tracking-widest">XP Sync</span>
-                          </div>
-                       </div>
+                       <p className="text-zinc-500 font-medium leading-relaxed">Establish a high-fidelity sync with Mr. Cute, your intelligent archetype. Real-time engagement, gamified.</p>
                     </div>
                   )}
                   {onboardingStep === 1 && (
@@ -838,23 +832,8 @@ export default function App() {
                        </div>
                     </div>
                   )}
+                  {/* API Key step removed as per guidelines - environment variable process.env.API_KEY is used exclusively */}
                   {onboardingStep === 2 && (
-                    <div className="space-y-10 animate-slide-up">
-                       <div className="text-center space-y-2">
-                          <h2 className="text-2xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter">Neural Passes</h2>
-                          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-600 dark:text-emerald-500">Engine Connectivity</p>
-                       </div>
-                       <div className="space-y-6">
-                          <div className="space-y-4">
-                             <div className="bg-white dark:bg-white/5 rounded-[30px] p-1 border border-black/5 dark:border-white/10 flex items-center shadow-xl focus-within:border-blue-500/50 transition-all">
-                                <div className="pl-6 text-blue-600/50 dark:text-blue-500/50"><Cpu size={20} /></div>
-                                <input type="password" placeholder="Gemini API Key..." value={tempProfile.googleKey} onChange={e => setTempProfile({...tempProfile, googleKey: e.target.value})} className="w-full bg-transparent py-5 px-4 font-mono text-[14px] text-zinc-900 dark:text-white outline-none placeholder-zinc-300 dark:placeholder-zinc-800" />
-                             </div>
-                          </div>
-                       </div>
-                    </div>
-                  )}
-                  {onboardingStep === 3 && (
                     <div className="space-y-8 animate-slide-up">
                        <div className="text-center space-y-2">
                           <h2 className="text-2xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter">Neural Archetype</h2>
@@ -873,10 +852,10 @@ export default function App() {
                </div>
                <div className="p-10 shrink-0 flex items-center gap-4">
                   {onboardingStep > 0 && <button onClick={() => setOnboardingStep(s => s - 1)} className="p-6 rounded-[35px] bg-black/5 dark:bg-white/5 text-zinc-400 border border-black/5 dark:border-white/5"><ArrowLeft size={24} /></button>}
-                  {onboardingStep < 3 ? (
+                  {onboardingStep < 2 ? (
                     <button onClick={() => setOnboardingStep(s => s + 1)} disabled={onboardingStep === 1 && !tempProfile.userName} className={`flex-1 py-6 rounded-[35px] font-black text-lg uppercase tracking-widest transition-all flex items-center justify-center gap-3 ${onboardingStep === 1 && !tempProfile.userName ? 'bg-zinc-200 dark:bg-zinc-900 text-zinc-400 dark:text-zinc-800' : 'bg-blue-600 text-white'}`}>Next Step <ArrowRight size={20} /></button>
                   ) : (
-                    <button onClick={handleOnboardingComplete} disabled={!tempProfile.userName || !tempProfile.googleKey} className={`flex-1 py-6 rounded-[35px] font-black text-lg uppercase tracking-widest transition-all flex items-center justify-center gap-3 ${!tempProfile.userName || !tempProfile.googleKey ? 'bg-zinc-200 dark:bg-zinc-900 text-zinc-400 dark:text-zinc-800' : 'bg-blue-600 text-white shadow-[0_10px_40px_rgba(37,99,235,0.4)]'}`}>Establish Link <Sparkles size={20} /></button>
+                    <button onClick={handleOnboardingComplete} disabled={!tempProfile.userName} className={`flex-1 py-6 rounded-[35px] font-black text-lg uppercase tracking-widest transition-all flex items-center justify-center gap-3 ${!tempProfile.userName ? 'bg-zinc-200 dark:bg-zinc-900 text-zinc-400 dark:text-zinc-800' : 'bg-blue-600 text-white shadow-[0_10px_40px_rgba(37,99,235,0.4)]'}`}>Establish Link <Sparkles size={20} /></button>
                   )}
                </div>
             </div>

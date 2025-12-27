@@ -131,8 +131,8 @@ export const useGeminiLive = ({
   const connect = useCallback(async () => {
     if (isLive || isConnecting) return;
 
-    // Use stored license first, then environment fallback
-    const apiKey = localStorage.getItem('mr_vibe_google_pass') || process.env.API_KEY;
+    // Use environment API key exclusively as per guidelines
+    const apiKey = process.env.API_KEY;
     if (!apiKey) {
       onError(new Error("Neural Link Error: System License missing. Check engine core settings."));
       return;
@@ -204,10 +204,6 @@ export const useGeminiLive = ({
             setIsConnecting(false);
             onConnectionStateChange(true);
             
-            sessionPromise.then(session => {
-              session.sendRealtimeInput({ text: "establishing neural link..." });
-            });
-
             if (!inputAudioContextRef.current) return;
             const source = inputAudioContextRef.current.createMediaStreamSource(stream);
             const processor = inputAudioContextRef.current.createScriptProcessor(4096, 1, 1);

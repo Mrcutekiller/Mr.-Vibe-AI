@@ -10,6 +10,17 @@ export enum PersonalityId {
 export type Theme = 'dark' | 'light';
 export type Gender = 'Male' | 'Female' | 'Other' | 'Secret';
 export type AIProvider = 'google' | 'openai';
+export type GameDifficulty = 'easy' | 'medium' | 'hard';
+
+export interface GameResult {
+  id: string;
+  gameName: string;
+  result: 'win' | 'loss' | 'draw' | 'completed';
+  userChoice?: string;
+  aiChoice?: string;
+  xpGained: number;
+  timestamp: number;
+}
 
 export interface User {
   userName: string;
@@ -22,6 +33,7 @@ export interface User {
   xp: number;
   level: number;
   badges: string[];
+  gameHistory: GameResult[];
 }
 
 export interface Personality {
@@ -86,4 +98,5 @@ export interface AppSettings {
   speakingPitch: number;
   customCommands: any[];
   preferredProvider: AIProvider;
+  gameDifficulty: GameDifficulty;
 }
