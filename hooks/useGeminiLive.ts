@@ -133,12 +133,6 @@ export const useGeminiLive = ({
   const connect = useCallback(async () => {
     if (isLive || isConnecting) return;
 
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) {
-      onError(new Error("Identification Module Offline: No API Key found."));
-      return;
-    }
-
     try {
       setIsConnecting(true);
       await initAudio();
@@ -154,7 +148,7 @@ export const useGeminiLive = ({
       });
       streamRef.current = stream;
 
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
       const modeInstruction = modeRef.current === 'note' 
         ? "SILENT REAL-TIME SCRIBE PROTOCOL: You are Mr. Cute. Your mission is to precisely transcribe, organize, and highlight everything the user says. YOU MUST NOT SPEAK (total audio silence). Instead, you must continuously generate TEXT parts in your model turn. If the user asks a question, identify it with '❓ Question detected' and answer it immediately in text. Use clear headers: ### 📝 Meeting Notes, ### 💡 Key Insights, ### ✅ Action Items. Keep your text updates flowing as the user speaks."

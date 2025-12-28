@@ -489,12 +489,6 @@ export default function App() {
   };
 
   const handleSendToAI = async (text: string, userChoice?: string) => {
-    const apiKeyToUse = process.env.API_KEY;
-    if (!apiKeyToUse) { 
-      showToast("Neural License Offline.", "error"); 
-      return; 
-    }
-    
     if (!text.trim() && pendingFiles.length === 0 || isLoading) return;
     
     let sessionId = activeSessionId || handleNewChat(false);
@@ -516,7 +510,7 @@ export default function App() {
 
     setIsLoading(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: apiKeyToUse });
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const parts: any[] = [];
       currentFiles.forEach(f => parts.push(f.type.includes('image') ? { inlineData: { data: f.data.split(',')[1], mimeType: f.type } } : { text: `[FILE: ${f.name}]` }));
       parts.push({ text: textToSend });
