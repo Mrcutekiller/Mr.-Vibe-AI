@@ -151,14 +151,13 @@ export const useGeminiLive = ({
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
       const modeInstruction = modeRef.current === 'note' 
-        ? "SILENT REAL-TIME SCRIBE PROTOCOL: You are Mr. Cute. Your mission is to precisely transcribe, organize, and highlight everything the user says. YOU MUST NOT SPEAK (total audio silence). Instead, you must continuously generate TEXT parts in your model turn. If the user asks a question, identify it with '❓ Question detected' and answer it immediately in text. Use clear headers: ### 📝 Meeting Notes, ### 💡 Key Insights, ### ✅ Action Items. Keep your text updates flowing as the user speaks."
-        : `BESTIE VOICE MODE: You are Mr. Cute, a vibrant AI persona. Personality: ${personality.name}. Treat the user as your best friend. Be responsive, funny, and engage in high-energy voice sync.`;
+        ? "SYNC SCRIBE MODE: You are the designated AI scribe for Mr. Vibe. Your primary function is to transcribe user speech with high accuracy. DO NOT GENERATE AUDIO (strictly silent). Output only text. Organize speech into structured sections. If the user asks a question, answer it concisely in the text stream while continuing the transcription. Capture every single vibe, even short phrases."
+        : `BESTIE VOICE MODE: You are Mr. Cute, a high-energy best friend AI. Personality: ${personality.name}. Be charming, fun, and use voice output to bond with ${user.userName}.`;
 
       const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}
       - MODE: ${modeInstruction}
-      - IDENTITY: Mr. Cute (Personality sync: ${personality.name})
       - SYNC TARGET: ${user.userName}
-      - KEY RULE: Always acknowledge greetings (like 'hi') with high enthusiasm immediately.`;
+      - NOTE: Even if the user says only one or two words, ensure they are recorded in the transcript history.`;
 
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
@@ -198,14 +197,9 @@ export const useGeminiLive = ({
             processor.connect(inputAudioContextRef.current.destination);
             sourceRef.current = source;
             processorRef.current = processor;
-
-            // Immediate forced greeting nudge
-            sessionPromise.then(session => {
-              session.sendRealtimeInput({ text: `[SYSTEM: Link Established with ${user.userName}. Respond with your character's signature greeting now.]` });
-            });
           },
           onmessage: async (message: LiveServerMessage) => {
-             const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+             const base64Audio = message.serverContent?.modelTurn?.parts?.find(p => p.inlineData)?.inlineData?.data;
              const textPart = message.serverContent?.modelTurn?.parts?.find(p => p.text)?.text;
              
              if (textPart) {
@@ -231,13 +225,11 @@ export const useGeminiLive = ({
              }
 
              if (message.serverContent?.inputTranscription) {
-                const text = message.serverContent.inputTranscription.text;
-                accumulatedInputText.current += text;
+                accumulatedInputText.current += message.serverContent.inputTranscription.text;
                 onTranscript(accumulatedInputText.current, true, false);
              }
              if (message.serverContent?.outputTranscription) {
-                const text = message.serverContent.outputTranscription.text;
-                accumulatedOutputText.current += text;
+                accumulatedOutputText.current += message.serverContent.outputTranscription.text;
                 onTranscript(accumulatedOutputText.current, true, true);
              }
              if (message.serverContent?.turnComplete) {
@@ -258,7 +250,7 @@ export const useGeminiLive = ({
           onclose: () => disconnect(),
           onerror: (e) => {
             console.error("Live session error:", e);
-            onError(new Error("Sync Disconnected: The neural link was interrupted."));
+            onError(new Error("Sync Disconnected. Check your network or API key!"));
             disconnect();
           }
         }

@@ -24,6 +24,9 @@ export interface GameResult {
 
 export interface User {
   userName: string;
+  nickname: string;
+  email?: string;
+  password?: string;
   gender: Gender;
   avatarUrl: string;
   personalityId: PersonalityId;
