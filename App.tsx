@@ -535,6 +535,19 @@ export default function App() {
     if (messages.length === 0) return false;
     const lastMsg = messages[messages.length - 1];
     if (lastMsg.role !== 'model') return false;
+
+    // Strict validation: Ensure user has explicitly shown interest in playing
+    const userInitiatedGame = messages.some(m => 
+      m.role === 'user' && 
+      (m.text.toLowerCase().includes('play') || 
+       m.text.toLowerCase().includes('game') || 
+       m.text.toLowerCase().includes('battle') || 
+       m.text.toLowerCase().includes('rps') ||
+       m.text.toLowerCase().includes('rock paper scissors'))
+    );
+    
+    if (!userInitiatedGame) return false;
+
     const text = lastMsg.text.toLowerCase();
     const hasMoveKeywords = text.includes('choose your move') || text.includes('rock, paper, or scissors?');
     const hasGameKeywords = text.includes('rock') || text.includes('paper') || text.includes('scissors');
