@@ -1,9 +1,8 @@
-
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { GoogleGenAI, LiveServerMessage, Modality, FunctionDeclaration, Type } from '@google/genai';
+import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
 import { createPcmBlob, decode, decodeAudioData } from '../utils/audioUtils';
-import { Personality, AppSettings, User, PersonalityId } from '../types';
-import { BASE_SYSTEM_PROMPT, GEMINI_VOICES } from '../constants';
+import { Personality, AppSettings, User } from '../types';
+import { BASE_SYSTEM_PROMPT } from '../constants';
 
 interface UseGeminiLiveProps {
   personality: Personality;
@@ -44,13 +43,16 @@ export const useGeminiLive = ({
   const nextStartTimeRef = useRef<number>(0);
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
 
-  const currentInputText = useRef('');
-  const currentOutputText = useRef('');
+  const accumulatedInputText = useRef('');
+  const accumulatedOutputText = useRef('');
 
   const settingsRef = useRef(settings);
+  const modeRef = useRef(mode);
+  
   useEffect(() => {
     settingsRef.current = settings;
-  }, [settings]);
+    modeRef.current = mode;
+  }, [settings, mode]);
 
   const initAudio = useCallback(async () => {
     try {
@@ -70,14 +72,14 @@ export const useGeminiLive = ({
       }
     } catch (e) {
       console.error("Audio Init Failed", e);
-      throw new Error("Microphone access denied.");
+      throw new Error("Microphone access denied. Please check permissions.");
     }
   }, []);
 
   useEffect(() => {
     let animationFrame: number;
     const updateOutputVolume = () => {
-      if (outputAnalyserRef.current && isLive && mode !== 'note') {
+      if (outputAnalyserRef.current && isLive && modeRef.current !== 'note') {
         const dataArray = new Uint8Array(outputAnalyserRef.current.frequencyBinCount);
         outputAnalyserRef.current.getByteTimeDomainData(dataArray);
         let sum = 0;
@@ -94,7 +96,7 @@ export const useGeminiLive = ({
     };
     updateOutputVolume();
     return () => cancelAnimationFrame(animationFrame);
-  }, [isLive, mode]);
+  }, [isLive]);
 
   const disconnect = useCallback(() => {
     if (processorRef.current) { 
@@ -118,8 +120,8 @@ export const useGeminiLive = ({
 
     sourcesRef.current.forEach(source => { try { source.stop(); } catch(e) {} });
     sourcesRef.current.clear();
-    currentInputText.current = '';
-    currentOutputText.current = '';
+    accumulatedInputText.current = '';
+    accumulatedOutputText.current = '';
     setIsLive(false);
     setIsConnecting(false);
     onConnectionStateChange(false);
@@ -133,7 +135,7 @@ export const useGeminiLive = ({
 
     const apiKey = process.env.API_KEY;
     if (!apiKey) {
-      onError(new Error("Neural Link Error: System License missing. Check engine core settings."));
+      onError(new Error("Identification Module Offline: No API Key found."));
       return;
     }
 
@@ -154,45 +156,23 @@ export const useGeminiLive = ({
 
       const ai = new GoogleGenAI({ apiKey });
 
-      const voiceControlFunctions: FunctionDeclaration[] = [
-        {
-          name: 'change_voice',
-          description: 'Change the voice of the AI.',
-          parameters: {
-            type: Type.OBJECT,
-            properties: {
-              voice_id: { type: Type.STRING, description: 'Voice ID (Puck, Charon, Fenrir, Kore, Aoede, Zephyr).' }
-            },
-            required: ['voice_id']
-          }
-        }
-      ];
-
-      const voicesList = GEMINI_VOICES.map(v => `${v.name} (id: ${v.id})`).join(', ');
-      
-      const modeInstruction = mode === 'note' 
-        ? "SILENT NOTE TAKER MODE: You are Mr. Cute. Your job is to listen carefully and provide intelligent notes and summaries in real-time. YOU MUST NOT SPEAK. Keep your responses textual. Even if audio chunks are generated, they will be silenced on the client. Focus purely on the transcription and helpful note-taking."
-        : `BESTIE CHAT MODE: You are Mr. Cute, a warm, expressive AI best friend. Your personality is ${personality.name}. Speak naturally, engage, and vibe with the user.`;
+      const modeInstruction = modeRef.current === 'note' 
+        ? "SILENT REAL-TIME SCRIBE PROTOCOL: You are Mr. Cute. Your mission is to precisely transcribe, organize, and highlight everything the user says. YOU MUST NOT SPEAK (total audio silence). Instead, you must continuously generate TEXT parts in your model turn. If the user asks a question, identify it with '❓ Question detected' and answer it immediately in text. Use clear headers: ### 📝 Meeting Notes, ### 💡 Key Insights, ### ✅ Action Items. Keep your text updates flowing as the user speaks."
+        : `BESTIE VOICE MODE: You are Mr. Cute, a vibrant AI persona. Personality: ${personality.name}. Treat the user as your best friend. Be responsive, funny, and engage in high-energy voice sync.`;
 
       const fullSystemPrompt = `${BASE_SYSTEM_PROMPT}
-      - CURRENT IDENTITY: Mr. Cute
-      - MODE PROTOCOL: ${modeInstruction}
-      - USER: ${user.userName} (Gender: ${user.gender})
-      - ARCHETYPE: ${personality.name} (${personality.prompt})
-      
-      AVAILABLE TOOLS:
-      - change_voice: Change voice to one of: ${voicesList}.
-      
-      Rules: Always refer to yourself as Mr. Cute. In Note Taker mode, focus on creating high-value notes and answering via text.`;
+      - MODE: ${modeInstruction}
+      - IDENTITY: Mr. Cute (Personality sync: ${personality.name})
+      - SYNC TARGET: ${user.userName}
+      - KEY RULE: Always acknowledge greetings (like 'hi') with high enthusiasm immediately.`;
 
       const sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         config: {
             responseModalities: [Modality.AUDIO],
             systemInstruction: fullSystemPrompt,
-            tools: [{ functionDeclarations: voiceControlFunctions }],
             speechConfig: {
-              voiceConfig: { prebuiltVoiceConfig: { voiceName: settings.voiceName || personality.voiceName } }, 
+              voiceConfig: { prebuiltVoiceConfig: { voiceName: settingsRef.current.voiceName || personality.voiceName } }, 
             },
             inputAudioTranscription: {},
             outputAudioTranscription: {},
@@ -224,21 +204,22 @@ export const useGeminiLive = ({
             processor.connect(inputAudioContextRef.current.destination);
             sourceRef.current = source;
             processorRef.current = processor;
+
+            // Immediate forced greeting nudge
+            sessionPromise.then(session => {
+              session.sendRealtimeInput({ text: `[SYSTEM: Link Established with ${user.userName}. Respond with your character's signature greeting now.]` });
+            });
           },
           onmessage: async (message: LiveServerMessage) => {
-             if (message.toolCall) {
-                for (const fc of message.toolCall.functionCalls) {
-                  onCommand(fc.name, fc.args);
-                  sessionPromise.then(session => {
-                    session.sendToolResponse({
-                      functionResponses: { id: fc.id, name: fc.name, response: { result: "ok" } }
-                    });
-                  });
-                }
+             const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+             const textPart = message.serverContent?.modelTurn?.parts?.find(p => p.text)?.text;
+             
+             if (textPart) {
+                accumulatedOutputText.current += textPart;
+                onTranscript(accumulatedOutputText.current, true, true);
              }
 
-             const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-             if (base64Audio && audioContextRef.current && mode !== 'note') {
+             if (base64Audio && audioContextRef.current && modeRef.current !== 'note') {
                 const ctx = audioContextRef.current;
                 nextStartTimeRef.current = Math.max(nextStartTimeRef.current, ctx.currentTime);
                 try {
@@ -246,34 +227,33 @@ export const useGeminiLive = ({
                   const source = ctx.createBufferSource();
                   source.buffer = audioBuffer;
                   source.playbackRate.value = settingsRef.current.speakingRate;
-
                   if (outputAnalyserRef.current) source.connect(outputAnalyserRef.current);
                   else source.connect(ctx.destination);
-
                   source.start(nextStartTimeRef.current);
                   nextStartTimeRef.current += audioBuffer.duration;
                   sourcesRef.current.add(source);
                   source.onended = () => sourcesRef.current.delete(source);
-                } catch (err) { console.error("Audio output error", err); }
+                } catch (err) { console.error("Audio playback error:", err); }
              }
 
              if (message.serverContent?.inputTranscription) {
                 const text = message.serverContent.inputTranscription.text;
-                // Treat as interim unless turnComplete comes
-                onTranscript(text, true, false);
-                currentInputText.current += text;
+                accumulatedInputText.current += text;
+                onTranscript(accumulatedInputText.current, true, false);
              }
              if (message.serverContent?.outputTranscription) {
                 const text = message.serverContent.outputTranscription.text;
-                onTranscript(text, true, true);
-                currentOutputText.current += text;
+                accumulatedOutputText.current += text;
+                onTranscript(accumulatedOutputText.current, true, true);
              }
              if (message.serverContent?.turnComplete) {
-                if (currentInputText.current.trim() || currentOutputText.current.trim()) {
-                  onTurnComplete(currentInputText.current.trim(), currentOutputText.current.trim());
+                const u = accumulatedInputText.current.trim();
+                const m = accumulatedOutputText.current.trim();
+                if (u || m) {
+                  onTurnComplete(u, m);
                 }
-                currentInputText.current = '';
-                currentOutputText.current = '';
+                accumulatedInputText.current = '';
+                accumulatedOutputText.current = '';
              }
              if (message.serverContent?.interrupted) {
                sourcesRef.current.forEach(s => { try { s.stop(); } catch(e) {} });
@@ -283,7 +263,8 @@ export const useGeminiLive = ({
           },
           onclose: () => disconnect(),
           onerror: (e) => {
-            onError(e);
+            console.error("Live session error:", e);
+            onError(new Error("Sync Disconnected: The neural link was interrupted."));
             disconnect();
           }
         }
@@ -293,7 +274,7 @@ export const useGeminiLive = ({
       onError(error);
       disconnect(); 
     }
-  }, [personality, settings, user, mode, isLive, isConnecting, onConnectionStateChange, onTranscript, onTurnComplete, onCommand, initAudio, disconnect, onError]);
+  }, [personality, user, isLive, isConnecting, onConnectionStateChange, onTranscript, onTurnComplete, onCommand, initAudio, disconnect, onError]);
 
   return { connect, disconnect, isLive, isConnecting, volume, outputVolume };
 };

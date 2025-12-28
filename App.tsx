@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { GoogleGenAI } from '@google/genai';
 import { 
@@ -14,7 +13,7 @@ import {
   Sun, Moon, List, Swords, Dices, RotateCcw, Ghost, FileSearch,
   Mic2, MessageSquare, BookOpen, Clock, ExternalLink, Volume2,
   AlertCircle, Code, MessageCircle, Gamepad2, PenTool, Terminal,
-  Fingerprint, Smartphone
+  Fingerprint, Smartphone, Laptop, Link as LinkIcon
 } from 'lucide-react';
 import { PERSONALITIES, BASE_SYSTEM_PROMPT, AVATARS, PERSONALITY_STYLES } from './constants';
 import { PersonalityId, AppSettings, User, ChatSession, Message, FileAttachment, GroundingChunk, GameResult, GameDifficulty, Personality } from './types';
@@ -37,7 +36,7 @@ const Logo = ({ className = "w-10 h-10" }: { className?: string }) => (
   </svg>
 );
 
-const Tooltip = ({ children, text }: { children: React.ReactNode, text: string }) => (
+const Tooltip = ({ children, text }: { children?: React.ReactNode, text: string }) => (
   <div className="group relative flex items-center justify-center">
     {children}
     <div className="absolute bottom-full mb-3 hidden group-hover:block z-[15000] pointer-events-none">
@@ -53,7 +52,7 @@ const BadgeItem = ({ name, icon: Icon, unlocked, description }: { name: string, 
   <Tooltip text={description}>
     <div className={`flex flex-col items-center gap-2 p-4 rounded-3xl border transition-all w-full ${unlocked ? 'bg-blue-600/10 border-blue-500/30 text-blue-600 dark:text-white shadow-lg' : 'bg-zinc-100 dark:bg-zinc-900/50 border-black/5 dark:border-white/5 text-zinc-400 dark:text-zinc-700 grayscale'}`}>
       <div className={`p-3 rounded-2xl ${unlocked ? 'bg-blue-500/20' : 'bg-zinc-200 dark:bg-zinc-800'}`}>
-        <Icon size={24} />
+        <Icon className="w-6 h-6" />
       </div>
       <span className="text-[9px] font-black uppercase tracking-widest text-center">{name}</span>
     </div>
@@ -74,7 +73,7 @@ const VibeOrb = ({ active, isThinking, volume, outputVolume, personalityId, isGa
   const style = PERSONALITY_STYLES[personalityId] || PERSONALITY_STYLES[PersonalityId.STUDENT];
   
   return (
-    <div className={`relative flex items-center justify-center w-40 h-40 md:w-64 md:h-64 transition-all duration-300 ${isThinking ? 'animate-pulse-orb' : ''} ${isGaming ? 'animate-hi-pulse' : ''}`}>
+    <div className={`relative flex items-center justify-center w-40 h-40 md:w-64 md:h-64 transition-all duration-300 ${isThinking ? 'animate-pulse-orb' : 'animate-shimmer-avatar'} ${isGaming ? 'animate-hi-pulse' : ''}`}>
       <div 
         className={`absolute inset-0 rounded-full blur-3xl transition-opacity duration-700 ${active || isThinking ? 'opacity-60' : 'opacity-20'}`} 
         style={{ backgroundColor: style.glow }}
@@ -95,7 +94,7 @@ const VibeOrb = ({ active, isThinking, volume, outputVolume, personalityId, isGa
 const NotificationToast = ({ message, type, onClose }: { message: string, type: string, onClose: () => void }) => (
   <div className="fixed top-6 md:top-10 inset-x-4 z-[10000] flex justify-center pointer-events-none text-center">
     <div 
-      className={`w-full max-w-sm mb-4 bg-white dark:bg-zinc-900 shadow-2xl rounded-[32px] border flex items-center gap-4 p-5 pointer-events-auto animate-slide-up ${
+      className={`w-full max-sm:px-6 mb-4 bg-white dark:bg-zinc-900 shadow-2xl rounded-[32px] border flex items-center gap-4 p-5 pointer-events-auto animate-slide-up ${
         type === 'success' ? 'border-emerald-500/30 text-emerald-600 dark:text-emerald-400' :
         type === 'error' ? 'border-rose-500/30 text-rose-600 dark:text-rose-400' :
         'border-blue-500/30 text-blue-600 dark:text-blue-400'
@@ -127,7 +126,7 @@ const MarkdownText = ({ text }: { text: string }) => {
                 <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
                 <span className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400 ml-2">{lang} node</span>
               </div>
-              <Terminal size={12} className="text-zinc-500" />
+              <Terminal className="w-3 h-3 text-zinc-500" />
             </div>
             <pre className="p-6 overflow-x-auto font-mono text-[13px] text-emerald-400 leading-relaxed custom-scrollbar">
               <code>{code}</code>
@@ -142,7 +141,7 @@ const MarkdownText = ({ text }: { text: string }) => {
         if (line.startsWith('###')) {
           return (
             <h3 key={`${idx}-${lIdx}`} className="text-blue-600 dark:text-blue-500 font-black text-lg mt-8 mb-4 flex items-center gap-3">
-              <Sparkles size={20} /> {line.replace('###', '').trim()}
+              <Sparkles className="w-5 h-5" /> {line.replace('###', '').trim()}
             </h3>
           );
         }
@@ -178,7 +177,7 @@ const MarkdownText = ({ text }: { text: string }) => {
         return (
           <a key={pIdx} href={part} target="_blank" rel="noreferrer" className="text-blue-600 dark:text-blue-500 underline hover:no-underline transition-all inline-flex items-center gap-1 font-bold group">
             {part.length > 40 ? part.slice(0, 40) + '...' : part}
-            <ExternalLink size={12} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+            <ExternalLink className="w-3 h-3 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
           </a>
         );
       }
@@ -193,6 +192,7 @@ export default function App() {
   const [isNewUser, setIsNewUser] = useState<boolean>(() => !localStorage.getItem('mr_vibe_active_user'));
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [linkCode, setLinkCode] = useState('');
   
   const [toast, setToast] = useState<{id: string, message: string, type: string} | null>(null);
   const [user, setUser] = useState<User | null>(() => {
@@ -247,6 +247,7 @@ export default function App() {
     return (user.xp % XP_PER_LEVEL) / XP_PER_LEVEL * 100;
   }, [user]);
 
+  // Unified Theme Effect
   useEffect(() => {
     const isDark = settings.theme === 'dark';
     document.documentElement.classList.toggle('dark', isDark);
@@ -348,9 +349,18 @@ export default function App() {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text).then(() => {
-      showToast("Neural Node copied to clipboard!", "success");
+      showToast("Sync Content Secured to Clipboard!", "success");
     }).catch(() => {
-      showToast("Failed to copy.", "error");
+      showToast("Sync Transfer Failed.", "error");
+    });
+  };
+
+  const copyLinkToMessage = (text: string) => {
+    const shareText = `Check out this insight from Mr. Vibe AI:\n\n"${text}"`;
+    navigator.clipboard.writeText(shareText).then(() => {
+      showToast("Neural Node Link Copied!", "success");
+    }).catch(() => {
+      showToast("Link Generation Failed.", "error");
     });
   };
 
@@ -363,7 +373,7 @@ export default function App() {
       }).catch(console.error);
     } else {
       copyToClipboard(text);
-      showToast("Link created and copied to clipboard!", "success");
+      showToast("Shared data copied to clipboard!", "success");
     }
   };
 
@@ -406,7 +416,7 @@ export default function App() {
       return;
     }
     unlockBadge('neural_scholar', 'Neural Scholar');
-    await handleSendToAI("Please give me a concise neural recap/summary of our session so far.");
+    await handleSendToAI("Please provide a concise result-oriented summary of our session so far.");
   };
 
   const handleOnboardingComplete = useCallback(() => {
@@ -446,7 +456,15 @@ export default function App() {
     },
     onTurnComplete: (u, m) => { 
       const sId = activeSessionId || handleNewChat(false); 
-      setSessions(prev => prev.map(s => s.id === sId ? { ...s, messages: [...s.messages, { id: `u-${Date.now()}`, role: 'user', text: u, timestamp: Date.now() }, { id: `m-${Date.now() + 1}`, role: 'model', text: m, timestamp: Date.now() + 1, provider: 'google' }] } : s));
+      const now = Date.now();
+      setSessions(prev => prev.map(s => s.id === sId ? { 
+        ...s, 
+        messages: [
+          ...s.messages, 
+          ...(u ? [{ id: `u-${now}`, role: 'user' as const, text: u, timestamp: now }] : []), 
+          ...(m ? [{ id: `m-${now + 1}`, role: 'model' as const, text: m, timestamp: now + 1, provider: 'google' as const }] : [])
+        ] 
+      } : s));
       gainXP(25);
       setInterimUserText('');
       setInterimModelText('');
@@ -462,10 +480,10 @@ export default function App() {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `GREETING PROTOCOL: Say a short hi to ${user?.userName || 'bestie'}. Introduce yourself as Mr. Cute. Mention that you can chat, record notes, or play Rock Paper Scissors if they ever feel like a challenge.`,
+        contents: `GREETING PROTOCOL: Say a concise, high-energy greeting to ${user?.userName || 'bestie'}. Do NOT offer games yet unless they ask.`,
         config: { systemInstruction: `${BASE_SYSTEM_PROMPT.replace('[DIFFICULTY]', settings.gameDifficulty)}\n\n${PERSONALITIES[personalityId].prompt}` }
       });
-      const aiMessage: Message = { id: `ai-${Date.now()}`, role: 'model', text: response.text || 'Yo!', timestamp: Date.now(), provider: 'google' };
+      const aiMessage: Message = { id: `ai-${Date.now()}`, role: 'model', text: response.text || 'Greetings.', timestamp: Date.now(), provider: 'google' };
       setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, aiMessage] } : s));
     } catch (e: any) { handleApiError(e); } finally { setIsLoading(false); }
   };
@@ -477,8 +495,6 @@ export default function App() {
       return; 
     }
     
-    const isSummaryRequest = text.toLowerCase().includes('summary') || text.toLowerCase().includes('recap');
-
     if (!text.trim() && pendingFiles.length === 0 || isLoading) return;
     
     let sessionId = activeSessionId || handleNewChat(false);
@@ -516,9 +532,6 @@ export default function App() {
       if (userChoice) {
         recordGame('Rock Paper Scissors', aiText, userChoice);
       }
-      if (isSummaryRequest) {
-        unlockBadge('neural_scholar', 'Neural Scholar');
-      }
 
       setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, messages: [...s.messages, aiMessage] } : s));
     } catch (e: any) { handleApiError(e); } finally { setIsLoading(false); }
@@ -529,10 +542,9 @@ export default function App() {
     const lastMsg = messages[messages.length - 1];
     if (lastMsg.role !== 'model') return false;
     const text = lastMsg.text.toLowerCase();
-    // Only trigger game buttons if AI explicitly asks for user's move
+    const hasMoveKeywords = text.includes('choose your move') || text.includes('rock, paper, or scissors?');
     const hasGameKeywords = text.includes('rock') || text.includes('paper') || text.includes('scissors');
-    const isAskingForInput = text.includes('pick') || text.includes('choose') || text.includes('your turn') || text.includes('move');
-    return hasGameKeywords && isAskingForInput;
+    return hasMoveKeywords && hasGameKeywords;
   }, [messages]);
 
   const handleRPSChoice = (choice: string) => {
@@ -564,16 +576,22 @@ export default function App() {
   const switchMode = (mode: 'text' | 'chat' | 'note') => {
     if (isLive) disconnectLive();
     setActiveMode(mode);
-    if (mode !== 'text') connectLive();
+    setTimeout(() => {
+        if (mode !== 'text') connectLive();
+    }, 50);
   };
 
   const handleVerifyLicense = () => {
+    if (!linkCode.trim()) {
+      showToast("Identification Required.", "error");
+      return;
+    }
     setIsVerifying(true);
     setTimeout(() => {
       setIsVerifying(false);
       setOnboardingStep(s => s + 1);
-      showToast("Neural Bridge Established.", "success");
-    }, 2000);
+      showToast("Neural Bridge Secure.", "success");
+    }, 2500);
   };
 
   const RPS_OPTIONS = [
@@ -598,7 +616,7 @@ export default function App() {
       <header className="h-20 md:h-24 px-4 md:px-8 flex items-center justify-between border-b border-black/5 dark:border-white/5 bg-white/80 dark:bg-black/40 backdrop-blur-2xl z-50">
         <div className="flex items-center gap-2">
           <Tooltip text="Sync History">
-            <button onClick={() => setIsHistoryOpen(true)} className="p-3 rounded-2xl hover:bg-black/5 dark:hover:bg-white/5 transition-all text-zinc-400 hover:text-blue-500"><Menu size={20} md:size={24} /></button>
+            <button onClick={() => setIsHistoryOpen(true)} className="p-3 rounded-2xl hover:bg-black/5 dark:hover:bg-white/5 transition-all text-zinc-400 hover:text-blue-500"><Menu className="w-5 h-5 md:w-6 md:h-6" /></button>
           </Tooltip>
         </div>
         
@@ -612,10 +630,10 @@ export default function App() {
           </div>
           <div className="flex justify-between w-full mt-1">
              <div className="flex items-center gap-1">
-                <span className="text-[8px] md:text-[9px] font-black text-white px-1 py-0.5 bg-blue-600 rounded-md">LVL {user?.level || 1}</span>
+                <span className="text-[8px] md:text-[9px] font-black text-white px-1.5 py-0.5 bg-blue-600 rounded-md">LVL {user?.level || 1}</span>
              </div>
              <div className="flex items-center gap-1 text-orange-500">
-                <Flame size={8} md:size={10} />
+                <Flame className="w-2 h-2 md:w-2.5 md:h-2.5" />
                 <span className="text-[8px] md:text-[9px] font-black">{user?.xp || 0} XP</span>
              </div>
           </div>
@@ -624,7 +642,7 @@ export default function App() {
         <div className="flex items-center gap-1 md:gap-2">
           <Tooltip text="Neural Library">
             <button onClick={() => { setLibraryTab('badges'); setIsLibraryOpen(true); }} className="p-2 md:p-3 rounded-2xl relative text-blue-600 dark:text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 transition-all shadow-lg group">
-              <Brain size={20} md:size={24} className="group-hover:scale-110 transition-transform" />
+              <Brain className="w-5 h-5 md:w-6 md:h-6 group-hover:scale-110 transition-transform" />
             </button>
           </Tooltip>
           <Tooltip text="Engine Settings">
@@ -639,9 +657,9 @@ export default function App() {
       <div className="flex justify-center p-2 md:p-4 bg-white/50 dark:bg-black/20 backdrop-blur-md z-40 border-b border-black/5 dark:border-white/5 overflow-x-auto">
         <div className="flex bg-zinc-100 dark:bg-zinc-900 p-1 rounded-2xl md:rounded-3xl gap-1 border border-black/5 dark:border-white/5 shadow-inner">
           {[
-            { id: 'text', label: 'Text', icon: <MessageSquare size={14} md:size={16} />, color: 'text-blue-600' },
-            { id: 'chat', label: 'Voice', icon: <Mic2 size={14} md:size={16} />, color: 'text-emerald-600' },
-            { id: 'note', label: 'Notes', icon: <StickyNote size={14} md:size={16} />, color: 'text-amber-600' }
+            { id: 'text', label: 'Text', icon: <MessageSquare className="w-4 h-4 md:w-5 md:h-5" />, color: 'text-blue-600' },
+            { id: 'chat', label: 'Voice', icon: <Mic2 className="w-4 h-4 md:w-5 md:h-5" />, color: 'text-emerald-600' },
+            { id: 'note', label: 'Notes', icon: <StickyNote className="w-4 h-4 md:w-5 md:h-5" />, color: 'text-amber-600' }
           ].map(m => (
             <button 
               key={m.id} 
@@ -661,33 +679,47 @@ export default function App() {
             <VibeOrb active={isLive} isThinking={isLoading || isConnecting} volume={volume} outputVolume={outputVolume} personalityId={settings.personalityId} mode={activeMode} />
             <div className="space-y-4 px-4">
               <h3 className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.5em] md:tracking-[0.6em] text-blue-600 dark:text-blue-500">IDENTITY ESTABLISHED: {user?.userName}</h3>
-              <p className="text-[12px] md:text-[14px] font-bold text-zinc-500 leading-relaxed">
+              <p className="text-[12px] md:text-[14px] font-bold text-zinc-500 dark:text-zinc-400 leading-relaxed">
                 {activeMode === 'text' ? '"Text neural pathways open. Transmit thought."' : 
                  activeMode === 'chat' ? '"Voice link active. I\'m listening, bestie."' :
-                 '"Silent note taker protocol engaged. Record your insights."'}
+                 '"Silent note taker protocol engaged. Capture your ideas."'}
               </p>
             </div>
             
-            <button onClick={handleSummarize} className="group relative flex items-center gap-2 md:gap-3 px-6 md:px-8 py-3 md:py-4 bg-blue-600/10 hover:bg-blue-600 text-blue-600 hover:text-white border-2 border-blue-600/20 rounded-full font-black uppercase text-[10px] md:text-xs tracking-widest transition-all shadow-xl animate-vibe-in">
-               <FileSearch size={18} md:size={20} className="group-hover:rotate-12 transition-transform" />
-               Neural Summary
-            </button>
+            <div className="flex flex-wrap items-center justify-center gap-4">
+              <button onClick={handleSummarize} className="group relative flex items-center gap-2 md:gap-3 px-6 md:px-8 py-3 md:py-4 bg-blue-600/10 hover:bg-blue-600 text-blue-600 hover:text-white border-2 border-blue-600/20 rounded-full font-black uppercase text-[10px] md:text-xs tracking-widest transition-all shadow-xl animate-vibe-in">
+                 <FileSearch className="w-4 h-4 md:w-5 md:h-5 group-hover:rotate-12 transition-transform" />
+                 Neural Summary
+              </button>
+              <button onClick={() => handleSendToAI("Let's play Rock Paper Scissors!")} className="group relative flex items-center gap-2 md:gap-3 px-6 md:px-8 py-3 md:py-4 bg-rose-600/10 hover:bg-rose-600 text-rose-600 hover:text-white border-2 border-rose-600/20 rounded-full font-black uppercase text-[10px] md:text-xs tracking-widest transition-all shadow-xl animate-vibe-in">
+                 <Swords className="w-4 h-4 md:w-5 md:h-5 group-hover:rotate-12 transition-transform" />
+                 Battle Mode
+              </button>
+            </div>
           </div>
         ) : (
           <div className="space-y-6 md:space-y-8 pb-32">
             {messages.map((msg, index) => (
               <div key={msg.id} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} animate-vibe-in group max-w-full`}>
                 <div className="relative flex items-end gap-2 md:gap-3 max-w-[98%] md:max-w-[95%]">
-                  {msg.role === 'model' && <div className="w-7 h-7 md:w-8 md:h-8 rounded-full overflow-hidden border border-black/5 dark:border-white/10 shrink-0"><img src={AVATARS[index % AVATARS.length]} className="w-full h-full object-cover" alt="avatar" /></div>}
+                  {msg.role === 'model' && <div className="w-7 h-7 md:w-8 md:h-8 rounded-full overflow-hidden border border-black/5 dark:border-white/10 shrink-0 animate-shimmer-avatar ring-2 ring-transparent transition-all"><img src={AVATARS[index % AVATARS.length]} className="w-full h-full object-cover" alt="avatar" /></div>}
                   <div className={`px-4 md:px-6 py-4 md:py-5 rounded-[24px] md:rounded-[28px] text-[14px] md:text-[15px] border transition-all ${msg.role === 'user' ? 'bg-blue-600 text-white border-blue-500/20 rounded-br-none shadow-md' : 'bg-white dark:bg-[#111111] text-zinc-900 dark:text-zinc-100 border-black/5 dark:border-white/5 rounded-bl-none shadow-lg relative group'}`}>
+                    {activeMode === 'note' && msg.role === 'model' && (
+                      <div className="flex items-center gap-2 text-[8px] font-black uppercase tracking-widest text-emerald-500 mb-2 border-b border-black/5 dark:border-white/5 pb-2">
+                        <StickyNote size={10} /> Neural Scribe Recorded
+                      </div>
+                    )}
                     <MarkdownText text={msg.text} />
                     {msg.role === 'model' && (
-                      <div className="mt-4 pt-4 border-t border-black/5 dark:border-white/5 flex items-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => copyToClipboard(msg.text)} className="flex items-center gap-2 text-[8px] md:text-[9px] font-black uppercase tracking-widest text-zinc-400 hover:text-blue-500 transition-colors">
-                          <Copy size={12} /> Copy
+                      <div className="mt-4 pt-4 border-t border-black/5 dark:border-white/5 flex items-center gap-2 md:gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => copyToClipboard(msg.text)} className="flex items-center gap-1.5 text-[8px] md:text-[9px] font-black uppercase tracking-widest text-zinc-400 hover:text-blue-500 transition-colors">
+                          <Copy className="w-3 h-3" /> Copy
                         </button>
-                        <button onClick={() => shareResponse(msg.text)} className="flex items-center gap-2 text-[8px] md:text-[9px] font-black uppercase tracking-widest text-zinc-400 hover:text-emerald-500 transition-colors">
-                          <Share2 size={12} /> Share
+                        <button onClick={() => copyLinkToMessage(msg.text)} className="flex items-center gap-1.5 text-[8px] md:text-[9px] font-black uppercase tracking-widest text-zinc-400 hover:text-blue-600 transition-colors">
+                          <LinkIcon className="w-3 h-3" /> Copy Link
+                        </button>
+                        <button onClick={() => shareResponse(msg.text)} className="flex items-center gap-1.5 text-[8px] md:text-[9px] font-black uppercase tracking-widest text-zinc-400 hover:text-emerald-500 transition-colors">
+                          <Share2 className="w-3 h-3" /> Share
                         </button>
                       </div>
                     )}
@@ -701,7 +733,7 @@ export default function App() {
                 {interimUserText && (
                   <div className="flex flex-col items-center gap-2 animate-slide-up px-4">
                     <div className="flex items-center gap-2 text-[7px] md:text-[8px] font-black uppercase tracking-widest text-zinc-400 bg-white/80 dark:bg-black/40 px-3 py-1 rounded-full border border-black/5 dark:border-white/10 backdrop-blur-md">
-                       <Mic size={10} className="text-blue-600" /> Neural Linkage
+                       <Mic className="w-2.5 h-2.5 text-blue-600" /> Audio Sensed
                     </div>
                     <div className="p-4 md:p-6 bg-white dark:bg-zinc-800 rounded-[28px] md:rounded-[32px] text-[14px] md:text-[16px] font-black border-4 border-blue-600/20 shadow-2xl italic max-w-xs text-center relative overflow-hidden">
                       <div className="absolute inset-0 bg-blue-600/5 animate-pulse" />
@@ -710,7 +742,10 @@ export default function App() {
                   </div>
                 )}
                 {interimModelText && (
-                  <div className="p-4 md:p-6 bg-blue-600 text-white rounded-[28px] md:rounded-[32px] text-[13px] md:text-[15px] font-black border-4 border-white/20 shadow-[0_0_50px_rgba(37,99,235,0.4)] backdrop-blur-md animate-blast-in max-w-[90%] md:max-w-md">
+                  <div className="p-4 md:p-6 bg-blue-600 text-white rounded-[28px] md:rounded-[32px] text-[13px] md:text-[15px] font-black border-4 border-white/20 shadow-[0_0_50px_rgba(37,99,235,0.4)] backdrop-blur-md animate-blast-in max-w-[90%] md:max-w-md flex flex-col gap-2">
+                    {activeMode === 'note' && (
+                       <span className="text-[9px] font-black uppercase tracking-widest opacity-60">Scribing Real-Time...</span>
+                    )}
                     "{interimModelText}"
                   </div>
                 )}
@@ -727,9 +762,9 @@ export default function App() {
           {isRPSActive && !isLoading && !rpsAnimating && !gameFeedback && (
             <div className="flex flex-col items-center gap-4 md:gap-6 py-6 md:py-8 animate-slide-up bg-white/50 dark:bg-zinc-900/50 backdrop-blur-3xl rounded-[32px] md:rounded-[40px] border-4 border-blue-600/20 p-6 md:p-10 shadow-3xl mx-2">
               <div className="flex items-center gap-2 md:gap-3">
-                 <Swords size={16} md:size={20} className="text-blue-600 animate-bounce" />
+                 <Swords className="w-4 h-4 md:w-5 md:h-5 text-blue-600 animate-bounce" />
                  <p className="text-[10px] md:text-[12px] font-black uppercase tracking-[0.3em] md:tracking-[0.5em] text-blue-600">Neural combat Active</p>
-                 <Swords size={16} md:size={20} className="text-blue-600 animate-bounce" />
+                 <Swords className="w-4 h-4 md:w-5 md:h-5 text-blue-600 animate-bounce" />
               </div>
               <div className="flex gap-3 md:gap-8">
                 {RPS_OPTIONS.map((opt) => (
@@ -752,40 +787,45 @@ export default function App() {
             <div className={`flex items-center gap-1 md:gap-2 p-1 md:p-2 border border-black/5 dark:border-white/10 rounded-[30px] md:rounded-[40px] shadow-2xl bg-white/90 dark:bg-black/80 backdrop-blur-3xl transition-all mx-2`}>
               {activeMode !== 'text' ? (
                  <button onClick={isLive ? disconnectLive : connectLive} className={`p-4 md:p-5 rounded-full flex items-center gap-2 md:gap-3 transition-all ${isLive ? 'bg-rose-600 text-white animate-pulse' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400'}`}>
-                   {isLive ? <Mic size={20} md:size={24}/> : <Volume2 size={20} md:size={24}/>}
+                   {isLive ? <Mic className="w-5 h-5 md:w-6 md:h-6" /> : <Volume2 className="w-5 h-5 md:w-6 md:h-6" />}
                    {isLive && <span className="text-[8px] md:text-[10px] font-black uppercase tracking-widest pr-1 md:pr-2">Live Sync</span>}
                  </button>
               ) : (
-                 <button onClick={() => fileInputRef.current?.click()} className="p-4 md:p-5 text-zinc-400 hover:text-blue-600 transition-colors">
-                   <Paperclip size={20} md:size={24}/>
-                   <input type="file" ref={fileInputRef} className="hidden" multiple onChange={(e) => {
-                     const files = Array.from(e.target.files || []);
-                     files.forEach(file => {
-                       const reader = new FileReader();
-                       const id = Date.now().toString();
-                       setPendingFiles(prev => [...prev, { id, data: '', name: file.name, type: file.type, progress: 0, isUploading: true, reader }]);
-                       reader.onload = () => setPendingFiles(prev => prev.map(f => f.id === id ? { ...f, data: reader.result as string, isUploading: false } : f));
-                       reader.readAsDataURL(file);
-                     });
-                   }} />
-                 </button>
+                 <div className="flex items-center">
+                    <button onClick={() => fileInputRef.current?.click()} className="p-4 md:p-5 text-zinc-400 hover:text-blue-600 transition-colors">
+                      <Paperclip className="w-5 h-5 md:w-6 md:h-6" />
+                      <input type="file" ref={fileInputRef} className="hidden" multiple onChange={(e) => {
+                        const files = Array.from(e.target.files || []) as File[];
+                        files.forEach(file => {
+                          const reader = new FileReader();
+                          const id = Date.now().toString();
+                          setPendingFiles(prev => [...prev, { id, data: '', name: file.name, type: file.type, progress: 0, isUploading: true, reader }]);
+                          reader.onload = () => setPendingFiles(prev => prev.map(f => f.id === id ? { ...f, data: reader.result as string, isUploading: false } : f));
+                          reader.readAsDataURL(file);
+                        });
+                      }} />
+                    </button>
+                    <button onClick={() => handleSendToAI("Let's play Rock Paper Scissors!")} className="p-4 md:p-5 text-zinc-400 hover:text-rose-600 transition-colors">
+                      <Swords className="w-5 h-5 md:w-6 md:h-6" />
+                    </button>
+                 </div>
               )}
               <input 
                 type="text" 
-                placeholder={activeMode !== 'text' ? "Vibe link active..." : "Sync thought..."} 
+                placeholder={activeMode === 'chat' ? "Talking to Mr. Cute..." : activeMode === 'note' ? "Scribing your thoughts..." : "Sync thought..."} 
                 disabled={activeMode !== 'text'} 
                 value={inputText} 
                 onChange={e => setInputText(e.target.value)} 
                 onKeyDown={e => e.key === 'Enter' && handleSendToAI(inputText)} 
-                className="flex-1 bg-transparent py-3 md:py-4 px-1 md:px-2 font-bold text-[14px] md:text-[15px] outline-none dark:text-white disabled:opacity-30" 
+                className="flex-1 bg-transparent py-3 md:py-4 px-1 md:px-2 font-bold text-[14px] md:text-[15px] outline-none dark:text-white disabled:opacity-50" 
               />
-              {activeMode === 'text' && <button onClick={() => handleSendToAI(inputText)} className={`p-4 md:p-5 rounded-full transition-all active:scale-95 ${inputText.trim() ? 'bg-blue-600 text-white shadow-2xl' : 'text-zinc-200 dark:text-zinc-800'}`}><Send size={20} md:size={24}/></button>}
+              {activeMode === 'text' && <button onClick={() => handleSendToAI(inputText)} className={`p-4 md:p-5 rounded-full transition-all active:scale-95 ${inputText.trim() ? 'bg-blue-600 text-white shadow-2xl' : 'text-zinc-200 dark:text-zinc-800'}`}><Send className="w-5 h-5 md:w-6 md:h-6" /></button>}
             </div>
           )}
         </div>
       </footer>
 
-      {/* Battle animations / feedback modals remain massive and impactful */}
+      {/* Dramatic Battle Animation Overlay */}
       {rpsAnimating && (
         <div className="fixed inset-0 z-[16000] flex flex-col items-center justify-center animate-fade-in bg-black/80 backdrop-blur-3xl overflow-hidden">
            <div className="absolute w-[200%] h-[200%] bg-[conic-gradient(from_0deg,transparent_0deg,rgba(59,130,246,0.1)_10deg,transparent_20deg)] animate-sparkle-spin pointer-events-none" />
@@ -802,7 +842,7 @@ export default function App() {
               </div>
               <div className="flex flex-col items-center gap-4 md:gap-6">
                  <div className="w-24 h-24 md:w-48 md:h-48 rounded-[32px] md:rounded-[64px] bg-zinc-800 flex items-center justify-center border-4 border-white/10 shadow-3xl animate-excited-bounce" style={{ animationDelay: '0.2s' }}>
-                    <UserCircle size={48} md:size={64} className="text-white/40" />
+                    <UserCircle className="w-12 h-12 md:w-16 md:h-16 text-white/40" />
                  </div>
                  <p className="text-[10px] md:text-[14px] font-black uppercase tracking-[0.4em] text-zinc-400">You</p>
               </div>
@@ -810,66 +850,75 @@ export default function App() {
         </div>
       )}
 
-      {/* Game Feedback / History / Settings modals... */}
+      {/* Game Feedback Modal */}
       {gameFeedback && (
         <div className="fixed inset-0 z-[16000] flex items-center justify-center p-4 md:p-6 animate-fade-in overflow-hidden">
            <div className="absolute inset-0 bg-black/90 backdrop-blur-2xl" onClick={() => setGameFeedback(null)} />
-           <div className={`relative w-full max-w-md rounded-[48px] md:rounded-[70px] p-8 md:p-12 space-y-8 md:space-y-12 border-4 bg-white dark:bg-[#0c0c0c] shadow-3xl text-center animate-blast-in ${gameFeedback.result === 'win' ? 'border-emerald-500/40 shadow-emerald-500/20' : gameFeedback.result === 'loss' ? 'border-rose-500/40 shadow-rose-500/20' : 'border-zinc-500/40'}`}>
+           <div className={`relative w-full max-w-md rounded-[48px] md:rounded-[70px] p-8 md:p-12 space-y-8 md:space-y-12 border-4 bg-white dark:bg-[#0c0c0c] shadow-[0_0_100px_rgba(0,0,0,0.4)] text-center animate-game-impact ${gameFeedback.result === 'win' ? 'border-emerald-500/40 shadow-emerald-500/20' : gameFeedback.result === 'loss' ? 'border-rose-500/40 shadow-rose-500/20' : 'border-zinc-500/40'}`}>
               <div className="flex items-center justify-center gap-4 md:gap-12 animate-reveal-shake">
-                 <div className="flex flex-col items-center gap-2 md:gap-4">
-                    <p className="text-[8px] md:text-[10px] font-black uppercase tracking-widest text-zinc-500">Mr. Cute</p>
-                    <div className="w-20 h-20 md:w-36 md:h-36 rounded-[28px] md:rounded-[40px] bg-zinc-100 dark:bg-white/5 flex items-center justify-center text-3xl md:text-7xl border-2 border-white/5 shadow-inner">
-                       {getEmoji(gameFeedback.aiChoice)}
+                 <div className="flex flex-col items-center gap-2 md:gap-4 relative">
+                    <p className="text-[8px] md:text-[10px] font-black uppercase tracking-widest text-zinc-500">Mr. Cute Picked</p>
+                    <div className="w-24 h-24 md:w-40 md:h-40 rounded-[30px] md:rounded-[45px] bg-zinc-100 dark:bg-white/5 flex items-center justify-center text-4xl md:text-8xl border-2 border-white/5 shadow-inner overflow-hidden">
+                       <div className="flex flex-col items-center animate-slot-cycle">
+                          <span className="mb-8">🪨</span>
+                          <span className="mb-8">📄</span>
+                          <span className="mb-8">✂️</span>
+                       </div>
+                       <div className="absolute inset-0 flex items-center justify-center bg-zinc-100 dark:bg-[#111] animate-fade-in" style={{ animationDelay: '1.2s' }}>
+                          <span className="animate-blast-in" style={{ animationDelay: '1.3s' }}>{getEmoji(gameFeedback.aiChoice)}</span>
+                       </div>
                     </div>
                  </div>
-                 <div className="text-xl font-black italic text-zinc-200 dark:text-zinc-800">VS</div>
+                 <div className="text-2xl font-black italic text-zinc-200 dark:text-zinc-800">VS</div>
                  <div className="flex flex-col items-center gap-2 md:gap-4">
-                    <p className="text-[8px] md:text-[10px] font-black uppercase tracking-widest text-zinc-500">You</p>
-                    <div className="w-20 h-20 md:w-36 md:h-36 rounded-[28px] md:rounded-[40px] bg-blue-600 text-white flex items-center justify-center text-3xl md:text-7xl shadow-3xl">
+                    <p className="text-[8px] md:text-[10px] font-black uppercase tracking-widest text-zinc-500">Your Choice</p>
+                    <div className={`w-24 h-24 md:w-40 md:h-40 rounded-[30px] md:rounded-[45px] bg-blue-600 text-white flex items-center justify-center text-4xl md:text-8xl shadow-3xl shadow-blue-500/40 ${gameFeedback.result === 'win' ? 'animate-victory-glow' : ''}`}>
                        {getEmoji(gameFeedback.userChoice)}
                     </div>
                  </div>
               </div>
-              <div className="space-y-4">
-                <h2 className={`text-4xl md:text-8xl font-black uppercase italic tracking-tighter leading-none ${gameFeedback.result === 'win' ? 'text-emerald-500' : gameFeedback.result === 'loss' ? 'text-rose-500' : 'text-zinc-500'}`}>
-                  {gameFeedback.title.replace('!','').replace('🏆','')}
-                </h2>
-                <p className="text-zinc-400 font-black text-xs md:text-lg italic">"{gameFeedback.msg}"</p>
+              <div className="space-y-6 opacity-0 animate-fade-in" style={{ animationDelay: '1.5s' }}>
+                <div className="space-y-2">
+                  <h2 className={`text-6xl md:text-8xl font-black uppercase italic tracking-tighter leading-none ${gameFeedback.result === 'win' ? 'text-emerald-500' : gameFeedback.result === 'loss' ? 'text-rose-500' : 'text-zinc-500'}`}>
+                    {gameFeedback.title.replace('!','').replace('🏆','')}
+                  </h2>
+                  <p className="text-zinc-400 font-black text-sm md:text-lg italic px-4">"{gameFeedback.msg}"</p>
+                </div>
                 {gameFeedback.result === 'win' && (
-                  <div className="flex items-center justify-center gap-2 px-4 py-3 rounded-full bg-orange-500/10 text-orange-500 font-black text-[10px] md:text-sm uppercase tracking-widest border border-orange-500/20">
-                     <Flame size={16} className="fill-current" /> +50 XP NEURAL BOOST
+                  <div className="flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-orange-500/10 text-orange-500 font-black text-xs md:text-base uppercase tracking-widest border-2 border-orange-500/20 animate-hi-pulse mx-auto w-fit">
+                     <Flame className="w-5 h-5 fill-current" /> +50 XP GAINED!
                   </div>
                 )}
-              </div>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button onClick={() => { setGameFeedback(null); handleSendToAI("let's play again"); }} className="flex-1 py-5 md:py-8 bg-blue-600 text-white rounded-[28px] md:rounded-[40px] font-black text-sm md:text-lg uppercase tracking-widest flex items-center justify-center gap-2 shadow-2xl active:scale-95 transition-all">
-                  <RotateCcw size={20} /> Battle
-                </button>
-                <button onClick={() => setGameFeedback(null)} className="flex-1 py-5 md:py-8 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 rounded-[28px] md:rounded-[40px] font-black text-sm md:text-lg uppercase tracking-widest active:scale-95 transition-all">
-                  Return
-                </button>
+                <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                  <button onClick={() => { setGameFeedback(null); handleSendToAI("let's play again"); }} className="flex-1 py-6 bg-blue-600 text-white rounded-[32px] md:rounded-[40px] font-black text-lg uppercase tracking-widest flex items-center justify-center gap-3 shadow-2xl hover:brightness-110 active:scale-95 transition-all">
+                    <RotateCcw className="w-5 h-5" /> RE-SYNC
+                  </button>
+                  <button onClick={() => setGameFeedback(null)} className="flex-1 py-6 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 rounded-[32px] md:rounded-[40px] font-black text-lg uppercase tracking-widest hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all border border-black/5 dark:border-white/5 active:scale-95">
+                    END BATTLE
+                  </button>
+                </div>
               </div>
            </div>
         </div>
       )}
 
-      {/* Updated Library / History Sidebars for better mobile fit */}
+      {/* History Sidebar */}
       {isHistoryOpen && (
         <div className="fixed inset-0 z-[13000] flex animate-fade-in">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsHistoryOpen(false)} />
           <div className="relative w-[85%] max-w-xs h-full p-6 md:p-8 animate-slide-up border-r bg-white dark:bg-[#080808] border-black/5 dark:border-white/10 overflow-y-auto custom-scrollbar">
             <div className="flex items-center justify-between mb-8">
                <h2 className="text-lg md:text-xl font-black uppercase italic tracking-tighter">Sync Log</h2>
-               <button onClick={() => { setIsHistoryOpen(false); handleNewChat(true); }} className="p-2 bg-blue-600 text-white rounded-xl"><Plus size={18}/></button>
+               <button onClick={() => { setIsHistoryOpen(false); handleNewChat(true); }} className="p-2 bg-blue-600 text-white rounded-xl"><Plus className="w-4 h-4" /></button>
             </div>
             <div className="space-y-3">
               {sessions.map(s => (
                 <div key={s.id} onClick={() => switchSession(s.id)} className={`p-4 rounded-xl md:rounded-2xl flex items-center justify-between group cursor-pointer border transition-all ${activeSessionId === s.id ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'bg-black/5 dark:bg-white/5 border-transparent text-zinc-500 hover:bg-black/10 dark:hover:bg-white/10'}`}>
                   <div className="flex items-center gap-3 truncate">
-                     <Clock size={16} className="shrink-0" />
+                     <Clock className="w-4 h-4 shrink-0" />
                      <span className="text-[10px] font-black uppercase tracking-widest truncate">{s.title}</span>
                   </div>
-                  <button onClick={(e) => deleteSession(e, s.id)} className="p-2 opacity-0 group-hover:opacity-100 hover:bg-rose-500 hover:text-white rounded-lg transition-all"><Trash2 size={14}/></button>
+                  <button onClick={(e) => deleteSession(e, s.id)} className="p-2 opacity-0 group-hover:opacity-100 hover:bg-rose-500 hover:text-white rounded-lg transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
                 </div>
               ))}
             </div>
@@ -877,6 +926,7 @@ export default function App() {
         </div>
       )}
 
+      {/* Library Sidebar */}
       {isLibraryOpen && (
         <div className="fixed inset-0 z-[13000] flex justify-end animate-fade-in">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsLibraryOpen(false)} />
@@ -889,7 +939,7 @@ export default function App() {
                   <button onClick={() => setLibraryTab('history')} className={`text-[9px] md:text-[10px] font-black uppercase tracking-widest pb-2 border-b-2 transition-all ${libraryTab === 'history' ? 'text-blue-600 border-blue-600' : 'text-zinc-400 border-transparent'}`}>Battles</button>
                 </div>
               </div>
-              <button onClick={() => setIsLibraryOpen(false)} className="p-2 md:p-3 bg-black/5 dark:bg-white/5 rounded-2xl"><X size={20} md:size={24}/></button>
+              <button onClick={() => setIsLibraryOpen(false)} className="p-2 md:p-3 bg-black/5 dark:bg-white/5 rounded-2xl"><X className="w-5 h-5 md:w-6 md:h-6" /></button>
             </div>
             {libraryTab === 'badges' ? (
               <div className="grid grid-cols-2 gap-3">
@@ -902,7 +952,7 @@ export default function App() {
               <div className="space-y-4">
                 {user?.gameHistory.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-20 text-center gap-4 text-zinc-500">
-                    <Swords size={32} className="opacity-20" />
+                    <Swords className="w-8 h-8 opacity-20" />
                     <p className="text-[10px] font-black uppercase tracking-widest">No neural combat data.</p>
                   </div>
                 ) : (
@@ -937,13 +987,14 @@ export default function App() {
         </div>
       )}
 
+      {/* Settings Modal */}
       {isProfileModalOpen && (
         <div className="fixed inset-0 z-[14000] flex items-center justify-center p-4 md:p-6 animate-fade-in">
            <div className="absolute inset-0 bg-black/60 dark:bg-black/95 backdrop-blur-xl" onClick={() => setIsProfileModalOpen(false)} />
            <div className="relative w-full max-w-2xl rounded-[40px] md:rounded-[48px] p-6 md:p-14 space-y-8 md:space-y-10 border bg-white dark:bg-[#080808] border-black/5 dark:border-white/10 overflow-y-auto max-h-[90vh] custom-scrollbar">
               <div className="flex items-center justify-between">
-                <h2 className="text-2xl md:text-3xl font-black uppercase italic tracking-tighter">Engine Core</h2>
-                <button onClick={() => setIsProfileModalOpen(false)} className="p-2 md:p-3 bg-black/5 dark:bg-white/5 rounded-2xl"><X size={18} md:size={22}/></button>
+                <h2 className="text-2xl md:text-3xl font-black uppercase italic tracking-tighter text-zinc-900 dark:text-white">Engine Core</h2>
+                <button onClick={() => setIsProfileModalOpen(false)} className="p-2 md:p-3 bg-black/5 dark:bg-white/5 rounded-2xl"><X className="w-5 h-5 md:w-6 md:h-6 text-zinc-900 dark:text-white" /></button>
               </div>
               <div className="space-y-6 md:space-y-8">
                 <section className="space-y-4">
@@ -956,22 +1007,27 @@ export default function App() {
                     ))}
                   </div>
                 </section>
-                <button onClick={() => updateSettings({ theme: settings.theme === 'dark' ? 'light' : 'dark' })} className="w-full p-5 md:p-6 bg-black/5 dark:bg-white/5 rounded-[28px] md:rounded-[32px] border border-black/5 dark:border-white/5 flex items-center justify-between">
-                   <div className="flex items-center gap-3">
-                      {settings.theme === 'dark' ? <Moon size={20} className="text-blue-500" /> : <Sun size={20} className="text-amber-500" />}
-                      <span className="font-black uppercase tracking-widest text-[10px] md:text-[11px]">Theme: {settings.theme}</span>
-                   </div>
-                   <div className="w-10 h-5 md:w-12 md:h-6 bg-zinc-200 dark:bg-zinc-700 rounded-full relative p-1 transition-all">
-                      <div className={`w-3 h-3 md:w-4 md:h-4 bg-white rounded-full transition-all ${settings.theme === 'dark' ? 'translate-x-5 md:translate-x-6' : 'translate-x-0'}`} />
-                   </div>
-                </button>
-                <button onClick={handleLogout} className="w-full py-5 md:py-6 rounded-[28px] md:rounded-[36px] bg-rose-500/10 text-rose-500 font-black text-[11px] md:text-[12px] uppercase flex items-center justify-center gap-3 md:gap-4 hover:bg-rose-500 hover:text-white transition-all shadow-lg"><LogOut size={18} md:size={20} /> TERMINATE SYNC</button>
+                
+                <div className="flex items-center justify-between p-6 bg-black/5 dark:bg-white/5 rounded-[32px] border border-black/5 dark:border-white/5 transition-colors">
+                  <div className="flex items-center gap-3">
+                    {settings.theme === 'dark' ? <Moon className="w-5 h-5 text-blue-500" /> : <Sun className="w-5 h-5 text-amber-500" />}
+                    <span className="font-black uppercase tracking-widest text-[10px] md:text-xs text-zinc-800 dark:text-zinc-200">Interface Mode: <span className="text-blue-500">{settings.theme}</span></span>
+                  </div>
+                  <button 
+                    onClick={() => updateSettings({ theme: settings.theme === 'dark' ? 'light' : 'dark' })}
+                    className={`w-14 h-8 rounded-full relative transition-colors duration-300 flex items-center px-1 shadow-inner ${settings.theme === 'dark' ? 'bg-blue-600' : 'bg-zinc-300'}`}
+                  >
+                    <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform duration-300 ${settings.theme === 'dark' ? 'translate-x-6' : 'translate-x-0'}`} />
+                  </button>
+                </div>
+
+                <button onClick={handleLogout} className="w-full py-5 md:py-6 rounded-[28px] md:rounded-[36px] bg-rose-500/10 text-rose-500 font-black text-[11px] md:text-[12px] uppercase flex items-center justify-center gap-3 md:gap-4 hover:bg-rose-500 hover:text-white transition-all shadow-lg border border-rose-500/20"><LogOut className="w-5 h-5" /> TERMINATE SYNC</button>
               </div>
            </div>
         </div>
       )}
 
-      {/* Redesigned Onboarding experience with mobile-optimized key entry step */}
+      {/* Onboarding experience */}
       {isNewUser && (
         <div className="fixed inset-0 z-[20000] bg-white dark:bg-[#020202] flex items-center justify-center p-3 sm:p-6 overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-blue-600/30 via-transparent to-emerald-500/30 opacity-40 animate-pulse" />
@@ -1002,12 +1058,12 @@ export default function App() {
                      <div className="grid grid-cols-1 gap-3 md:gap-4 w-full text-left">
                         <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400 ml-2">Neural Module Capabilities</p>
                         {[
-                          { icon: <MessageCircle size={18} />, title: "Personality Sync", desc: "Choose vibes from Roast Master to CEO.", color: "text-rose-500 bg-rose-500/10" },
-                          { icon: <Mic2 size={18} />, title: "Real-time Voice", desc: "Ultra-low latency spoken link.", color: "text-emerald-500 bg-emerald-500/10" },
-                          { icon: <Gamepad2 size={18} />, title: "Neural Combat", desc: "Earn XP via Rock Paper Scissors.", color: "text-amber-500 bg-amber-500/10" },
-                          { icon: <FileSearch size={18} />, title: "Smart Recaps", desc: "Instant summaries on command.", color: "text-blue-500 bg-blue-500/10" }
+                          { icon: <MessageCircle className="w-4 h-4 md:w-5 md:h-5" />, title: "Personality Sync", desc: "Choose vibes from Roast Master to CEO.", color: "text-rose-500 bg-rose-500/10" },
+                          { icon: <Mic2 className="w-4 h-4 md:w-5 md:h-5" />, title: "Real-time Voice", desc: "Ultra-low latency spoken link.", color: "text-emerald-500 bg-emerald-500/10" },
+                          { icon: <Gamepad2 className="w-4 h-4 md:w-5 md:h-5" />, title: "Neural Combat", desc: "Earn XP via Rock Paper Scissors.", color: "text-amber-500 bg-amber-500/10" },
+                          { icon: <FileSearch className="w-4 h-4 md:w-5 md:h-5" />, title: "Smart Recaps", desc: "Instant summaries on command.", color: "text-blue-500 bg-blue-500/10" }
                         ].map((cap, i) => (
-                          <div key={i} className="p-4 md:p-5 bg-black/5 dark:bg-white/5 rounded-[28px] md:rounded-[32px] border border-black/5 dark:border-white/5 flex items-center gap-4 md:gap-5 group hover:bg-blue-600/5 transition-all">
+                          <div key={i} className="p-4 md:p-5 bg-black/5 dark:bg-white/5 rounded-[28px] md:rounded-[32px] border border-black/5 dark:border-white/10 flex items-center gap-4 md:gap-5 group hover:bg-blue-600/5 transition-all">
                              <div className={`p-2.5 md:p-3 rounded-xl md:rounded-2xl group-hover:scale-110 transition-transform ${cap.color}`}>{cap.icon}</div>
                              <div>
                                 <p className="text-[11px] md:text-[12px] font-black uppercase tracking-tight mb-0.5 text-zinc-800 dark:text-zinc-200">{cap.title}</p>
@@ -1040,7 +1096,7 @@ export default function App() {
                 )}
 
                 {onboardingStep === 2 && (
-                  <div className="space-y-10 w-full animate-slide-up max-w-md">
+                  <div className="space-y-10 w-full animate-slide-up max-md">
                     <div className="text-center space-y-2">
                        <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tighter italic text-zinc-900 dark:text-white">Core Backbone</h2>
                        <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-emerald-600">Select sync intelligence provider</p>
@@ -1057,7 +1113,7 @@ export default function App() {
                              <p className={`text-[10px] md:text-[11px] font-medium mt-1 md:mt-2 leading-relaxed ${tempProfile.preferredProvider === p.id ? 'text-zinc-400' : 'text-zinc-500'}`}>{p.desc}</p>
                            </div>
                            <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full border-4 flex items-center justify-center shrink-0 transition-all ${tempProfile.preferredProvider === p.id ? 'bg-blue-600 border-blue-600 text-white' : 'border-zinc-300 dark:border-zinc-700'}`}>
-                             {tempProfile.preferredProvider === p.id && <CheckCircle2 size={16} md:size={20} strokeWidth={3} />}
+                             {tempProfile.preferredProvider === p.id && <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5" strokeWidth={3} />}
                            </div>
                         </button>
                       ))}
@@ -1069,31 +1125,42 @@ export default function App() {
                   <div className="space-y-10 w-full animate-slide-up text-center max-w-md py-4">
                      <div className="space-y-2">
                         <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tighter italic text-zinc-900 dark:text-white">Neural Bridge</h2>
-                        <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-blue-600">Verifying system access</p>
+                        <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-blue-600">Secure link initiation</p>
                      </div>
                      
-                     <div className="p-8 bg-black/5 dark:bg-white/5 rounded-[40px] border border-black/5 dark:border-white/5 space-y-6 relative overflow-hidden group">
+                     <div className="p-8 bg-black/5 dark:bg-white/5 rounded-[40px] border-2 border-dashed border-black/10 dark:border-white/10 space-y-6 relative overflow-hidden group">
                         <div className="flex flex-col items-center gap-4 py-4">
-                           <div className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-700 ${isVerifying ? 'bg-blue-600 text-white animate-spin-slow' : 'bg-blue-600/10 text-blue-600 shadow-xl'}`}>
-                              {isVerifying ? <RefreshCcw size={40} /> : <Fingerprint size={40} />}
+                           <div className={`w-20 h-20 rounded-[28px] flex items-center justify-center transition-all duration-700 ${isVerifying ? 'bg-blue-600 text-white animate-spin-slow' : 'bg-blue-600/10 text-blue-600 shadow-xl'}`}>
+                              {isVerifying ? <RefreshCcw className="w-10 h-10" /> : <Laptop className="w-10 h-10" />}
                            </div>
-                           <div className="space-y-1">
-                              <p className="text-[12px] font-black uppercase tracking-widest text-zinc-800 dark:text-zinc-200">System Verify</p>
-                              <p className="text-[10px] text-zinc-500 font-bold uppercase">Syncing via process.env.API_KEY</p>
+                           <div className="space-y-4 w-full">
+                              <p className="text-[12px] font-black uppercase tracking-widest text-zinc-800 dark:text-zinc-200">Bridge Access Key</p>
+                              <div className="relative group/input">
+                                <input 
+                                  type="text" 
+                                  placeholder="Type or paste bridge code..." 
+                                  value={linkCode}
+                                  onChange={e => setLinkCode(e.target.value)}
+                                  className="w-full bg-white dark:bg-zinc-800/50 py-4 px-6 rounded-2xl border-2 border-black/5 dark:border-white/5 focus:border-blue-600 outline-none transition-all text-center font-bold text-sm"
+                                />
+                                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within/input:text-blue-600">
+                                   <Smartphone className="w-4 h-4" />
+                                </div>
+                              </div>
                            </div>
                         </div>
                         
-                        <div className="flex items-center gap-3 p-4 bg-emerald-500/10 rounded-2xl border border-emerald-500/20 text-left">
-                           <Shield size={20} className="text-emerald-500 shrink-0" />
-                           <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold leading-relaxed">System license will be auto-detected for the <span className="uppercase">{tempProfile.preferredProvider}</span> backbone.</p>
+                        <div className="flex items-center gap-3 p-4 bg-blue-500/10 rounded-2xl border border-blue-500/20 text-left">
+                           <ShieldCheck className="w-5 h-5 text-blue-500 shrink-0" />
+                           <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold leading-relaxed italic">Bridge detected. Your personal sync code helps secure the high-fidelity neural tunnel.</p>
                         </div>
 
                         <button 
                            onClick={handleVerifyLicense} 
-                           disabled={isVerifying}
-                           className="w-full py-6 rounded-3xl bg-blue-600 text-white font-black text-xs uppercase tracking-[0.3em] shadow-xl hover:brightness-110 active:scale-95 transition-all disabled:opacity-50"
+                           disabled={isVerifying || !linkCode.trim()}
+                           className="w-full py-6 rounded-3xl bg-blue-600 text-white font-black text-xs uppercase tracking-[0.3em] shadow-xl hover:brightness-110 active:scale-95 transition-all disabled:opacity-30"
                         >
-                           {isVerifying ? 'Verifying...' : 'Establish Link'}
+                           {isVerifying ? 'Synchronizing...' : 'Establish Link'}
                         </button>
                      </div>
                   </div>
@@ -1159,7 +1226,7 @@ export default function App() {
                     onClick={() => setOnboardingStep(s => s - 1)} 
                     className="p-6 md:p-8 rounded-[30px] md:rounded-[40px] bg-black/5 dark:bg-white/5 text-zinc-400 border-2 border-black/5 dark:border-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-all flex items-center justify-center active:scale-90 shadow-lg"
                   >
-                    <ArrowLeft size={24} md:size={32} strokeWidth={4} />
+                    <ArrowLeft className="w-8 h-8" strokeWidth={4} />
                   </button>
                 )}
                 <button 
@@ -1169,7 +1236,7 @@ export default function App() {
                 >
                   <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-700 ease-out" />
                   <span className="relative z-10">{onboardingStep < 5 ? 'Next' : 'Sync'}</span>
-                  <Zap size={24} md:size={28} strokeWidth={3} className="relative z-10 group-hover:scale-125 transition-transform animate-pulse" />
+                  <Zap className="w-7 h-7 relative z-10 group-hover:scale-125 transition-transform animate-pulse" strokeWidth={3} />
                 </button>
              </div>
           </div>
